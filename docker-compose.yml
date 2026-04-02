@@ -1,0 +1,16 @@
+services:
+  yerbaxanaes-db:
+    image: postgres:16-alpine
+    container_name: yerbaxanaes_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: yerbapassword123
+      POSTGRES_DB: yerbaxanaes_main_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - yerbaxanaes_pg_data:/var/lib/postgresql/data
+
+volumes:
+  yerbaxanaes_pg_data:
