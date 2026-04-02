@@ -1,0 +1,240 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// BETTER AUTH TABLES (Requerido por Better Auth)
+// ============================================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  name          String?
+  image         String?
+  role          Role      @default(USER)
+  phone         String?
+  
+  // Better Auth relations
+  sessions      Session[]
+  accounts      Account[]
+  
+  // Business relations
+  address       Address?
+  orders        Order[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                    String    @id
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?   // Para credentials provider
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+}
+
+// ============================================================
+// BUSINESS TABLES
+// ============================================================
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Address {
+  id        String  @id @default(uuid())
+  street    String
+  city      String
+  state     String
+  zip       String
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id])
+}
+
+// ---------------------------------------------------------
+// INVENTORY
+// ---------------------------------------------------------
+
+enum MeasurementUnit {
+  GRAMS
+  UNITS
+}
+
+model InventoryItem {
+  id          String          @id @default(uuid())
+  name        String
+  sku         String?         @unique
+  currentStock Int
+  minStockAlert Int?
+  unit        MeasurementUnit
+  costPrice   Decimal?        @db.Decimal(10, 2)
+
+  usedInVariants VariantIngredient[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------
+// CATÁLOGO
+// ---------------------------------------------------------
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  products    Product[]
+}
+
+model Product {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  slug        String    @unique
+  isActive    Boolean   @default(true)
+  images      String[]
+  
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id])
+
+  variants    ProductVariant[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProductVariant {
+  id          String    @id @default(uuid())
+  name        String
+  price       Decimal   @db.Decimal(10, 2)
+  stock       Int?
+  
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+
+  ingredients VariantIngredient[]
+  
+  // Relación con lineas de ordenes
+  orderItems  OrderItem[]
+}
+
+model VariantIngredient {
+  id              String         @id @default(uuid())
+  
+  variantId       String
+  variant         ProductVariant @relation(fields: [variantId], references: [id])
+  
+  inventoryItemId String
+  inventoryItem   InventoryItem  @relation(fields: [inventoryItemId], references: [id])
+  
+  quantityRequired Int
+}
+
+// ---------------------------------------------------------
+// VENTAS (PAYMENTS MODULE REFACTOR)
+// ---------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  REJECTED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  MERCADOPAGO
+  CASH
+  TRANSFER
+}
+
+model Order {
+  id              String          @id @default(uuid())
+  total           Decimal         @db.Decimal(10, 2)
+  status          OrderStatus     @default(PENDING)
+  
+  // Datos del Cliente (Snapshot)
+  customerEmail   String
+  customerName    String?
+  customerPhone   String?
+  userId          String?         // Opcional: si es usuario registrado
+  user            User?           @relation(fields: [userId], references: [id])
+
+  // Datos de Pago (Mercado Pago)
+  paymentProvider PaymentProvider @default(MERCADOPAGO)
+  mpPaymentId     String?         // ID de pago de MP
+  mpStatus        String?         // Estado crudo de MP
+  mpCardToken     String?         // Opcional: debugging seguro
+
+  // Auditoría y Soft Delete
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?       // Soft Delete 🗑️
+
+  // Relaciones
+  items           OrderItem[]
+
+  @@index([customerEmail])
+  @@index([mpPaymentId])
+}
+
+model OrderItem {
+  id              String          @id @default(uuid())
+  orderId         String
+  order           Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  variantId       String
+  variant         ProductVariant  @relation(fields: [variantId], references: [id])
+  
+  quantity        Int
+  price           Decimal         @db.Decimal(10, 2) // Precio Snapshot
+
+  @@index([orderId])
+}
