@@ -1,38 +1,49 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# See https://help.github.com/articles/ignoring-files for more about ignoring files.
 
-# Dependencies
-node_modules
-.pnp
+# dependencies — todos los niveles del monorepo
+node_modules/
+/.pnp
 .pnp.js
 
-# Local env files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# testing
+/coverage
+**/coverage/
 
-# Testing
-coverage
+# next.js
+**/.next/
+/out/
 
-# Turbo
-.turbo
+# production
+/build
+**/dist/
 
-# Vercel
-.vercel
+# turbo cache
+.turbo/
 
-# Build Outputs
-.next/
-out/
-build
-dist
+# misc
+.DS_Store
+*.pem
+*.log
 
-
-# Debug
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+bun-debug.log*
 
-# Misc
-.DS_Store
-*.pem
+# env files — protege todos los .env reales, permite los .example
+.env
+.env.*
+!.env.example
+!.env*.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
