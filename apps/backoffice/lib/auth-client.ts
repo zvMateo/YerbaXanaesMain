@@ -3,7 +3,9 @@ import { inferAdditionalFields } from "better-auth/client/plugins";
 import type { auth } from "./auth";
 
 export const authClient = createAuthClient({
-  baseURL: process.env.BETTER_AUTH_BASE_URL || "http://localhost:3002",
+  // Usamos NEXT_PUBLIC_APP_URL porque es la única variable expuesta al navegador en Vercel.
+  // BETTER_AUTH_BASE_URL solo corre en el servidor (middleware, auth.ts).
+  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002",
   plugins: [inferAdditionalFields<typeof auth>()],
 });
 
