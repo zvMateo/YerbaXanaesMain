@@ -1,0 +1,33 @@
+# Dependencias — se reinstalan dentro del container
+node_modules
+**/node_modules
+
+# Builds anteriores — se recompilan dentro del container
+apps/api/dist
+apps/ecommerce/.next
+apps/backoffice/.next
+
+# Cache de Turbo
+.turbo
+
+# Git
+.git
+.gitignore
+
+# Variables de entorno reales — NUNCA en la imagen
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs
+*.log
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
