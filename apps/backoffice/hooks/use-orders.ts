@@ -51,7 +51,9 @@ export interface OrderDetails extends Order {
 // API FUNCTIONS
 // ============================================
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+).replace(/\/+$/, "");
 
 async function fetchOrders(): Promise<Order[]> {
   const response = await fetchWithAuth(`${API_URL}/orders`);
@@ -254,9 +256,7 @@ export function useOrderStats() {
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total), 0);
     const pendingOrders = orders.filter((o) => o.status === "PENDING").length;
-    const completedOrders = orders.filter(
-      (o) => o.status === "PAID",
-    ).length;
+    const completedOrders = orders.filter((o) => o.status === "PAID").length;
 
     const statusCounts = orders.reduce(
       (acc, order) => {

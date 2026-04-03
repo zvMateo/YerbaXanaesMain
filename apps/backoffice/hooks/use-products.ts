@@ -76,7 +76,9 @@ export interface UpdateProductDto {
 // API FUNCTIONS
 // ============================================
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+).replace(/\/+$/, "");
 
 async function fetchProducts(): Promise<Product[]> {
   const response = await fetchWithAuth(`${API_URL}/catalog`);

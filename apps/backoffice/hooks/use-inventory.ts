@@ -36,7 +36,9 @@ export interface UpdateInventoryDto extends Partial<CreateInventoryDto> {}
 // API FUNCTIONS
 // ============================================
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+).replace(/\/+$/, "");
 
 async function fetchInventory(): Promise<InventoryItem[]> {
   const response = await fetchWithAuth(`${API_URL}/inventory`);

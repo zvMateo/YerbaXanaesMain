@@ -1,7 +1,9 @@
 // 📁 apps/backoffice/lib/api.ts
 // API Client para el backoffice
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+).replace(/\/+$/, "");
 
 // Helper para fetch con error handling
 async function fetchAPI<T>(

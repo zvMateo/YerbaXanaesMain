@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+).replace(/\/+$/, "");
 
 // ============================================
 // TIPOS
