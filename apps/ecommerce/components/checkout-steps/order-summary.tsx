@@ -144,7 +144,8 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
               <div className="flex justify-between">
                 <span className="text-stone-500">Dirección</span>
                 <span className="font-medium text-stone-900 text-right">
-                  {formData.address}
+                  {process.env.NEXT_PUBLIC_STORE_ADDRESS ||
+                    "Consultá la dirección por WhatsApp"}
                 </span>
               </div>
               <div className="flex justify-between">

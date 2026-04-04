@@ -46,6 +46,11 @@ export const checkoutSchema = z.object({
   shippingProvider: z.string().optional(), // "correo_argentino" | "flat_rate" | "pickup"
   shippingProvinceCode: z.string().optional(), // Código de provincia Correo Argentino
 
+  // Costo de envío calculado (lo setea el delivery-step tras cotizar)
+  shippingCost: z.number().optional().default(0),
+  shippingProvider: z.string().optional(), // "correo_argentino" | "flat_rate" | "pickup"
+  shippingProvinceCode: z.string().optional(), // Código de provincia Correo Argentino
+
   // Notas adicionales
   notes: z
     .string()
