@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AdjustStockModal } from "./adjust-stock-modal";
+import { CreateInventoryModal } from "./create-inventory-modal";
 
 // SKELETON
 export function InventorySkeleton() {
@@ -61,6 +62,7 @@ export function InventoryTable() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "ok">("all");
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const filteredData = useMemo(() => {
     if (!inventory) return [];
@@ -216,6 +218,22 @@ export function InventoryTable() {
         onClose={() => setAdjustItem(null)}
         item={adjustItem}
       />
+      <CreateInventoryModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
+
+      {/* Header with button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-stone-900">Inventario</h2>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium shadow-lg hover:shadow-xl"
+        >
+          <Package className="h-4 w-4" />
+          Nuevo insumo
+        </button>
+      </div>
 
       {/* Filters */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-200 flex flex-col sm:flex-row gap-4">
