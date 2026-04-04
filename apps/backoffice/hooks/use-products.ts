@@ -206,3 +206,100 @@ export function useDeleteProduct() {
     },
   });
 }
+
+// ============================================
+// CATEGORY MUTATIONS
+// ============================================
+
+async function createCategory(data: {
+  name: string;
+  slug?: string;
+}): Promise<Category> {
+  const response = await fetchWithAuth(`${API_URL}/categories`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Error al crear categoría");
+  return response.json();
+}
+
+async function updateCategory({
+  id,
+  data,
+}: {
+  id: string;
+  data: { name: string; slug?: string };
+}): Promise<Category> {
+  const response = await fetchWithAuth(`${API_URL}/categories/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Error al actualizar categoría");
+  return response.json();
+}
+
+async function deleteCategory(id: string): Promise<void> {
+  const response = await fetchWithAuth(`${API_URL}/categories/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      (error as { message?: string }).message || "Error al eliminar categoría",
+    );
+  }
+}
+
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productKeys.categories() });
+      toast.success("Categoría creada correctamente");
+    },
+    onError: (error) => {
+      toast.error("Error al crear categoría", {
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+      });
+    },
+  });
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productKeys.categories() });
+      toast.success("Categoría actualizada correctamente");
+    },
+    onError: (error) => {
+      toast.error("Error al actualizar categoría", {
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+      });
+    },
+  });
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productKeys.categories() });
+      toast.success("Categoría eliminada");
+    },
+    onError: (error) => {
+      toast.error("Error al eliminar", {
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+      });
+    },
+  });
+}

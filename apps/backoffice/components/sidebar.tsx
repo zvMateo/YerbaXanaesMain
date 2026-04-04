@@ -20,6 +20,7 @@ import {
   HelpCircle,
   Search,
   Sparkles,
+  FolderOpen,
 } from "lucide-react";
 import {
   TbLayoutSidebarLeftCollapseFilled,
@@ -123,6 +124,13 @@ const navigation = [
     description: "Stock y materia prima",
     alert: true,
     shortcut: "⌘I",
+  },
+  {
+    name: "Categorías",
+    href: "/categorias",
+    icon: FolderOpen,
+    description: "Organización de productos",
+    shortcut: "⌘K",
   },
 ];
 

@@ -197,6 +197,37 @@ export class CatalogService {
     return this.prisma.product.delete({ where: { id } });
   }
 
+  async updateCategory(id: string, dto: CreateCategoryDto) {
+    const slug = dto.slug
+      ? dto.slug
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '')
+      : dto.name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+
+    return this.prisma.category.update({
+      where: { id },
+      data: { name: dto.name, slug },
+    });
+  }
+
+  async removeCategory(id: string) {
+    const count = await this.prisma.product.count({
+      where: { categoryId: id },
+    });
+    if (count > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar: tiene ${count} producto(s) asociado(s). Mové o eliminá los productos primero.`,
+      );
+    }
+    return this.prisma.category.delete({ where: { id } });
+  }
+
   /**
    * MÉTODO MÁGICO: Calcula el stock real disponible basado en recetas
    */
