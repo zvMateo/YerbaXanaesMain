@@ -51,6 +51,8 @@ export function CheckoutForm() {
     defaultValues: {
       deliveryType: "shipping",
       paymentMethod: "mercadopago",
+      shippingCost: 0,
+      shippingProvider: "pickup",
     },
   });
 
