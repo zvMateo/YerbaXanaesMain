@@ -45,14 +45,10 @@ export const auth = betterAuth({
       },
     },
   },
-  // Rate limiting para proteger contra fuerza bruta
+  // Rate limiting desactivado por ahora para evitar errores de tablas faltantes.
+  // Se puede reactivar en el futuro creando la migración correspondiente.
   rateLimit: {
-    enabled: isProduction,
-    storage: "database",
-    customRules: {
-      "/api/auth/sign-in/email": { window: 60, max: 5 },
-      "/api/auth/sign-up/email": { window: 60, max: 3 },
-    },
+    enabled: false,
   },
   plugins: [nextCookies()],
   // Orígenes confiables: producción + localhost para desarrollo
