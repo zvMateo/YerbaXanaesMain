@@ -5,12 +5,23 @@ import { nextCookies } from "better-auth/next-js";
 
 const prisma = new PrismaClient();
 
+// Determinar si estamos en producción para activar seguridad extra
+const isProduction = process.env.NODE_ENV === "production";
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
   emailAndPassword: {
     enabled: true,
+    // No requerimos verificación de email para el backoffice
+    // (la clienta se registra con Google o con email ya verificado)
+  },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    },
   },
   user: {
     additionalFields: {
@@ -20,6 +31,34 @@ export const auth = betterAuth({
       },
     },
   },
+  // Seguridad en producción
+  advanced: {
+    useSecureCookies: isProduction,
+    // Background tasks para Vercel (envía emails sin bloquear la respuesta)
+    backgroundTasks: {
+      handler: (promise) => {
+        // En Vercel, waitUntil asegura que los emails se envíen
+        // antes de que el serverless function termine
+        if (typeof globalThis !== "undefined" && "waitUntil" in globalThis) {
+          (globalThis as any).waitUntil(promise);
+        }
+      },
+    },
+  },
+  // Rate limiting para proteger contra fuerza bruta
+  rateLimit: {
+    enabled: isProduction,
+    storage: "database",
+    customRules: {
+      "/api/auth/sign-in/email": { window: 60, max: 5 },
+      "/api/auth/sign-up/email": { window: 60, max: 3 },
+    },
+  },
   plugins: [nextCookies()],
-  trustedOrigins: [process.env.BETTER_AUTH_URL || "http://localhost:3002"],
+  // Orígenes confiables: producción + localhost para desarrollo
+  trustedOrigins: [
+    "https://admin.yerbaxanaes.com",
+    "https://yerbaxanaes.com",
+    "http://localhost:3002",
+  ],
 });
