@@ -393,19 +393,27 @@ function SidebarContent({
           className={`flex items-center gap-3 ${isCollapsed ? "justify-center" : ""}`}
         >
           <div className="relative shrink-0">
-            <div className="w-10 h-10 bg-gradient-to-br from-yerba-400 to-yerba-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg">
-              A
-            </div>
+            {user?.image ? (
+              <img
+                src={user.image}
+                alt={user.name || "Usuario"}
+                className="w-10 h-10 rounded-full object-cover shadow-lg"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-gradient-to-br from-yerba-400 to-yerba-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg">
+                {userInitials}
+              </div>
+            )}
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
           </div>
 
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-stone-900 truncate">
-                Admin
+                {user?.name || "Usuario"}
               </p>
               <p className="text-xs text-stone-500 truncate">
-                admin@yerbaxanaes.com
+                {user?.email || ""}
               </p>
             </div>
           )}
@@ -447,7 +455,17 @@ function SidebarContent({
 export function Sidebar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useSidebarCollapsed(); // Hook persistente
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+
+  // Iniciales del usuario para el avatar fallback
+  const userInitials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "U";
 
   // Keyboard shortcuts
   useEffect(() => {
