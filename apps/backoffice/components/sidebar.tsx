@@ -276,10 +276,20 @@ function SidebarContent({
   isCollapsed,
   logout,
   setIsCollapsed,
+  user,
+  userInitials,
 }: {
   isCollapsed: boolean;
   logout: () => void;
   setIsCollapsed: (v: boolean) => void;
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+    role: "USER" | "ADMIN";
+    image?: string;
+  } | null;
+  userInitials: string;
 }) {
   const pathname = usePathname();
   const notifications = 5;
@@ -525,6 +535,8 @@ export function Sidebar() {
                   isCollapsed={false}
                   logout={logout}
                   setIsCollapsed={setIsCollapsed}
+                  user={user}
+                  userInitials={userInitials}
                 />
               </div>
             </motion.aside>
@@ -543,6 +555,8 @@ export function Sidebar() {
             isCollapsed={isCollapsed}
             logout={logout}
             setIsCollapsed={setIsCollapsed}
+            user={user}
+            userInitials={userInitials}
           />
 
           {/* Collapse Button - Floating (Only when expanded) */}
