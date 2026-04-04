@@ -4,7 +4,10 @@ import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { checkoutSchema, CheckoutFormData } from "@/schemas/checkout-schema";
+import {
+  checkoutSchemaValidated,
+  CheckoutFormData,
+} from "@/schemas/checkout-schema";
 import { useCartStore } from "@/stores/cart-store";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -46,13 +49,14 @@ export function CheckoutForm() {
   }, [items]);
 
   const methods = useForm<CheckoutFormData>({
-    resolver: zodResolver(checkoutSchema),
+    resolver: zodResolver(checkoutSchemaValidated),
     mode: "onChange",
     defaultValues: {
       deliveryType: "shipping",
       paymentMethod: "mercadopago",
       shippingCost: 0,
       shippingProvider: "pickup",
+      shippingProvinceCode: "B",
     },
   });
 
