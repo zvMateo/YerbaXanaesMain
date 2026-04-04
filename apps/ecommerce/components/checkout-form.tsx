@@ -188,6 +188,14 @@ export function CheckoutForm() {
               variantId: item.variantId,
               quantity: item.quantity,
             })),
+            // Datos de envío para que se persistan con la orden
+            deliveryType: data.deliveryType,
+            shippingAddress: data.address,
+            shippingCity: data.city,
+            shippingProvinceCode: data.shippingProvinceCode,
+            shippingZip: data.zipCode,
+            shippingCost: data.shippingCost ?? 0,
+            shippingProvider: data.shippingProvider,
           }),
         });
 
@@ -214,6 +222,14 @@ export function CheckoutForm() {
           customerPhone: data.customerPhone,
           channel: "ONLINE",
           paymentMethod: data.paymentMethod.toUpperCase(),
+          // Datos de envío
+          deliveryType: data.deliveryType,
+          shippingAddress: data.address,
+          shippingCity: data.city,
+          shippingProvinceCode: data.shippingProvinceCode,
+          shippingZip: data.zipCode,
+          shippingCost: data.shippingCost ?? 0,
+          shippingProvider: data.shippingProvider,
           items: items.map((item) => ({
             variantId: item.variantId,
             quantity: item.quantity,

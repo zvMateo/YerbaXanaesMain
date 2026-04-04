@@ -110,20 +110,32 @@ export class OrdersService {
             ? PaymentProvider.TRANSFER
             : PaymentProvider.MERCADOPAGO;
 
+      // Total con envío incluido
+      const shippingCost = dto.shippingCost ? Number(dto.shippingCost) : 0;
+      const totalWithShipping = totalAmount + shippingCost;
+
       const order = await tx.order.create({
         data: {
           userId: dto.userId,
           customerName: dto.customerName,
-          customerEmail: dto.customerEmail || 'guest@yerbaxanaes.com', // Fallback seguro
+          customerEmail: dto.customerEmail || dto.customerPhone || 'anonimo',
           customerPhone: dto.customerPhone,
           paymentProvider: paymentProvider,
           status: OrderStatus.PENDING,
-          total: totalAmount,
+          total: totalWithShipping,
+          // Datos de entrega
+          deliveryType: dto.deliveryType || 'pickup',
+          shippingAddress: dto.shippingAddress,
+          shippingCity: dto.shippingCity,
+          shippingProvinceCode: dto.shippingProvinceCode,
+          shippingZip: dto.shippingZip,
+          shippingCost: shippingCost > 0 ? shippingCost : null,
+          shippingProvider: dto.shippingProvider,
           items: {
             create: orderItemsData,
           },
         },
-        include: { items: true }, // Devolver items creados
+        include: { items: true },
       });
 
       return order;

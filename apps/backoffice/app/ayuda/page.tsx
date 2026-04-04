@@ -398,15 +398,14 @@ function SupportContact() {
           </div>
           <div>
             <p className="font-medium text-stone-900">WhatsApp</p>
-            <p className="text-sm text-stone-500">Consultá por el número</p>
+            <p className="text-sm text-stone-500">+54 3573-401261</p>
           </div>
         </div>
       </div>
 
       <div className="p-4 bg-yerba-50 border border-yerba-200 rounded-xl">
         <p className="text-sm text-yerba-800">
-          <strong>Versión:</strong> 1.0.0 — Desarrollado con Turborepo + NestJS
-          + Next.js + Better Auth + MercadoPago
+          <strong>Versión:</strong> 1.0.0
         </p>
       </div>
     </div>

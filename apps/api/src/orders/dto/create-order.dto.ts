@@ -40,7 +40,7 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
-  // Datos del Cliente (Opcionales si es usuario registrado, pero obligatorios si es Guest)
+  // Datos del Cliente
   @IsString()
   @IsOptional()
   customerName?: string;
@@ -65,6 +65,35 @@ export class CreateOrderDto {
   @IsEnum(PaymentMethod)
   @IsOptional()
   paymentMethod?: PaymentMethod = PaymentMethod.MERCADOPAGO;
+
+  // Datos de Entrega
+  @IsString()
+  @IsOptional()
+  deliveryType?: string; // "shipping" | "pickup"
+
+  @IsString()
+  @IsOptional()
+  shippingAddress?: string; // Calle + número del cliente
+
+  @IsString()
+  @IsOptional()
+  shippingCity?: string;
+
+  @IsString()
+  @IsOptional()
+  shippingProvinceCode?: string; // Código de provincia (Correo Argentino)
+
+  @IsString()
+  @IsOptional()
+  shippingZip?: string; // Código postal
+
+  @IsNumber()
+  @IsOptional()
+  shippingCost?: number; // Costo del envío en ARS (0 = retiro en local)
+
+  @IsString()
+  @IsOptional()
+  shippingProvider?: string; // "correo_argentino" | "flat_rate" | "pickup"
 
   // Carrito de Compras
   @IsArray()

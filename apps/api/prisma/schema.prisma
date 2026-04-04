@@ -155,7 +155,8 @@ model ProductVariant {
   name        String
   price       Decimal   @db.Decimal(10, 2)
   stock       Int?
-  
+  weight      Int?      // Peso en gramos — usado para calcular envío con Correo Argentino
+
   productId   String
   product     Product   @relation(fields: [productId], references: [id])
 
@@ -212,6 +213,20 @@ model Order {
   mpPaymentId     String?         // ID de pago de MP
   mpStatus        String?         // Estado crudo de MP
   mpCardToken     String?         // Opcional: debugging seguro
+
+  // Datos de Entrega
+  deliveryType         String?    // "shipping" | "pickup"
+  shippingAddress      String?    // Calle + número + piso/dpto (del cliente)
+  shippingCity         String?    // Ciudad de destino
+  shippingProvinceCode String?    // Código de provincia (A, B, C... — Correo Argentino)
+  shippingZip          String?    // Código postal de destino
+  shippingCost         Decimal?   @db.Decimal(10, 2)  // Costo del envío en ARS
+  shippingProvider     String?    // "correo_argentino" | "flat_rate" | "pickup"
+
+  // Tracking de Correo Argentino
+  trackingNumber       String?    // Número de seguimiento (Correo Argentino)
+  correoShippingId     String?    // ID del envío en el sistema de MiCorreo
+  correoImportedAt     DateTime?  // Fecha en que se importó el envío a MiCorreo
 
   // Auditoría y Soft Delete
   createdAt       DateTime        @default(now())

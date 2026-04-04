@@ -41,6 +41,11 @@ export const checkoutSchema = z.object({
   // Paso 3: Método de pago
   paymentMethod: z.enum(["mercadopago", "cash", "transfer", "credit_card"]),
 
+  // Costo de envío calculado (lo setea el delivery-step tras cotizar)
+  shippingCost: z.number().optional().default(0),
+  shippingProvider: z.string().optional(), // "correo_argentino" | "flat_rate" | "pickup"
+  shippingProvinceCode: z.string().optional(), // Código de provincia Correo Argentino
+
   // Notas adicionales
   notes: z
     .string()

@@ -30,6 +30,17 @@ export interface Order {
     name?: string;
     email: string;
   };
+  // Datos de envío
+  deliveryType?: string;
+  shippingAddress?: string;
+  shippingCity?: string;
+  shippingZip?: string;
+  shippingProvinceCode?: string;
+  shippingCost?: number;
+  shippingProvider?: string;
+  trackingNumber?: string;
+  correoShippingId?: string;
+  correoImportedAt?: string;
 }
 
 export interface OrderDetails extends Order {
@@ -287,4 +298,45 @@ export function useOrderStats() {
   }, [orders]);
 
   return { stats, isLoading, error };
+}
+
+// ============================================================
+// HOOK: Importar envío a Correo Argentino
+// ============================================================
+
+async function importShippingToCorreo(
+  orderId: string,
+): Promise<{ trackingNumber: string }> {
+  const response = await fetchWithAuth(
+    `${API_URL}/shipping/import/${orderId}`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      (error as { message?: string }).message ||
+        "Error al importar envío a Correo Argentino",
+    );
+  }
+  return response.json();
+}
+
+export function useImportShipping() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderId: string) => importShippingToCorreo(orderId),
+    onSuccess: (data, orderId) => {
+      toast.success("Envío importado a Correo Argentino", {
+        description: `Número de seguimiento: ${data.trackingNumber}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["orders", orderId] });
+    },
+    onError: (error: Error) => {
+      toast.error("Error al importar envío", {
+        description: error.message,
+      });
+    },
+  });
 }

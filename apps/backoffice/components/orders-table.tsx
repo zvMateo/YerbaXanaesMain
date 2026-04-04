@@ -12,11 +12,17 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Truck,
+  ExternalLink,
+  Loader2,
+  Copy,
+  Check,
 } from "lucide-react";
 import {
   useOrders,
   useUpdateOrderStatus,
   useBulkUpdateOrderStatus,
+  useImportShipping,
   type Order,
   type OrderStatus,
 } from "@/hooks/use-orders";
@@ -88,14 +94,16 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 
 // Action Buttons Component
 function OrderActions({
-  status,
-  orderId,
+  order,
   onUpdateStatus,
 }: {
-  status: OrderStatus;
-  orderId: string;
+  order: Order;
   onUpdateStatus: (id: string, status: OrderStatus) => void;
 }) {
+  const { status, id: orderId } = order;
+  const importShipping = useImportShipping();
+  const [copied, setCopied] = useState(false);
+
   const actions: Record<
     OrderStatus,
     Array<{
@@ -120,23 +128,87 @@ function OrderActions({
   };
 
   const orderActions = actions[status] || [];
+  const isShippingOrder = order.deliveryType === "shipping";
+  const hasTracking = !!order.trackingNumber;
+
+  const handleCopyTracking = () => {
+    if (order.trackingNumber) {
+      navigator.clipboard.writeText(order.trackingNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
-    <div className="flex items-center gap-2">
-      {orderActions.map((action, idx) => (
+    <div className="flex flex-col gap-1.5">
+      {/* Botones de estado */}
+      <div className="flex items-center gap-1.5">
+        {orderActions.map((action, idx) => (
+          <button
+            key={idx}
+            onClick={() => onUpdateStatus(orderId, action.nextStatus)}
+            className={`
+              px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+              ${action.variant === "primary" ? "bg-yerba-600 text-white hover:bg-yerba-700" : ""}
+              ${action.variant === "secondary" ? "bg-stone-100 text-stone-700 hover:bg-stone-200" : ""}
+              ${action.variant === "danger" ? "bg-red-100 text-red-700 hover:bg-red-200" : ""}
+            `}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Botón importar a Correo Argentino (solo si es envío y no fue importado) */}
+      {isShippingOrder && status === "PAID" && !hasTracking && (
         <button
-          key={idx}
-          onClick={() => onUpdateStatus(orderId, action.nextStatus)}
-          className={`
-            px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-            ${action.variant === "primary" ? "bg-yerba-600 text-white hover:bg-yerba-700" : ""}
-            ${action.variant === "secondary" ? "bg-stone-100 text-stone-700 hover:bg-stone-200" : ""}
-            ${action.variant === "danger" ? "bg-red-100 text-red-700 hover:bg-red-200" : ""}
-          `}
+          onClick={() => importShipping.mutate(orderId)}
+          disabled={importShipping.isPending}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors disabled:opacity-50"
         >
-          {action.label}
+          {importShipping.isPending ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Importando...
+            </>
+          ) : (
+            <>
+              <Truck className="h-3 w-3" />
+              Importar a Correo Argentino
+            </>
+          )}
         </button>
-      ))}
+      )}
+
+      {/* Tracking info si ya fue importado */}
+      {hasTracking && (
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-stone-50 rounded-lg">
+          <Truck className="h-3 w-3 text-stone-500" />
+          <span className="text-xs text-stone-700 font-mono">
+            {order.trackingNumber}
+          </span>
+          <button
+            onClick={handleCopyTracking}
+            className="p-0.5 hover:text-yerba-600 transition-colors"
+            title="Copiar número"
+          >
+            {copied ? (
+              <Check className="h-3 w-3 text-green-600" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </button>
+          <a
+            href={`https://www.correoargentino.com.ar/formularios/oas?id=${order.trackingNumber}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-0.5 hover:text-yerba-600 transition-colors"
+            title="Ver seguimiento"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -282,17 +354,42 @@ export function OrdersTable() {
     {
       accessorKey: "status",
       header: "Estado",
-      cell: ({ row }) => (
-        <StatusBadge status={row.original.status} />
-      ),
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
+      accessorKey: "deliveryType",
+      header: "Entrega",
+      cell: ({ row }) => {
+        const order = row.original;
+        if (order.deliveryType === "shipping") {
+          return (
+            <div className="flex items-center gap-1.5">
+              <Truck className="h-3.5 w-3.5 text-blue-600" />
+              <div>
+                <p className="text-xs font-medium text-stone-900">Envío</p>
+                {order.shippingCost && (
+                  <p className="text-[10px] text-stone-500">
+                    ${Number(order.shippingCost).toLocaleString("es-AR")}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5 text-stone-400" />
+            <p className="text-xs text-stone-500">Retiro</p>
+          </div>
+        );
+      },
     },
     {
       id: "actions",
       header: "Acciones",
       cell: ({ row }) => (
         <OrderActions
-          status={row.original.status}
-          orderId={row.original.id}
+          order={row.original}
           onUpdateStatus={handleUpdateStatus}
         />
       ),
@@ -365,11 +462,11 @@ export function OrdersTable() {
               className="px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 bg-white"
             >
               <option value="all">Todos los estados</option>
-              <option value="pending">Pendientes</option>
-              <option value="paid">Pagados</option>
-              <option value="shipped">Enviados</option>
-              <option value="delivered">Entregados</option>
-              <option value="cancelled">Cancelados</option>
+              <option value="PENDING">Pendientes</option>
+              <option value="PAID">Pagados</option>
+              <option value="REJECTED">Rechazados</option>
+              <option value="CANCELLED">Cancelados</option>
+              <option value="REFUNDED">Reembolsados</option>
             </select>
           </div>
 
@@ -409,7 +506,9 @@ export function OrdersTable() {
                   disabled={bulkUpdate.isPending}
                   className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 disabled:opacity-50"
                 >
-                  {bulkUpdate.isPending ? "Procesando..." : "Cancelar seleccionadas"}
+                  {bulkUpdate.isPending
+                    ? "Procesando..."
+                    : "Cancelar seleccionadas"}
                 </button>
               </div>
             </motion.div>

@@ -24,8 +24,16 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
   const { watch } = useFormContext<CheckoutFormData>();
 
   const formData = watch();
-  const freeShippingThreshold = 15000;
-  const shippingCost: number | null = total >= freeShippingThreshold ? 0 : null; // null = a calcular
+
+  // El shippingCost lo setea el delivery-step tras cotizar con Correo Argentino
+  // 0 = retiro en local (gratis) | null/undefined = aún no cotizado | >0 = costo real
+  const shippingCostRaw = formData.shippingCost;
+  const isPickup = formData.deliveryType === "pickup";
+  const shippingCost: number | null = isPickup
+    ? 0
+    : typeof shippingCostRaw === "number"
+      ? shippingCostRaw
+      : null;
   const finalTotal: number =
     shippingCost === null ? total : total + shippingCost;
 
@@ -163,7 +171,8 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
               <div className="flex justify-between">
                 <span className="text-stone-500">Dirección</span>
                 <span className="font-medium text-stone-900 text-right">
-                  Av. Siempreviva 742, Buenos Aires
+                  {process.env.NEXT_PUBLIC_STORE_ADDRESS ||
+                    "Consultá la dirección por WhatsApp"}
                 </span>
               </div>
             </>
@@ -220,10 +229,9 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
             </div>
           </div>
         </div>
-        {total < freeShippingThreshold && shippingCost !== 0 && (
+        {shippingCost === null && (
           <p className="text-xs text-yerba-100 mt-3">
-            Te faltan ${(freeShippingThreshold - total).toLocaleString()} para
-            envío gratis
+            ⚠️ Costo de envío pendiente — ingresá tu CP en el paso anterior
           </p>
         )}
       </div>

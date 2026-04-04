@@ -14,6 +14,7 @@ import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ShippingModule } from './shipping/shipping.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { PaymentsModule } from './payments/payments.module';
     CustomersModule,
     DashboardModule,
     PaymentsModule,
+    ShippingModule,
   ],
   controllers: [AppController],
   providers: [
