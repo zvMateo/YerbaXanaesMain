@@ -193,8 +193,17 @@ export class CatalogService {
     return this.mapProductWithStock(product);
   }
 
-  remove(id: string) {
-    return this.prisma.product.delete({ where: { id } });
+  async remove(id: string) {
+    // Primero verificamos que el producto exista
+    const product = await this.prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundException(`Product #${id} not found`);
+
+    // Eliminamos variantes primero (y sus ingredientes en cascada)
+    // luego el producto, todo en una transacción
+    return this.prisma.$transaction(async (tx) => {
+      await tx.productVariant.deleteMany({ where: { productId: id } });
+      return tx.product.delete({ where: { id } });
+    });
   }
 
   async updateCategory(id: string, dto: CreateCategoryDto) {
