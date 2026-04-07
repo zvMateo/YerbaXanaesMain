@@ -17,11 +17,68 @@ const playfair = Playfair_Display({
   display: "swap",
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://yerbaxanaes.com";
+
 export const metadata: Metadata = {
-  title: "YerbaXanaes | Yerba Mate Premium",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "YerbaXanaes | Yerba Mate Premium Argentina",
+    template: "%s | YerbaXanaes",
+  },
   description:
-    "Descubre nuestra selección de yerba mate premium, mates artesanales y accesorios. Calidad Argentina directo a tu mesa.",
-  keywords: ["yerba mate", "mates", "bombillas", "yerba argentina", "tereré"],
+    "Yerba mate premium, mates artesanales y accesorios. Seleccionamos las mejores yerbas de Argentina y las llevamos directo a tu puerta. Envío a todo el país.",
+  keywords: [
+    "yerba mate",
+    "yerba mate premium",
+    "mates artesanales",
+    "bombillas",
+    "yerba argentina",
+    "tereré",
+    "comprar yerba mate",
+    "yerba mate online",
+    "accesorios mate",
+  ],
+  authors: [{ name: "YerbaXanaes" }],
+  creator: "YerbaXanaes",
+  publisher: "YerbaXanaes",
+  openGraph: {
+    type: "website",
+    locale: "es_AR",
+    url: siteUrl,
+    siteName: "YerbaXanaes",
+    title: "YerbaXanaes | Yerba Mate Premium Argentina",
+    description:
+      "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu mesa.",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "YerbaXanaes — Yerba Mate Premium Argentina",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "YerbaXanaes | Yerba Mate Premium Argentina",
+    description:
+      "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu mesa.",
+    images: ["/og-image.jpg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: siteUrl,
+  },
 };
 
 export default function RootLayout({
