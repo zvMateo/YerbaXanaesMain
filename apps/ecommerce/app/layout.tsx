@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
-import "./global.css";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import "./globals.css";
 import { Providers } from "@/components/providers";
 
 // Fuente principal - Sans-serif moderna
@@ -94,6 +95,7 @@ export default function RootLayout({
       >
         <Providers>{children}</Providers>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
