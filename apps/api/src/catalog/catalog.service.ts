@@ -303,14 +303,23 @@ export class CatalogService {
   // IMAGES
   // -------------------------------------------------------
 
-  async addImage(productId: string, fileBuffer: Buffer) {
+  async addImage(
+    productId: string,
+    fileBuffer: Buffer,
+    mimetype: string,
+    originalname: string,
+  ) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
     if (!product)
       throw new NotFoundException(`Product #${productId} not found`);
 
-    const url = await this.cloudinary.uploadImage(fileBuffer);
+    const url = await this.cloudinary.uploadImage(
+      fileBuffer,
+      mimetype,
+      originalname,
+    );
 
     const updatedProduct = await this.prisma.product.update({
       where: { id: productId },

@@ -91,7 +91,12 @@ export class CatalogController {
     if (!file) {
       throw new BadRequestException('No file uploaded or invalid file format.');
     }
-    return this.catalogService.addImage(id, file.buffer);
+    return this.catalogService.addImage(
+      id,
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+    );
   }
 
   @Delete(':id/images')
