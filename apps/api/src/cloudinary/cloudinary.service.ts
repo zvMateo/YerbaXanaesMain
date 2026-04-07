@@ -22,20 +22,15 @@ export class CloudinaryService {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder,
-          format: 'webp',
-          quality: 'auto',
-          width: 800,
-          crop: 'limit',
+          resource_type: 'auto',
         },
         (error, result: UploadApiResponse | undefined) => {
           if (error) {
             this.logger.error('Error uploading to Cloudinary', error);
+            // Logeamos TODO el objeto de error para saber si es Auth o Formato
+            console.error('Cloudinary Error Raw:', error);
             return reject(
-              new Error(
-                error instanceof Error
-                  ? error.message
-                  : 'Unknown Cloudinary error',
-              ),
+              new Error(error.message || 'Unknown Cloudinary error'),
             );
           }
           if (!result) {

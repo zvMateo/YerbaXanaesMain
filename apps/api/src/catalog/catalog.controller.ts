@@ -56,7 +56,7 @@ export class CatalogController {
   @UseGuards(AuthGuard, AdminGuard)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit para HEIC
       fileFilter: (req, file, cb) => {
         const allowedTypes = [
           'image/jpeg',
