@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DiscountType } from '@prisma/client';
+import { DiscountType, Prisma } from '@prisma/client';
 
 export interface CreateCouponDto {
   code: string;
@@ -79,7 +79,8 @@ export class CouponsService {
     });
 
     if (!coupon) throw new BadRequestException('Código de cupón inválido');
-    if (!coupon.isActive) throw new BadRequestException('El cupón no está activo');
+    if (!coupon.isActive)
+      throw new BadRequestException('El cupón no está activo');
     if (coupon.expiresAt && coupon.expiresAt < new Date()) {
       throw new BadRequestException('El cupón ha expirado');
     }
@@ -91,7 +92,7 @@ export class CouponsService {
       orderAmount < Number(coupon.minOrderAmount)
     ) {
       throw new BadRequestException(
-        `Monto mínimo para este cupón: $${coupon.minOrderAmount}`,
+        `Monto mínimo para este cupón: $${Number(coupon.minOrderAmount)}`,
       );
     }
 
@@ -114,7 +115,7 @@ export class CouponsService {
    * Records the discount and increments currentUses.
    */
   async applyToOrder(
-    tx: any,
+    tx: Prisma.TransactionClient,
     orderId: string,
     couponId: string,
     discountAmount: number,

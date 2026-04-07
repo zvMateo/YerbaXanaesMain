@@ -19,6 +19,7 @@ and existing routes before implementing.
 ```
 
 Claude will automatically:
+
 1. Detect your database (Supabase/Prisma/pg)
 2. Find your cart store
 3. Identify existing routes

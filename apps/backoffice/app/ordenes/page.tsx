@@ -30,7 +30,6 @@ export default function OrdersPage() {
               Administrá los pedidos de tus clientes
             </p>
           </div>
-
         </div>
 
         <div className="p-6 lg:p-8">

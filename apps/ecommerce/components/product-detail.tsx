@@ -545,7 +545,8 @@ function ProductTabs({ product }: { product: Product }) {
 // Main Component - Human-Core: Experiencia completa
 export function ProductDetail({ product }: ProductDetailProps) {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(
-    product.variants?.find((v) => v.stock > 0) || product.variants?.[0]!,
+    (product.variants?.find((v) => v.stock > 0) ||
+      product.variants?.[0]) as ProductVariant,
   );
 
   if (!product.variants || product.variants.length === 0) {

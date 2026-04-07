@@ -19,14 +19,16 @@ export class OrdersService {
   async create(dto: CreateOrderDto) {
     // Validar cupón ANTES de la transacción (lectura externa segura)
     // La validación final se hace dentro de la tx para evitar race conditions
-    let couponValidation: Awaited<ReturnType<CouponsService['validate']>> | null =
-      null;
+    let couponValidation: Awaited<
+      ReturnType<CouponsService['validate']>
+    > | null = null;
     if (dto.couponCode) {
       // We'll get the amount after calculating; use a placeholder — re-validate inside tx
       // For now just check the coupon exists & is active
-      await this.coupons.validate(dto.couponCode, 0).catch((e) => {
+      await this.coupons.validate(dto.couponCode, 0).catch((e: unknown) => {
         // If it fails due to amount, ignore (we check again inside tx with real amount)
-        if (!e.message?.includes('Monto mínimo')) throw e;
+        const message = e instanceof Error ? e.message : String(e);
+        if (!message.includes('Monto mínimo')) throw e;
       });
     }
 
@@ -119,7 +121,7 @@ export class OrdersService {
 
       // 3. Crear la Orden Final
       // Mapeamos el payment method del DTO (si existe) al Provider de DB
-      const paymentMethodStr = (dto.paymentMethod as any)?.toString();
+      const paymentMethodStr = String(dto.paymentMethod ?? '');
       const paymentProvider =
         paymentMethodStr === 'CASH'
           ? PaymentProvider.CASH

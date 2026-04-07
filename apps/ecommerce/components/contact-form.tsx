@@ -32,7 +32,7 @@ export function ContactForm() {
     resolver: zodResolver(contactSchema),
   });
 
-  async function onSubmit(_data: ContactFormData) {
+  async function onSubmit(_: ContactFormData) {
     setSubmitting(true);
     // Simulated submission — replace with real API call (e.g. /api/contact)
     await new Promise((res) => setTimeout(res, 1000));

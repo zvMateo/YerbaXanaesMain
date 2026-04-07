@@ -5,13 +5,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuthenticatedRequest } from '../types/request.types';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(private readonly prisma: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     // 1. Extraer token (Header > Cookie)
     let sessionToken = this.extractTokenFromHeader(request);
@@ -41,18 +42,24 @@ export class AuthGuard implements CanActivate {
     }
 
     // 3. Adjuntar usuario al request
-    request['user'] = session.user;
-    request['session'] = session;
+    request.user = session.user;
+    request.session = session;
 
     return true;
   }
 
-  private extractTokenFromHeader(request: any): string | undefined {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+  private extractTokenFromHeader(
+    request: AuthenticatedRequest,
+  ): string | undefined {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return undefined;
+    const [type, token] = authHeader.split(' ');
     return type === 'Bearer' ? token : undefined;
   }
 
-  private extractTokenFromCookie(request: any): string | undefined {
+  private extractTokenFromCookie(
+    request: AuthenticatedRequest,
+  ): string | undefined {
     // Si usas cookie-parser: return request.cookies['better-auth.session_token'];
     // Manual:
     const cookieHeader = request.headers.cookie;
@@ -60,6 +67,6 @@ export class AuthGuard implements CanActivate {
 
     // Buscar 'better-auth.session_token=' o tu prefijo
     const match = cookieHeader.match(/better-auth\.session_token=([^;]+)/);
-    return match ? match[1] : undefined;
+    return match?.[1];
   }
 }

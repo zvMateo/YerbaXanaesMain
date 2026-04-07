@@ -11,7 +11,6 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect, useCallback } from "react";
@@ -161,6 +160,7 @@ export function DeliveryStep() {
         setRatesLoading(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [deliveryType, items],
   );
 

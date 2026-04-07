@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as express from 'express';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -11,6 +12,10 @@ async function bootstrap() {
 
   // 1. Helmet — headers de seguridad HTTP (XSS, clickjacking, etc.)
   app.use(helmet());
+
+  // Límite para uploads de imágenes (multipart lo maneja multer, esto cubre JSON/urlencoded)
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // 2. Configuración Global de Validación
   app.useGlobalPipes(
@@ -59,4 +64,4 @@ async function bootstrap() {
   logger.log(`📄 Swagger UI disponible en http://localhost:${port}/api/docs`);
   logger.log(`🔑 Auth: Better Auth corre en http://localhost:3002 (Next.js)`);
 }
-bootstrap();
+void bootstrap();

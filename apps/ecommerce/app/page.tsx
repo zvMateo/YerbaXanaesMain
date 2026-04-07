@@ -87,7 +87,7 @@ const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
 
 function getCategoryIcon(slug: string): React.ElementType {
   const key = Object.keys(CATEGORY_ICON_MAP).find((k) =>
-    slug.toLowerCase().includes(k)
+    slug.toLowerCase().includes(k),
   );
   return key ? CATEGORY_ICON_MAP[key] : Package;
 }
@@ -396,7 +396,10 @@ export default async function Home() {
     getCategories(),
   ]);
   const featuredByFlag = allProducts.filter((p) => p.isFeatured);
-  const featured = featuredByFlag.length > 0 ? featuredByFlag.slice(0, 4) : allProducts.slice(0, 4);
+  const featured =
+    featuredByFlag.length > 0
+      ? featuredByFlag.slice(0, 4)
+      : allProducts.slice(0, 4);
 
   return (
     <div className="min-h-screen flex flex-col">

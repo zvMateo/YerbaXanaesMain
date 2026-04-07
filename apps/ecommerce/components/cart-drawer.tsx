@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X,
@@ -247,15 +247,20 @@ export function CartDrawer() {
     items,
     isOpen,
     closeCart,
-    toggleCart,
     total,
     itemCount,
     freeShippingThreshold,
   } = useCartStore();
+  const mountedRef = useRef(false);
   const [mounted, setMounted] = useState(false);
 
+  // Hydration guard — runs after mount to avoid SSR mismatch
   useEffect(() => {
-    setMounted(true);
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMounted(true);
+    }
   }, []);
 
   // Close on escape key

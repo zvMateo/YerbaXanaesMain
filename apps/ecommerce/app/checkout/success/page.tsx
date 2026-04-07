@@ -8,7 +8,6 @@ import {
   Mail,
   ShoppingBag,
   ArrowRight,
-  AlertCircle,
   XCircle,
 } from "lucide-react";
 

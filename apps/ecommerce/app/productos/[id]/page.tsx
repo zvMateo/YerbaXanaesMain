@@ -3,7 +3,12 @@
 
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getProduct, getProducts, getProductRatings, type RatingResult } from "@/lib/api";
+import {
+  getProduct,
+  getProducts,
+  getProductRatings,
+  type RatingResult,
+} from "@/lib/api";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { ProductDetail } from "@/components/product-detail";
@@ -27,8 +32,6 @@ export async function generateMetadata({
       title: "Producto no encontrado | YerbaXanaes",
     };
   }
-
-  const minPrice = Math.min(...(product.variants?.map((v) => v.price) || [0]));
 
   return {
     title: `${product.name} | YerbaXanaes`,
@@ -122,7 +125,7 @@ function RatingsSection({ data }: { data: RatingResult }) {
             </div>
             {r.comment && (
               <p className="text-stone-700 text-sm leading-relaxed">
-                "{r.comment}"
+                &ldquo;{r.comment}&rdquo;
               </p>
             )}
           </div>

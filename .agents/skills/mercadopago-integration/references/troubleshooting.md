@@ -3,32 +3,38 @@
 ## Table of Contents
 
 ### Configuration Errors
+
 1. [auto_return + localhost = 400](#auto_return-localhost-400)
 2. [invalid_notification_url](#invalid-notification-url)
 3. [Invalid Token (401)](#invalid-token)
 4. [Currency mismatch](#currency-mismatch)
 
 ### Database Errors
+
 5. [Failed to create purchase (NULL email)](#failed-to-create-purchase)
 6. [Transaction amount too small](#transaction-amount-too-small)
 
 ### Frontend Errors
+
 7. [Hydration mismatch on checkout page](#hydration-mismatch)
 8. [Double purchase on double-click](#double-purchase)
 9. [useSearchParams error in App Router](#usesearchparams-error)
 
 ### Payment Flow Errors
+
 10. [Success page shows approved without real payment](#success-page-trust)
 11. [Webhook not received locally](#webhook-not-received)
 12. [Webhook duplicate updates](#webhook-duplicates)
 13. [Payment stuck in pending](#payment-stuck-pending)
 
 ### API Errors
+
 14. [Preference creation fails with invalid items](#invalid-items)
 15. [Invalid users involved](#invalid-users)
 16. [Generic error "Ops, ocorreu um erro"](#generic-error)
 
 ### Environment Errors
+
 17. [Node.js version incompatible](#node-version)
 18. [NPX not found](#npx-not-found)
 19. [Unauthorized use of live credentials](#unauthorized-credentials)
@@ -62,6 +68,7 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 **Cause:** The notification URL is malformed or exceeds 500 characters.
 
 **Fix:**
+
 1. Ensure URL is properly formatted: `https://yourdomain.com/api/webhooks/mercadopago`
 2. Keep URL under 500 characters
 3. Don't include query parameters in the base URL
@@ -69,10 +76,10 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 ```typescript
 // Good
-notification_url: `${baseUrl}/api/webhooks/mercadopago`
+notification_url: `${baseUrl}/api/webhooks/mercadopago`;
 
 // Bad - query params in notification URL
-notification_url: `${baseUrl}/api/webhooks/mercadopago?token=abc`
+notification_url: `${baseUrl}/api/webhooks/mercadopago?token=abc`;
 ```
 
 ---
@@ -84,6 +91,7 @@ notification_url: `${baseUrl}/api/webhooks/mercadopago?token=abc`
 **Cause:** Access token is expired, invalid, or doesn't have required permissions.
 
 **Fix:**
+
 1. Verify token is correct (no extra spaces)
 2. Check token hasn't expired
 3. Regenerate from [Developer Panel](https://www.mercadopago.com/developers/panel/app)
@@ -106,15 +114,15 @@ curl -X GET \
 
 **Fix:** Use the correct currency for your account's country:
 
-| Country | currency_id |
-|---------|-------------|
-| Argentina | `ARS` |
-| Brazil | `BRL` |
-| Mexico | `MXN` |
-| Colombia | `COP` |
-| Chile | `CLP` |
-| Peru | `PEN` |
-| Uruguay | `UYU` |
+| Country   | currency_id |
+| --------- | ----------- |
+| Argentina | `ARS`       |
+| Brazil    | `BRL`       |
+| Mexico    | `MXN`       |
+| Colombia  | `COP`       |
+| Chile     | `CLP`       |
+| Peru      | `PEN`       |
+| Uruguay   | `UYU`       |
 
 **Note:** Cross-border payments are not supported. Each country needs its own MP account.
 
@@ -143,6 +151,7 @@ MercadoPago collects the buyer's email during payment. The webhook updates `user
 **Cause:** MercadoPago has minimum amounts for card payments (approximately $15 ARS or equivalent).
 
 **Fix:**
+
 1. Ensure product prices meet minimum requirements
 2. For testing, use amounts above the minimum
 3. Consider showing error to user if cart total is too low
@@ -151,9 +160,12 @@ MercadoPago collects the buyer's email during payment. The webhook updates `user
 const MIN_AMOUNT = 15; // Adjust per country
 
 if (totalAmount < MIN_AMOUNT) {
-  return NextResponse.json({
-    error: `Minimum purchase amount is $${MIN_AMOUNT}`
-  }, { status: 400 });
+  return NextResponse.json(
+    {
+      error: `Minimum purchase amount is $${MIN_AMOUNT}`,
+    },
+    { status: 400 },
+  );
 }
 ```
 
@@ -246,12 +258,15 @@ The webhook updates the real status. If the webhook hasn't arrived yet, status w
 **Fix options:**
 
 1. **ngrok (recommended for dev):**
+
    ```bash
    ngrok http 3000
    ```
+
    Set `NEXT_PUBLIC_APP_URL` to the ngrok HTTPS URL (e.g., `https://abc123.ngrok-free.app`)
 
 2. **localtunnel:**
+
    ```bash
    npx localtunnel --port 3000
    ```
@@ -272,7 +287,7 @@ The webhook updates the real status. If the webhook hasn't arrived yet, status w
 const existing = await getPurchaseStatus(externalReference);
 
 // Skip if already in terminal state
-if (existing?.status === 'approved' || existing?.status === 'rejected') {
+if (existing?.status === "approved" || existing?.status === "rejected") {
   return NextResponse.json({ received: true });
 }
 ```
@@ -284,11 +299,13 @@ Always return `{ received: true }` even on errors to prevent MercadoPago from re
 ## Payment stuck in pending {#payment-stuck-pending}
 
 **Cause:** Several possible reasons:
+
 1. Webhook never arrived (localhost issue)
 2. Buyer used a payment method that requires time (e.g., Rapipago, PagoFacil, Boleto, OXXO)
 3. MercadoPago is still processing
 
 **Fix:**
+
 - In dev: Verify webhook is reachable (see "Webhook not received" above)
 - In production: This is normal for offline payment methods. Show appropriate UI:
   ```
@@ -303,6 +320,7 @@ Always return `{ received: true }` even on errors to prevent MercadoPago from re
 **Error:** MercadoPago returns 400 when creating preference.
 
 **Common causes:**
+
 - `unit_price` is 0 or negative
 - `quantity` is 0 or negative
 - `currency_id` doesn't match the account's country
@@ -312,12 +330,16 @@ Always return `{ received: true }` even on errors to prevent MercadoPago from re
 
 ```typescript
 const checkoutSchema = z.object({
-  items: z.array(z.object({
-    id: z.string(),
-    title: z.string().min(1),
-    quantity: z.number().positive(),
-    unit_price: z.number().positive(),
-  })).min(1),
+  items: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1),
+        quantity: z.number().positive(),
+        unit_price: z.number().positive(),
+      }),
+    )
+    .min(1),
 });
 ```
 
@@ -330,6 +352,7 @@ const checkoutSchema = z.object({
 **Cause:** The buyer's email belongs to a test user while the seller's credentials are production (or vice versa).
 
 **Fix:** Ensure consistency:
+
 - **Testing:** Use test seller credentials + test buyer account
 - **Production:** Use production credentials + real buyer accounts
 
@@ -342,12 +365,14 @@ Never mix test and production environments.
 **Error:** Vague error message with no technical details
 
 **Cause:** This generic error can mean many things. Common causes:
+
 1. Mixed credentials (test/production)
 2. Invalid back_urls (not HTTPS)
 3. Webhook URL unreachable
 4. Preference misconfiguration
 
 **Fix:** Check all of these:
+
 - [ ] Credentials match environment (all test or all production)
 - [ ] back_urls are valid HTTPS URLs
 - [ ] notification_url is publicly accessible
@@ -365,6 +390,7 @@ For debugging, check the MercadoPago dashboard for more details on failed paymen
 **Cause:** Node.js version is below 20.
 
 **Fix:**
+
 ```bash
 # Check version
 node -v
@@ -383,6 +409,7 @@ nvm use 20
 **Cause:** NPM version is below 5.2.0 (npx was introduced in npm 5.2.0).
 
 **Fix:**
+
 ```bash
 # Update npm
 npm install -g npm
@@ -400,6 +427,7 @@ npx --version
 **Cause:** Trying to use production credentials in a test environment or with test user accounts.
 
 **Fix:**
+
 1. Use TEST credentials during development
 2. Don't use test buyer emails with production credentials
 3. Create separate applications for test and production
@@ -413,6 +441,7 @@ npx --version
 **Cause:** Using a mix of test and production credentials, or test buyer with production seller.
 
 **Fix:**
+
 1. **Development:** Use TEST Access Token + TEST buyer accounts
 2. **Production:** Use PRODUCTION Access Token + real buyer accounts
 3. Never mix them

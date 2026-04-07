@@ -13,18 +13,21 @@ He implementado una integración completa de **MercadoPago Checkout Pro** para t
 ### 1. Backend (apps/api)
 
 #### ✅ `mercadopago.client.ts`
+
 - Configuración del SDK de MercadoPago v2
 - Función `createPreference()` para generar preferencias de pago
 - Función `getPayment()` para consultar pagos
 - Configuración automática de URLs de retorno y webhooks
 
 #### ✅ `payments.service.ts`
+
 - Lógica de negocio para crear preferencias
 - Manejo de webhooks para actualizar estados de pedidos
 - Integración con inventario y gestión de stock
 - Soporte para diferentes métodos de pago
 
 #### ✅ `payments.controller.ts`
+
 - Endpoint `POST /payments/checkout` para crear preferencias
 - Endpoint `POST /payments/webhook` para recibir notificaciones
 - Endpoint `GET /payments/order/:id` para consultar estado
@@ -32,22 +35,26 @@ He implementado una integración completa de **MercadoPago Checkout Pro** para t
 ### 2. Frontend (apps/ecommerce)
 
 #### ✅ `mercadopago-button.tsx`
+
 - Componente React para el botón de pago de MercadoPago
 - Carga dinámica del SDK de MercadoPago
 - Manejo de eventos (onSuccess, onError, onPending)
 - Personalización visual con colores de la marca
 
 #### ✅ `payment-step-with-mp.tsx`
+
 - Paso de pago mejorado con integración de MercadoPago
 - Placeholder dinámico según estado de preferencia
 - Información detallada sobre métodos de pago
 
 #### ✅ `checkout-form.tsx`
+
 - Flujo modificado para manejar preferencias de pago
 - Creación de preferencia antes de redirigir a pago
 - Manejo de estados y errores
 
 #### ✅ `checkout/success/page.tsx`
+
 - Página de éxito mejorada para pagos completados
 - Soporte para orderId y paymentId
 - Diseño responsivo y profesional
@@ -82,6 +89,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ## Flujo de Integración
 
 ### 1. Creación de Preferencia
+
 ```typescript
 // Backend - POST /payments/checkout
 {
@@ -98,6 +106,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ### 2. Respuesta del Backend
+
 ```typescript
 {
   "orderId": "order-uuid",
@@ -108,6 +117,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ### 3. Inicialización del Frontend
+
 ```typescript
 <MercadoPagoButton
   preferenceId="preference-uuid"
@@ -124,21 +134,25 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ## Características Implementadas
 
 ### ✅ Seguridad
+
 - Validación de firmas de webhooks (pendiente de implementación)
 - Manejo seguro de credenciales
 - Protección contra CSRF
 
 ### ✅ Experiencia de Usuario
+
 - Loading states y manejo de errores
 - Feedback visual en tiempo real
 - Diseño responsivo y accesible
 
 ### ✅ Robustez
+
 - Manejo de timeouts y reintentos
 - Validación de stock antes de pago
 - Estados consistentes entre frontend y backend
 
 ### ✅ Flexibilidad
+
 - Soporte para múltiples métodos de pago
 - Configuración de URLs de retorno
 - Personalización visual del botón
@@ -146,6 +160,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ## Próximos Pasos
 
 ### 1. Configurar Credenciales Reales
+
 ```bash
 # Reemplazar con tus credenciales de producción
 MP_ACCESS_TOKEN=PROD_ACCESS_TOKEN
@@ -153,16 +168,19 @@ NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=PROD_PUBLIC_KEY
 ```
 
 ### 2. Configurar Webhooks
+
 - Usa la herramienta `mcp3_save_webhook` para configurar webhooks
 - Implementa validación de firmas
 - Prueba el flujo completo
 
 ### 3. Testing
+
 - Crea usuarios de prueba en MercadoPago
 - Prueba diferentes métodos de pago
 - Verifica el flujo de webhooks
 
 ### 4. Producción
+
 - Actualiza URLs de producción
 - Configura SSL/TLS
 - Monitorea errores y rendimiento
@@ -192,11 +210,12 @@ La integración está completa y funcional. Solo necesitas:
 3. Probar el flujo completo
 
 **Comandos para iniciar:**
+
 ```bash
 # Backend
 cd apps/api && npm run dev
 
-# Frontend  
+# Frontend
 cd apps/ecommerce && npm run dev
 ```
 

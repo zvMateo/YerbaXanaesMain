@@ -2,8 +2,7 @@ import type { MetadataRoute } from "next";
 import { getProducts, getCategories } from "@/lib/api";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://yerbaxanaes.com";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://yerbaxanaes.com";
 
   const [products, categories] = await Promise.all([
     getProducts({}),

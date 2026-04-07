@@ -51,6 +51,7 @@ export class ShippingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ver seguimiento de envío (admin)' })
   async getTracking(@Param('orderId') orderId: string) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return this.shippingService.getTracking(orderId);
   }
 }

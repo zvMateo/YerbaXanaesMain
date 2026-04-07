@@ -72,7 +72,9 @@ export function useApproveRating() {
       toast.success("Reseña aprobada");
     },
     onError: (error) => {
-      toast.error("Error", { description: error instanceof Error ? error.message : "Error" });
+      toast.error("Error", {
+        description: error instanceof Error ? error.message : "Error",
+      });
     },
   });
 }
@@ -86,7 +88,9 @@ export function useRejectRating() {
       toast.success("Reseña rechazada");
     },
     onError: (error) => {
-      toast.error("Error", { description: error instanceof Error ? error.message : "Error" });
+      toast.error("Error", {
+        description: error instanceof Error ? error.message : "Error",
+      });
     },
   });
 }
@@ -100,7 +104,9 @@ export function useDeleteRating() {
       toast.success("Reseña eliminada");
     },
     onError: (error) => {
-      toast.error("Error al eliminar", { description: error instanceof Error ? error.message : "Error" });
+      toast.error("Error al eliminar", {
+        description: error instanceof Error ? error.message : "Error",
+      });
     },
   });
 }

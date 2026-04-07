@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
@@ -29,16 +29,7 @@ export function ProductFilters({
   );
   const [showFilters, setShowFilters] = useState(false);
 
-  // Human-Core: Debounce natural para búsqueda
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      updateFilters();
-    }, 300); // 300ms delay feels organic
-
-    return () => clearTimeout(timer);
-  }, [search, selectedCategory, sortBy]);
-
-  const updateFilters = () => {
+  const updateFilters = useCallback(() => {
     const params = new URLSearchParams();
 
     if (search) params.set("search", search);
@@ -47,7 +38,16 @@ export function ProductFilters({
 
     // Systems-Oriented: URL actualizada sin refresh
     router.push(`/productos?${params.toString()}`, { scroll: false });
-  };
+  }, [search, selectedCategory, sortBy, router]);
+
+  // Human-Core: Debounce natural para búsqueda
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateFilters();
+    }, 300); // 300ms delay feels organic
+
+    return () => clearTimeout(timer);
+  }, [updateFilters]);
 
   const clearFilters = () => {
     setSearch("");

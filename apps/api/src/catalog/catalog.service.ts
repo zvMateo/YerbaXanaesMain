@@ -3,14 +3,28 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { CreateCatalogDto } from './dto/create-catalog.dto';
 import { UpdateCatalogDto } from './dto/update-catalog.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+
+type ProductWithRelations = Prisma.ProductGetPayload<{
+  include: {
+    variants: {
+      include: { ingredients: { include: { inventoryItem: true } } };
+    };
+    category: true;
+  };
+}>;
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   // -------------------------------------------------------
   // CATEGORIES
@@ -75,6 +89,7 @@ export class CatalogService {
           isFeatured: dto.isFeatured ?? false,
           metaTitle: dto.metaTitle,
           metaDescription: dto.metaDescription,
+          images: dto.images ?? [],
         },
       });
 
@@ -125,6 +140,8 @@ export class CatalogService {
       });
     });
 
+    if (!newProduct)
+      throw new NotFoundException('Product not found after creation');
     return this.mapProductWithStock(newProduct);
   }
 
@@ -168,19 +185,23 @@ export class CatalogService {
   }
 
   async update(id: string, updateCatalogDto: UpdateCatalogDto) {
-    const { variants, ...productData } = updateCatalogDto;
+    const { variants, images: imagesFromDto, name, ...rest } = updateCatalogDto;
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Actualizar campos del producto
-      const data: Record<string, any> = { ...productData };
-      if (productData.name) {
-        data.slug = productData.name
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/\s+/g, '-')
-          .replace(/[^a-z0-9-]/g, '');
-      }
+      const data: Prisma.ProductUpdateInput = {
+        ...rest,
+        ...(name !== undefined && {
+          name,
+          slug: name
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, ''),
+        }),
+        ...(imagesFromDto !== undefined && { images: imagesFromDto }),
+      };
 
       await tx.product.update({ where: { id }, data });
 
@@ -235,6 +256,7 @@ export class CatalogService {
         },
       });
 
+      if (!product) throw new NotFoundException(`Product #${id} not found`);
       return this.mapProductWithStock(product);
     });
   }
@@ -283,10 +305,68 @@ export class CatalogService {
     return this.prisma.category.delete({ where: { id } });
   }
 
+  // -------------------------------------------------------
+  // IMÁGENES
+  // -------------------------------------------------------
+
+  async addImage(productId: string, buffer: Buffer, mimetype: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+
+    const url = await this.cloudinary.uploadImage(buffer, mimetype);
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { images: { push: url } },
+      include: {
+        variants: {
+          include: { ingredients: { include: { inventoryItem: true } } },
+        },
+        category: true,
+      },
+    });
+
+    return this.mapProductWithStock(updated);
+  }
+
+  async removeImage(productId: string, imageUrl: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+
+    if (!product.images.includes(imageUrl)) {
+      throw new BadRequestException('La imagen no pertenece a este producto');
+    }
+
+    // Eliminar de Cloudinary solo si es una URL de Cloudinary
+    if (this.cloudinary.isCloudinaryUrl(imageUrl)) {
+      const publicId = this.cloudinary.extractPublicId(imageUrl);
+      await this.cloudinary.deleteImage(publicId);
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { images: product.images.filter((img) => img !== imageUrl) },
+      include: {
+        variants: {
+          include: { ingredients: { include: { inventoryItem: true } } },
+        },
+        category: true,
+      },
+    });
+
+    return this.mapProductWithStock(updated);
+  }
+
   /**
    * MÉTODO MÁGICO: Calcula el stock real disponible basado en recetas
    */
-  private mapProductWithStock(product: any) {
+  private mapProductWithStock(product: ProductWithRelations) {
     const variantsWithStock = product.variants.map((variant) => {
       let availableStock = 0;
 

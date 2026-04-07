@@ -218,6 +218,7 @@ export class ShippingService implements OnModuleInit {
 
     try {
       // @ts-expect-error — shipping/import está pendiente en la librería (🟨)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
       const result = await this.correoApi.importShipping({
         customerId: this.correoApi.getVarCustomerId(),
         extOrderId: order.id,
@@ -311,10 +312,12 @@ export class ShippingService implements OnModuleInit {
 
     try {
       // @ts-expect-error — shipping/tracking puede no estar en todos los entornos
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
       const tracking = await this.correoApi.getTracking({
         shippingId: order.correoShippingId || order.trackingNumber,
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return {
         ...tracking,
         trackingUrl: `https://www.correoargentino.com.ar/formularios/oas?id=${order.trackingNumber}`,

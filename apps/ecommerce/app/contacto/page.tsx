@@ -61,8 +61,8 @@ export default function ContactoPage() {
                 Contacto
               </h1>
               <p className="text-lg text-stone-600">
-                Cualquier duda sobre pedidos, envíos o productos, escribinos.
-                Te respondemos a la brevedad.
+                Cualquier duda sobre pedidos, envíos o productos, escribinos. Te
+                respondemos a la brevedad.
               </p>
             </div>
           </div>

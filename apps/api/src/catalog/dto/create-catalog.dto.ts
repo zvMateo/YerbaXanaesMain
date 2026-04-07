@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   Min,
   ValidateNested,
@@ -14,21 +15,21 @@ import {
 class CreateProductIngredientDto {
   @IsUUID()
   @IsNotEmpty()
-  inventoryItemId: string;
+  inventoryItemId!: string;
 
   @IsNumber()
   @Min(0)
-  quantityRequired: number;
+  quantityRequired!: number;
 }
 
 class CreateProductVariantDto {
   @IsString()
   @IsNotEmpty()
-  name: string; // Ej: "1kg", "Kit Matero"
+  name!: string; // Ej: "1kg", "Kit Matero"
 
   @IsNumber()
   @Min(0)
-  price: number;
+  price!: number;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -56,7 +57,7 @@ class CreateProductVariantDto {
 export class CreateCatalogDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsString()
   @IsOptional()
@@ -64,7 +65,7 @@ export class CreateCatalogDto {
 
   @IsUUID()
   @IsNotEmpty()
-  categoryId: string;
+  categoryId!: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -87,4 +88,9 @@ export class CreateCatalogDto {
   @IsString()
   @IsOptional()
   metaDescription?: string;
+
+  @IsArray()
+  @IsUrl({}, { each: true })
+  @IsOptional()
+  images?: string[];
 }

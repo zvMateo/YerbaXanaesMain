@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "motion/react";
 import { ShoppingCart, AlertCircle, Check } from "lucide-react";
 import { Product } from "@repo/types";
@@ -94,10 +95,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
             {product.images?.[0] ? (
-              <img
+              <Image
                 src={product.images[0]}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               />
             ) : (
               <div className="text-center">

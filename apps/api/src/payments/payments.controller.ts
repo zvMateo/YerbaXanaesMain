@@ -13,6 +13,13 @@ import { PaymentsService } from './payments.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreatePreferenceDto } from './dto/create-preference.dto';
 
+interface MpWebhookBody {
+  action?: string;
+  type?: string;
+  topic?: string;
+  data?: { id?: string };
+}
+
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentsController {
@@ -52,7 +59,7 @@ export class PaymentsController {
     description: 'Webhook procesado',
   })
   async handleWebhook(
-    @Body() body: any,
+    @Body() body: MpWebhookBody,
     @Headers('x-signature') signature: string,
     @Headers('x-request-id') requestId: string,
     @Query('data.id') dataId: string,
@@ -64,11 +71,10 @@ export class PaymentsController {
     }
 
     // MercadoPago puede enviar type o topic
-    const typeUrl = type || body?.type || body?.topic;
-    const dataIdUrl = dataId || body?.data?.id;
+    const typeUrl = type || body.type || body.topic || '';
+    const dataIdUrl = dataId || body.data?.id || '';
 
     return this.paymentsService.handleWebhook({
-      body,
       signature,
       requestId,
       dataIdUrl,

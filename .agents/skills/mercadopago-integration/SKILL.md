@@ -27,6 +27,7 @@ Integrar MercadoPago en mi app
 ```
 
 Claude will automatically explore your codebase to detect:
+
 - Database adapter (Supabase, Prisma, or raw pg)
 - Cart store location
 - Existing routes and patterns
@@ -99,14 +100,14 @@ User clicks "Pay"
 
 2. **Gather or infer from the codebase:**
 
-| Detail | Why | Example |
-|--------|-----|---------|
-| Currency | Preference creation | `ARS`, `BRL`, `MXN` (see `references/countries.md`) |
-| Success/failure routes | `back_urls` in preference | `/payment-success`, `/pago-exitoso` |
-| Brand name | Card statement descriptor | `MY_STORE` (max 22 chars) |
-| Product/item table | FK in `purchase_items` | `products`, `photos`, `courses` |
-| Cart store location | Hook reads items from it | `src/store/cart.ts` |
-| DB client path | API routes import it | `src/lib/supabase/server.ts`, `src/lib/prisma.ts` |
+| Detail                 | Why                       | Example                                             |
+| ---------------------- | ------------------------- | --------------------------------------------------- |
+| Currency               | Preference creation       | `ARS`, `BRL`, `MXN` (see `references/countries.md`) |
+| Success/failure routes | `back_urls` in preference | `/payment-success`, `/pago-exitoso`                 |
+| Brand name             | Card statement descriptor | `MY_STORE` (max 22 chars)                           |
+| Product/item table     | FK in `purchase_items`    | `products`, `photos`, `courses`                     |
+| Cart store location    | Hook reads items from it  | `src/store/cart.ts`                                 |
+| DB client path         | API routes import it      | `src/lib/supabase/server.ts`, `src/lib/prisma.ts`   |
 
 ## Prerequisites
 
@@ -132,6 +133,7 @@ User clicks "Pay"
 
 This abstracts all purchase DB operations. Implement using your DB adapter.
 See the reference file for your adapter:
+
 - Supabase: `references/database-supabase.md`
 - Prisma: `references/database-prisma.md`
 - Raw pg / other: `references/database-postgresql.md`
@@ -141,12 +143,12 @@ The helper must export these functions:
 ```typescript
 interface PurchaseInsert {
   user_email: string;
-  status: 'pending';
+  status: "pending";
   total_amount: number;
 }
 
 interface PurchaseUpdate {
-  status?: 'pending' | 'approved' | 'rejected';
+  status?: "pending" | "approved" | "rejected";
   mercadopago_payment_id?: string;
   mercadopago_preference_id?: string;
   user_email?: string;
@@ -154,10 +156,20 @@ interface PurchaseUpdate {
 }
 
 // Required exports:
-export async function createPurchase(data: PurchaseInsert): Promise<{ id: string }>;
-export async function updatePurchase(id: string, data: PurchaseUpdate): Promise<void>;
-export async function getPurchaseStatus(id: string): Promise<{ id: string; status: string } | null>;
-export async function createPurchaseItems(purchaseId: string, items: { item_id: string; price: number }[]): Promise<void>;
+export async function createPurchase(
+  data: PurchaseInsert,
+): Promise<{ id: string }>;
+export async function updatePurchase(
+  id: string,
+  data: PurchaseUpdate,
+): Promise<void>;
+export async function getPurchaseStatus(
+  id: string,
+): Promise<{ id: string; status: string } | null>;
+export async function createPurchaseItems(
+  purchaseId: string,
+  items: { item_id: string; price: number }[],
+): Promise<void>;
 ```
 
 ### Step 2: MercadoPago Client
@@ -165,7 +177,7 @@ export async function createPurchaseItems(purchaseId: string, items: { item_id: 
 **Create:** `src/lib/mercadopago/client.ts`
 
 ```typescript
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
 const client = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
@@ -181,9 +193,11 @@ interface CreatePreferenceParams {
 }
 
 export async function createPreference({
-  items, purchaseId, buyerEmail,
+  items,
+  purchaseId,
+  buyerEmail,
 }: CreatePreferenceParams) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return preference.create({
     body: {
@@ -192,7 +206,7 @@ export async function createPreference({
         title: item.title,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        currency_id: 'ARS', // Change per references/countries.md
+        currency_id: "ARS", // Change per references/countries.md
       })),
       ...(buyerEmail ? { payer: { email: buyerEmail } } : {}),
       back_urls: {
@@ -201,13 +215,17 @@ export async function createPreference({
         pending: `${baseUrl}/payment-success?purchase=${purchaseId}&status=pending`,
       },
       // CRITICAL: auto_return requires HTTPS. Omit on localhost or MP returns 400.
-      ...(baseUrl.startsWith('https') ? { auto_return: 'approved' as const } : {}),
+      ...(baseUrl.startsWith("https")
+        ? { auto_return: "approved" as const }
+        : {}),
       external_reference: purchaseId,
       notification_url: `${baseUrl}/api/webhooks/mercadopago`,
-      statement_descriptor: 'YOUR_BRAND', // Replace with user's brand (max 22 chars)
+      statement_descriptor: "YOUR_BRAND", // Replace with user's brand (max 22 chars)
       expires: true,
       expiration_date_from: new Date().toISOString(),
-      expiration_date_to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expiration_date_to: new Date(
+        Date.now() + 24 * 60 * 60 * 1000,
+      ).toISOString(),
     },
     // Optional: Prevent duplicate preferences on retry
     requestOptions: {
@@ -226,18 +244,22 @@ export async function getPayment(paymentId: string) {
 **Create:** `src/app/api/checkout/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { createPurchase, updatePurchase } from '@/lib/db/purchases';
-import { createPreference } from '@/lib/mercadopago/client';
-import { z } from 'zod';
+import { NextResponse } from "next/server";
+import { createPurchase, updatePurchase } from "@/lib/db/purchases";
+import { createPreference } from "@/lib/mercadopago/client";
+import { z } from "zod";
 
 const checkoutSchema = z.object({
-  items: z.array(z.object({
-    id: z.string(),
-    title: z.string().min(1),
-    quantity: z.number().positive(),
-    unit_price: z.number().positive(),
-  })).min(1),
+  items: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1),
+        quantity: z.number().positive(),
+        unit_price: z.number().positive(),
+      }),
+    )
+    .min(1),
   email: z.string().email().optional(),
 });
 
@@ -246,20 +268,28 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validation = checkoutSchema.safeParse(body);
     if (!validation.success) {
-      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid request data" },
+        { status: 400 },
+      );
     }
 
     const { items, email } = validation.data;
-    const totalAmount = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+    const totalAmount = items.reduce(
+      (sum, i) => sum + i.unit_price * i.quantity,
+      0,
+    );
 
     const purchase = await createPurchase({
-      user_email: email || 'pending@checkout',
-      status: 'pending',
+      user_email: email || "pending@checkout",
+      status: "pending",
       total_amount: totalAmount,
     });
 
     const mpPreference = await createPreference({
-      items, purchaseId: purchase.id, buyerEmail: email,
+      items,
+      purchaseId: purchase.id,
+      buyerEmail: email,
     });
 
     await updatePurchase(purchase.id, {
@@ -272,8 +302,8 @@ export async function POST(request: Request) {
       purchaseId: purchase.id,
     });
   } catch (error) {
-    console.error('Checkout error:', error);
-    return NextResponse.json({ error: 'Checkout failed' }, { status: 500 });
+    console.error("Checkout error:", error);
+    return NextResponse.json({ error: "Checkout failed" }, { status: 500 });
   }
 }
 ```
@@ -283,16 +313,20 @@ export async function POST(request: Request) {
 **Create:** `src/app/api/webhooks/mercadopago/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { getPurchaseStatus, updatePurchase } from '@/lib/db/purchases';
-import { getPayment } from '@/lib/mercadopago/client';
+import { NextResponse } from "next/server";
+import { getPurchaseStatus, updatePurchase } from "@/lib/db/purchases";
+import { getPayment } from "@/lib/mercadopago/client";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
     // Handle both IPN and webhook formats
-    if (body.type !== 'payment' && body.action !== 'payment.created' && body.action !== 'payment.updated') {
+    if (
+      body.type !== "payment" &&
+      body.action !== "payment.created" &&
+      body.action !== "payment.updated"
+    ) {
       return NextResponse.json({ received: true });
     }
 
@@ -300,15 +334,19 @@ export async function POST(request: Request) {
     if (!paymentId) return NextResponse.json({ received: true });
 
     const payment = await getPayment(paymentId.toString());
-    if (!payment?.external_reference) return NextResponse.json({ received: true });
+    if (!payment?.external_reference)
+      return NextResponse.json({ received: true });
 
-    let status: 'pending' | 'approved' | 'rejected' = 'pending';
-    if (payment.status === 'approved') status = 'approved';
-    else if (['rejected', 'cancelled', 'refunded'].includes(payment.status || '')) status = 'rejected';
+    let status: "pending" | "approved" | "rejected" = "pending";
+    if (payment.status === "approved") status = "approved";
+    else if (
+      ["rejected", "cancelled", "refunded"].includes(payment.status || "")
+    )
+      status = "rejected";
 
     // Idempotency: skip if already in terminal state
     const existing = await getPurchaseStatus(payment.external_reference);
-    if (existing?.status === 'approved' || existing?.status === 'rejected') {
+    if (existing?.status === "approved" || existing?.status === "rejected") {
       return NextResponse.json({ received: true });
     }
 
@@ -322,7 +360,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error("Webhook error:", error);
     // Always return 200 to prevent MercadoPago from retrying indefinitely
     return NextResponse.json({ received: true });
   }
@@ -330,7 +368,7 @@ export async function POST(request: Request) {
 
 // GET endpoint for MercadoPago verification pings
 export async function GET() {
-  return NextResponse.json({ status: 'ok' });
+  return NextResponse.json({ status: "ok" });
 }
 ```
 
@@ -339,17 +377,17 @@ export async function GET() {
 **Create:** `src/app/api/purchases/[id]/route.ts`
 
 ```typescript
-import { NextResponse } from 'next/server';
-import { getPurchaseStatus } from '@/lib/db/purchases';
+import { NextResponse } from "next/server";
+import { getPurchaseStatus } from "@/lib/db/purchases";
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const data = await getPurchaseStatus(id);
 
-  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ id: data.id, status: data.status });
 }
 ```
@@ -361,8 +399,8 @@ export async function GET(
 Double-click prevention uses `useRef` (survives re-renders, unlike `useState`).
 
 ```typescript
-'use client';
-import { useCallback, useRef, useState } from 'react';
+"use client";
+import { useCallback, useRef, useState } from "react";
 
 export function useCheckout() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -375,17 +413,17 @@ export function useCheckout() {
     guard.current = true;
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      if (!res.ok) throw new Error(data.error || "Checkout failed");
       if (data.initPoint) window.location.href = data.initPoint;
-      else throw new Error('No payment link returned');
+      else throw new Error("No payment link returned");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : "Unknown error");
       setIsSubmitting(false);
       guard.current = false;
     }
@@ -403,33 +441,47 @@ Always verify purchase status server-side. Never trust the redirect URL alone.
 Wrap `useSearchParams` in `<Suspense>` (Next.js App Router requirement).
 
 ```tsx
-'use client';
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+"use client";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
-type Status = 'loading' | 'approved' | 'pending' | 'rejected' | 'error';
+type Status = "loading" | "approved" | "pending" | "rejected" | "error";
 
 function PaymentResult() {
-  const purchaseId = useSearchParams().get('purchase');
-  const [status, setStatus] = useState<Status>(purchaseId ? 'loading' : 'approved');
+  const purchaseId = useSearchParams().get("purchase");
+  const [status, setStatus] = useState<Status>(
+    purchaseId ? "loading" : "approved",
+  );
 
   const verify = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/purchases/${id}`);
-      if (!res.ok) { setStatus('error'); return; }
+      if (!res.ok) {
+        setStatus("error");
+        return;
+      }
       const { status } = await res.json();
-      setStatus(status === 'approved' ? 'approved'
-        : status === 'pending' ? 'pending' : 'rejected');
-    } catch { setStatus('error'); }
+      setStatus(
+        status === "approved"
+          ? "approved"
+          : status === "pending"
+            ? "pending"
+            : "rejected",
+      );
+    } catch {
+      setStatus("error");
+    }
   }, []);
 
-  useEffect(() => { if (purchaseId) verify(purchaseId); }, [purchaseId, verify]);
+  useEffect(() => {
+    if (purchaseId) verify(purchaseId);
+  }, [purchaseId, verify]);
 
-  if (status === 'loading') {
+  if (status === "loading") {
     return <div>Verifying payment...</div>;
   }
 
-  if (status === 'approved') {
+  if (status === "approved") {
     return (
       <div>
         <h1>Payment Successful!</h1>
@@ -438,7 +490,7 @@ function PaymentResult() {
     );
   }
 
-  if (status === 'pending') {
+  if (status === "pending") {
     return (
       <div>
         <h1>Payment Pending</h1>
@@ -449,7 +501,7 @@ function PaymentResult() {
     );
   }
 
-  if (status === 'rejected') {
+  if (status === "rejected") {
     return (
       <div>
         <h1>Payment Failed</h1>
@@ -468,7 +520,11 @@ function PaymentResult() {
 }
 
 export default function PaymentSuccessPage() {
-  return <Suspense fallback={<div>Loading...</div>}><PaymentResult /></Suspense>;
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PaymentResult />
+    </Suspense>
+  );
 }
 ```
 
@@ -510,40 +566,45 @@ export default function PaymentSuccessPage() {
 
 For detailed solutions, see `references/troubleshooting.md`.
 
-| Gotcha | Fix |
-|--------|-----|
-| `auto_return` + localhost = 400 error | Only set when URL starts with `https` |
-| `user_email NOT NULL` + no email = 500 | Use `'pending@checkout'` placeholder; webhook updates it |
+| Gotcha                                      | Fix                                                            |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `auto_return` + localhost = 400 error       | Only set when URL starts with `https`                          |
+| `user_email NOT NULL` + no email = 500      | Use `'pending@checkout'` placeholder; webhook updates it       |
 | `currency_id` doesn't match account country | Use correct currency (ARS for Argentina, BRL for Brazil, etc.) |
-| Hydration mismatch (localStorage cart) | Add `mounted` state guard before rendering cart content |
-| Double purchase on double-click | Use `useRef` guard, not just `useState` |
-| Success page trusts redirect URL | Always verify via `/api/purchases/[id]` |
-| Webhook duplicate updates | Check if purchase is already terminal before updating |
-| Webhooks can't reach localhost | Use ngrok: `ngrok http 3000` |
-| `useSearchParams` error | Wrap component in `<Suspense>` |
-| Payment stuck in pending | Normal for offline methods (OXXO, Rapipago, Boleto) |
-| Mixed test/production credentials | Never mix - use all TEST or all PROD |
+| Hydration mismatch (localStorage cart)      | Add `mounted` state guard before rendering cart content        |
+| Double purchase on double-click             | Use `useRef` guard, not just `useState`                        |
+| Success page trusts redirect URL            | Always verify via `/api/purchases/[id]`                        |
+| Webhook duplicate updates                   | Check if purchase is already terminal before updating          |
+| Webhooks can't reach localhost              | Use ngrok: `ngrok http 3000`                                   |
+| `useSearchParams` error                     | Wrap component in `<Suspense>`                                 |
+| Payment stuck in pending                    | Normal for offline methods (OXXO, Rapipago, Boleto)            |
+| Mixed test/production credentials           | Never mix - use all TEST or all PROD                           |
 
 ## References
 
 ### Database Adapters
+
 - `references/database-supabase.md` - Supabase DB helper implementation
 - `references/database-prisma.md` - Prisma DB helper implementation
 - `references/database-postgresql.md` - Raw PostgreSQL (pg, Drizzle, etc.) DB helper implementation
 
 ### Configuration
+
 - `references/countries.md` - Currencies, test cards, payment methods by country
 - `references/testing.md` - Complete testing guide with test cards and simulated results
 - `references/mcp-server.md` - MercadoPago MCP Server for AI integration
 
 ### Help
+
 - `references/troubleshooting.md` - 20+ common errors and solutions
 - `references/usage-examples.md` - Ready-to-use prompt templates
 
 ### Assets
+
 - `assets/migration.sql` - Database schema template (standard PostgreSQL)
 
 ### External Links
+
 - [MercadoPago Checkout Pro Docs](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro/landing)
 - [MercadoPago Node SDK](https://github.com/mercadopago/sdk-nodejs)
 - [Developer Panel](https://www.mercadopago.com/developers/panel/app)

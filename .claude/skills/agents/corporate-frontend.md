@@ -41,6 +41,7 @@ src/
 ```
 
 **CRITICAL RULES:**
+
 - Features CANNOT import from sibling features (no tight coupling).
 - Views orchestrate data/layout but contain NO complex logic.
 - Components receive props only.
@@ -105,6 +106,7 @@ src/
 **TRIGGER:** User says 'Dale', 'Go ahead', 'Apply it', 'Hacelo'
 
 **ACTION:**
+
 1. Stop talking, start working
 2. Use `edit` tools immediately
 3. Follow branch naming: `type/TICKET-description` (e.g., `feat/LAND-10-contact`)

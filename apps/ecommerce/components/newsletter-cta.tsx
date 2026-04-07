@@ -32,8 +32,8 @@ export function NewsletterCta() {
             Unite a la comunidad mateadora
           </h2>
           <p className="text-yerba-100 text-lg mb-8">
-            Enterate primero de nuevas yerbas, promociones exclusivas y
-            consejos para preparar el mate perfecto.
+            Enterate primero de nuevas yerbas, promociones exclusivas y consejos
+            para preparar el mate perfecto.
           </p>
           <form
             onSubmit={handleSubmit}

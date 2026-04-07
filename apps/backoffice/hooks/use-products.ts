@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchWithAuth } from "@/lib/fetch-with-auth";
+import { fetchWithAuth, useSessionToken } from "@/lib/fetch-with-auth";
 
 // ============================================
 // TIPOS
@@ -212,6 +212,66 @@ export function useDeleteProduct() {
         description:
           error instanceof Error ? error.message : "Error desconocido",
       });
+    },
+  });
+}
+
+// ============================================
+// IMAGE MUTATIONS
+// ============================================
+
+export function useAddProductImage(productId: string) {
+  const queryClient = useQueryClient();
+  const { getToken } = useSessionToken();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const response = await fetch(`${API_URL}/catalog/${productId}/images`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      if (!response.ok) throw new Error("Error al subir imagen");
+      return response.json() as Promise<Product>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+      toast.success("Imagen subida correctamente");
+    },
+    onError: () => {
+      toast.error("Error al subir imagen");
+    },
+  });
+}
+
+export function useRemoveProductImage(productId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (url: string) => {
+      const response = await fetchWithAuth(
+        `${API_URL}/catalog/${productId}/images`,
+        {
+          method: "DELETE",
+          body: JSON.stringify({ url }),
+        },
+      );
+      if (!response.ok) throw new Error("Error al eliminar imagen");
+      return response.json() as Promise<Product>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+      toast.success("Imagen eliminada");
+    },
+    onError: () => {
+      toast.error("Error al eliminar imagen");
     },
   });
 }

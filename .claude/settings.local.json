@@ -11,7 +11,12 @@
       "Bash(docker compose:*)",
       "Bash(bun run:*)",
       "Bash(bunx tsc:*)",
-      "Bash(set PRISMA_HIDE_UPDATE_MESSAGE=1)"
+      "Bash(set PRISMA_HIDE_UPDATE_MESSAGE=1)",
+      "Bash(bunx next:*)",
+      "Bash(bunx eslint:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(bunx prettier:*)",
+      "Bash(ls /c/Users/Usuario/Documents/Proyectos-propios/YerbaXanaesMain/apps/api/*.json)"
     ]
   }
 }

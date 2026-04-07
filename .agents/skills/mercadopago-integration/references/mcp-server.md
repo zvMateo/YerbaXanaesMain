@@ -12,12 +12,12 @@ MCP Server acts as an intermediary that translates MercadoPago ecosystem resourc
 
 ## Requirements
 
-| Requirement | Details |
-|-------------|---------|
-| **Node.js** | Version 20 or higher |
-| **NPM** | Version 5.2.0+ (for npx) |
-| **Network** | Access to `https://mcp.mercadopago.com/mcp` |
-| **Credentials** | Valid MercadoPago Access Token |
+| Requirement     | Details                                     |
+| --------------- | ------------------------------------------- |
+| **Node.js**     | Version 20 or higher                        |
+| **NPM**         | Version 5.2.0+ (for npx)                    |
+| **Network**     | Access to `https://mcp.mercadopago.com/mcp` |
+| **Credentials** | Valid MercadoPago Access Token              |
 
 ## Compatible Clients
 
@@ -71,13 +71,13 @@ Add to `claude_desktop_config.json`:
 
 The MCP Server exposes MercadoPago APIs as tools:
 
-| Tool | Description |
-|------|-------------|
-| `create_preference` | Create a Checkout Pro preference |
-| `get_payment` | Retrieve payment details |
-| `search_payments` | Search payments with filters |
-| `get_payment_methods` | List available payment methods |
-| `create_refund` | Process a refund |
+| Tool                  | Description                      |
+| --------------------- | -------------------------------- |
+| `create_preference`   | Create a Checkout Pro preference |
+| `get_payment`         | Retrieve payment details         |
+| `search_payments`     | Search payments with filters     |
+| `get_payment_methods` | List available payment methods   |
+| `create_refund`       | Process a refund                 |
 
 ## Troubleshooting
 
@@ -86,6 +86,7 @@ The MCP Server exposes MercadoPago APIs as tools:
 **Symptoms**: Cannot connect to MCP Server
 
 **Solutions**:
+
 1. Check internet connection
 2. Verify no firewall blocks `https://mcp.mercadopago.com/mcp`
 3. Test network access: `curl https://mcp.mercadopago.com/mcp`
@@ -95,6 +96,7 @@ The MCP Server exposes MercadoPago APIs as tools:
 **Symptoms**: Authentication errors, 401 responses
 
 **Solutions**:
+
 1. Verify Access Token is correct
 2. Test credentials with public API:
    ```bash
@@ -109,6 +111,7 @@ The MCP Server exposes MercadoPago APIs as tools:
 **Symptoms**: `command not found: npx`
 
 **Solutions**:
+
 1. Check npm version: `npm --version` (needs 5.2.0+)
 2. Update npm: `npm install -g npm`
 3. Verify npx: `npx --version`
@@ -118,6 +121,7 @@ The MCP Server exposes MercadoPago APIs as tools:
 **Symptoms**: Syntax errors, module not found
 
 **Solutions**:
+
 1. Check version: `node -v` (needs v20+)
 2. Install with nvm:
    ```bash
@@ -130,6 +134,7 @@ The MCP Server exposes MercadoPago APIs as tools:
 **Symptoms**: Features not working, unexpected errors
 
 **Solutions**:
+
 1. Update your IDE/client to latest version
 2. Check MercadoPago changelog for breaking changes
 3. Clear client cache and restart

@@ -87,7 +87,8 @@ export function useCreateCoupon() {
     },
     onError: (error) => {
       toast.error("Error al crear cupón", {
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
       });
     },
   });
@@ -102,7 +103,8 @@ export function useToggleCoupon() {
     },
     onError: (error) => {
       toast.error("Error", {
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
       });
     },
   });
@@ -118,7 +120,8 @@ export function useDeleteCoupon() {
     },
     onError: (error) => {
       toast.error("Error al eliminar", {
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
       });
     },
   });

@@ -38,7 +38,10 @@ export function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8" aria-label="Navegación principal">
+          <nav
+            className="hidden md:flex items-center gap-8"
+            aria-label="Navegación principal"
+          >
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -48,7 +51,7 @@ export function Header() {
                   "font-medium transition-colors",
                   isActive(link.href)
                     ? "text-yerba-600"
-                    : "text-stone-600 hover:text-yerba-600"
+                    : "text-stone-600 hover:text-yerba-600",
                 )}
               >
                 {link.label}
@@ -129,7 +132,7 @@ export function Header() {
                     "font-medium py-2.5 px-3 rounded-lg transition-colors",
                     isActive(link.href)
                       ? "text-yerba-600 bg-yerba-50"
-                      : "text-stone-600 hover:text-yerba-600 hover:bg-stone-50"
+                      : "text-stone-600 hover:text-yerba-600 hover:bg-stone-50",
                   )}
                   onClick={() => setIsMenuOpen(false)}
                 >

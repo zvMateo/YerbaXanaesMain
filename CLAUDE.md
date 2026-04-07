@@ -75,7 +75,9 @@ packages/
 ## Architecture
 
 ### API (NestJS)
+
 Modular architecture with feature modules in `apps/api/src/`:
+
 - `auth/` - Authentication (Better Auth integration)
 - `catalog/` - Products and categories
 - `inventory/` - Stock management
@@ -88,6 +90,7 @@ Modular architecture with feature modules in `apps/api/src/`:
 Each module follows NestJS conventions: `*.module.ts`, `*.controller.ts`, `*.service.ts`
 
 ### Frontends (Next.js App Router)
+
 - **ecommerce**: Customer-facing store with checkout flow
   - `/` - Home/product listing
   - `/productos/[slug]` - Product detail
@@ -102,14 +105,18 @@ Each module follows NestJS conventions: `*.module.ts`, `*.controller.ts`, `*.ser
   - `/pagos` - Payment tracking
 
 ### Shared Types
+
 Import from `@repo/types`:
+
 - `Product`, `ProductVariant`, `Category`
 - `Order`, `OrderItem`, `OrderStatus`
 - `InventoryItem`, `VariantIngredient`
 - `Create*Input` DTOs for mutations
 
 ### Database Schema (Prisma)
+
 Key models: `User`, `Product`, `ProductVariant`, `Order`, `OrderItem`, `InventoryItem`, `Category`
+
 - Products have variants with ingredients linked to inventory
 - Orders track MercadoPago payment status
 - Soft delete pattern on Order (`deletedAt`)
@@ -117,6 +124,7 @@ Key models: `User`, `Product`, `ProductVariant`, `Order`, `OrderItem`, `Inventor
 ## Environment Variables
 
 Required in `apps/api/.env`:
+
 ```
 DATABASE_URL=postgresql://admin:yerbapassword123@localhost:5432/yerbaxanaes_main_db
 MP_ACCESS_TOKEN=<mercadopago_access_token>
@@ -125,6 +133,7 @@ BACKOFFICE_URL=http://localhost:3002
 ```
 
 Required in `apps/ecommerce/.env`:
+
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=<mercadopago_public_key>

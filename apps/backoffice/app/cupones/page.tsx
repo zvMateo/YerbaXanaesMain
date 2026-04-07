@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Tag, ToggleLeft, ToggleRight, Trash2, Loader2, X, Check } from "lucide-react";
+import {
+  Plus,
+  Tag,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+  Loader2,
+  X,
+  Check,
+} from "lucide-react";
 import {
   useCoupons,
   useCreateCoupon,
@@ -77,7 +86,9 @@ export default function CuponesPage() {
               </label>
               <input
                 value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                onChange={(e) =>
+                  setForm({ ...form, code: e.target.value.toUpperCase() })
+                }
                 placeholder="Ej: YERBA20"
                 required
                 className="w-full px-3 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
@@ -91,7 +102,10 @@ export default function CuponesPage() {
               <select
                 value={form.discountType}
                 onChange={(e) =>
-                  setForm({ ...form, discountType: e.target.value as "PERCENTAGE" | "FIXED" })
+                  setForm({
+                    ...form,
+                    discountType: e.target.value as "PERCENTAGE" | "FIXED",
+                  })
                 }
                 className="w-full px-3 py-2.5 border border-stone-200 rounded-xl bg-white focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
               >
@@ -108,8 +122,12 @@ export default function CuponesPage() {
                 type="number"
                 min={0}
                 value={form.discountValue || ""}
-                onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })}
-                placeholder={form.discountType === "PERCENTAGE" ? "Ej: 20" : "Ej: 1500"}
+                onChange={(e) =>
+                  setForm({ ...form, discountValue: Number(e.target.value) })
+                }
+                placeholder={
+                  form.discountType === "PERCENTAGE" ? "Ej: 20" : "Ej: 1500"
+                }
                 required
                 className="w-full px-3 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
               />
@@ -124,7 +142,12 @@ export default function CuponesPage() {
                 min={0}
                 value={form.minOrderAmount || ""}
                 onChange={(e) =>
-                  setForm({ ...form, minOrderAmount: e.target.value ? Number(e.target.value) : undefined })
+                  setForm({
+                    ...form,
+                    minOrderAmount: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  })
                 }
                 placeholder="Sin mínimo"
                 className="w-full px-3 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
@@ -140,7 +163,12 @@ export default function CuponesPage() {
                 min={1}
                 value={form.maxUses || ""}
                 onChange={(e) =>
-                  setForm({ ...form, maxUses: e.target.value ? Number(e.target.value) : undefined })
+                  setForm({
+                    ...form,
+                    maxUses: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  })
                 }
                 placeholder="Ilimitado"
                 className="w-full px-3 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
@@ -154,7 +182,9 @@ export default function CuponesPage() {
               <input
                 type="date"
                 value={form.expiresAt || ""}
-                onChange={(e) => setForm({ ...form, expiresAt: e.target.value || undefined })}
+                onChange={(e) =>
+                  setForm({ ...form, expiresAt: e.target.value || undefined })
+                }
                 className="w-full px-3 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
               />
             </div>
@@ -220,7 +250,10 @@ export default function CuponesPage() {
             </thead>
             <tbody className="divide-y divide-stone-100">
               {coupons.map((coupon) => (
-                <tr key={coupon.id} className="hover:bg-stone-50 transition-colors">
+                <tr
+                  key={coupon.id}
+                  className="hover:bg-stone-50 transition-colors"
+                >
                   <td className="px-6 py-4">
                     <span className="font-mono font-semibold text-stone-900 bg-stone-100 px-2 py-1 rounded-lg text-xs">
                       {coupon.code}
@@ -232,7 +265,8 @@ export default function CuponesPage() {
                       : `$${Number(coupon.discountValue).toLocaleString("es-AR")}`}
                     {coupon.minOrderAmount && (
                       <span className="text-xs text-stone-400 ml-1">
-                        (mín. ${Number(coupon.minOrderAmount).toLocaleString("es-AR")})
+                        (mín. $
+                        {Number(coupon.minOrderAmount).toLocaleString("es-AR")})
                       </span>
                     )}
                   </td>

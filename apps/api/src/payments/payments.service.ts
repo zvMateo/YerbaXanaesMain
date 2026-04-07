@@ -13,6 +13,23 @@ import { CreatePreferenceDto } from './dto/create-preference.dto';
 import { OrderStatus, PaymentProvider } from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 
+interface MpPayment {
+  id: string;
+  status: string;
+  status_detail?: string;
+}
+
+interface MpOrderResponse {
+  id: string;
+  status: string;
+  status_detail?: string;
+  external_reference?: string;
+  cause?: unknown;
+  transactions?: {
+    payments?: MpPayment[];
+  };
+}
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -159,7 +176,7 @@ export class PaymentsService {
         body: JSON.stringify(mpPayload),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as MpOrderResponse;
 
       if (!response.ok) {
         this.logger.error('Error de MP al crear Order', data);
@@ -171,16 +188,16 @@ export class PaymentsService {
 
         throw new BadRequestException({
           message: 'Error de MercadoPago al procesar el pago',
-          cause: data.cause || data,
+          cause: data.cause ?? data,
         });
       }
 
       // 4. Analizar respuesta de la transacción
       // En "automatic", el pago se procesa asíncronamente o retorna el status final
       const mpStatus = data.status; // ej: "processed", "action_required"
-      const paymentStatus = data.transactions?.payments?.[0]?.status; // "processed", "rejected", "pending"
-      const paymentStatusDetail =
-        data.transactions?.payments?.[0]?.status_detail; // "accredited"
+      const firstPayment = data.transactions?.payments?.[0];
+      const paymentStatus = firstPayment?.status; // "processed", "rejected", "pending"
+      const paymentStatusDetail = firstPayment?.status_detail; // "accredited"
 
       this.logger.log(
         `MP Order ${data.id} - Status: ${mpStatus} - Payment: ${paymentStatus}`,
@@ -193,13 +210,13 @@ export class PaymentsService {
           data: {
             status: OrderStatus.PAID,
             paymentProvider: PaymentProvider.MERCADOPAGO,
-            mpPaymentId: data.transactions.payments[0].id,
+            mpPaymentId: firstPayment?.id,
             mpStatus: paymentStatusDetail,
           },
         });
 
         return {
-          id: data.transactions.payments[0].id,
+          id: firstPayment?.id,
           status: 'approved',
           detail: paymentStatusDetail,
           orderId: order.id,
@@ -210,14 +227,12 @@ export class PaymentsService {
       return {
         id: data.id,
         status: mpStatus,
-        detail: paymentStatusDetail || data.status_detail,
+        detail: paymentStatusDetail ?? data.status_detail,
         orderId: order.id,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('Excepción en processCardPayment', error);
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
+      if (error instanceof BadRequestException) throw error;
       throw new InternalServerErrorException('Error interno al procesar pago');
     }
   }
@@ -226,7 +241,6 @@ export class PaymentsService {
   // WEBHOOK (Validación estricta de firma HMAC)
   // -------------------------------------------------------
   async handleWebhook(params: {
-    body: any;
     signature: string;
     requestId: string;
     dataIdUrl: string;
@@ -239,7 +253,9 @@ export class PaymentsService {
 
     // Rechazar si el secret no está configurado — lanzar error para que MP reintente
     if (!webhookSecret) {
-      this.logger.error('MP_WEBHOOK_SECRET no configurado — rechazando webhook');
+      this.logger.error(
+        'MP_WEBHOOK_SECRET no configurado — rechazando webhook',
+      );
       throw new InternalServerErrorException('Webhook secret not configured');
     }
 
@@ -293,7 +309,7 @@ export class PaymentsService {
           return { status: 'ok' }; // Devuelve 200 para que MP no reintente
         }
 
-        const mpOrder = await response.json();
+        const mpOrder = (await response.json()) as MpOrderResponse;
         const extRef = mpOrder.external_reference;
 
         if (!extRef) return { status: 'ok' };
@@ -330,8 +346,8 @@ export class PaymentsService {
             where: { id: extRef },
             data: {
               status: newStatus,
-              mpPaymentId: mpOrder.transactions?.payments?.[0]?.id,
-              mpStatus: mpOrder.status_detail,
+              mpPaymentId: mpOrder.transactions?.payments?.[0]?.id ?? null,
+              mpStatus: mpOrder.status_detail ?? null,
             },
           });
           this.logger.log(`Order ${extRef} actualizada a ${newStatus}`);

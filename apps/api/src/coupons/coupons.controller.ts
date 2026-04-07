@@ -11,6 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { CouponsService } from './coupons.service';
+import type { CreateCouponDto } from './coupons.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 
 @Controller('coupons')
@@ -20,7 +21,7 @@ export class CouponsController {
   // POST /coupons — crear cupón (solo admin)
   @Post()
   @UseGuards(AuthGuard)
-  create(@Body() body: any) {
+  create(@Body() body: CreateCouponDto) {
     return this.couponsService.create(body);
   }
 

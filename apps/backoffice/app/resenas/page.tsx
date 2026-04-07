@@ -74,7 +74,11 @@ export default function ResenasPage() {
                 : "bg-white border border-stone-200 text-stone-600 hover:bg-stone-50"
             }`}
           >
-            {f === "all" ? "Todas" : f === "pending" ? "Pendientes" : "Aprobadas"}
+            {f === "all"
+              ? "Todas"
+              : f === "pending"
+                ? "Pendientes"
+                : "Aprobadas"}
           </button>
         ))}
       </div>
@@ -90,7 +94,9 @@ export default function ResenasPage() {
             <MessageSquare className="h-10 w-10 mb-3 text-stone-300" />
             <p className="font-medium">No hay reseñas</p>
             <p className="text-sm">
-              {filter === "pending" ? "No hay reseñas pendientes" : "Sin reseñas aún"}
+              {filter === "pending"
+                ? "No hay reseñas pendientes"
+                : "Sin reseñas aún"}
             </p>
           </div>
         ) : (

@@ -2,7 +2,6 @@
 // Human-Core: Estados naturales y feedback vivo
 
 import { useQuery } from "@tanstack/react-query";
-import { Product } from "@repo/types";
 import { getProducts, getCategories } from "@/lib/api";
 
 interface UseProductsOptions {

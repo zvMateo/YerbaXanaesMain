@@ -108,7 +108,10 @@ export default function NosotrosPage() {
               <div className="order-2 lg:order-1">
                 <div className="aspect-[4/3] rounded-3xl bg-gradient-to-br from-yerba-100 to-earth-100 border border-stone-200 flex flex-col items-center justify-center gap-4 shadow-lg">
                   <div className="w-24 h-24 rounded-full bg-white shadow-md flex items-center justify-center">
-                    <Leaf className="h-12 w-12 text-yerba-500" aria-hidden="true" />
+                    <Leaf
+                      className="h-12 w-12 text-yerba-500"
+                      aria-hidden="true"
+                    />
                   </div>
                   <p className="text-stone-500 text-sm">
                     Foto del equipo próximamente
@@ -168,7 +171,10 @@ export default function NosotrosPage() {
                   className="bg-white rounded-2xl p-8 border border-stone-200 text-center hover:shadow-md transition-shadow"
                 >
                   <div className="inline-flex items-center justify-center w-16 h-16 bg-yerba-100 rounded-2xl mb-6">
-                    <v.icon className="h-8 w-8 text-yerba-600" aria-hidden="true" />
+                    <v.icon
+                      className="h-8 w-8 text-yerba-600"
+                      aria-hidden="true"
+                    />
                   </div>
                   <h3 className="font-serif text-xl font-bold text-stone-900 mb-3">
                     {v.title}
@@ -222,11 +228,17 @@ export default function NosotrosPage() {
             <div className="max-w-2xl mx-auto text-center">
               <div className="flex items-center justify-center gap-6 mb-8">
                 <div className="flex items-center gap-2 text-stone-600">
-                  <Package className="h-5 w-5 text-yerba-600" aria-hidden="true" />
+                  <Package
+                    className="h-5 w-5 text-yerba-600"
+                    aria-hidden="true"
+                  />
                   <span className="text-sm">Packaging premium</span>
                 </div>
                 <div className="flex items-center gap-2 text-stone-600">
-                  <Truck className="h-5 w-5 text-yerba-600" aria-hidden="true" />
+                  <Truck
+                    className="h-5 w-5 text-yerba-600"
+                    aria-hidden="true"
+                  />
                   <span className="text-sm">Envío a todo el país</span>
                 </div>
               </div>

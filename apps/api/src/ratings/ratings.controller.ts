@@ -8,12 +8,13 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { RatingsService } from './ratings.service';
+import type { CreateRatingDto } from './ratings.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller()
 export class RatingsController {
@@ -21,9 +22,8 @@ export class RatingsController {
 
   // POST /ratings — submit a review (público, el userId es opcional)
   @Post('ratings')
-  create(@Body() body: any, @Request() req: any) {
-    const userId = req.user?.id;
-    return this.ratingsService.create({ ...body, userId });
+  create(@Body() body: CreateRatingDto, @CurrentUser() user?: { id: string }) {
+    return this.ratingsService.create({ ...body, userId: user?.id });
   }
 
   // GET /products/:id/ratings — ratings aprobados de un producto
