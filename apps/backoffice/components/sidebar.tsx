@@ -21,6 +21,8 @@ import {
   Search,
   Sparkles,
   FolderOpen,
+  Tag,
+  Star,
 } from "lucide-react";
 import {
   TbLayoutSidebarLeftCollapseFilled,
@@ -131,6 +133,18 @@ const navigation = [
     icon: FolderOpen,
     description: "Organización de productos",
     shortcut: "⌘K",
+  },
+  {
+    name: "Cupones",
+    href: "/cupones",
+    icon: Tag,
+    description: "Descuentos y promociones",
+  },
+  {
+    name: "Reseñas",
+    href: "/resenas",
+    icon: Star,
+    description: "Moderación de reseñas",
   },
 ];
 

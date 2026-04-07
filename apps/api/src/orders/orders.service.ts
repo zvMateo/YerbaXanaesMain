@@ -6,13 +6,30 @@ import {
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CouponsService } from '../coupons/coupons.service';
 import { OrderStatus, PaymentProvider } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly coupons: CouponsService,
+  ) {}
 
   async create(dto: CreateOrderDto) {
+    // Validar cupón ANTES de la transacción (lectura externa segura)
+    // La validación final se hace dentro de la tx para evitar race conditions
+    let couponValidation: Awaited<ReturnType<CouponsService['validate']>> | null =
+      null;
+    if (dto.couponCode) {
+      // We'll get the amount after calculating; use a placeholder — re-validate inside tx
+      // For now just check the coupon exists & is active
+      await this.coupons.validate(dto.couponCode, 0).catch((e) => {
+        // If it fails due to amount, ignore (we check again inside tx with real amount)
+        if (!e.message?.includes('Monto mínimo')) throw e;
+      });
+    }
+
     // -------------------------------------------------------------
     // TRANSACCIÓN: Asegura consistencia de Stock
     // -------------------------------------------------------------
@@ -112,7 +129,18 @@ export class OrdersService {
 
       // Total con envío incluido
       const shippingCost = dto.shippingCost ? Number(dto.shippingCost) : 0;
-      const totalWithShipping = totalAmount + shippingCost;
+      const subtotalWithShipping = totalAmount + shippingCost;
+
+      // Aplicar cupón si viene en el DTO
+      if (dto.couponCode) {
+        couponValidation = await this.coupons.validate(
+          dto.couponCode,
+          subtotalWithShipping,
+        );
+      }
+
+      const discount = couponValidation?.discountAmount ?? 0;
+      const totalWithShipping = Math.max(0, subtotalWithShipping - discount);
 
       const order = await tx.order.create({
         data: {
@@ -137,6 +165,16 @@ export class OrdersService {
         },
         include: { items: true },
       });
+
+      // Registrar descuento e incrementar usos del cupón
+      if (couponValidation) {
+        await this.coupons.applyToOrder(
+          tx,
+          order.id,
+          couponValidation.couponId,
+          couponValidation.discountAmount,
+        );
+      }
 
       return order;
     });

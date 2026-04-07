@@ -99,6 +99,28 @@ export async function getProduct(id: string): Promise<Product | null> {
   );
 }
 
+export interface RatingResult {
+  ratings: {
+    id: string;
+    rating: number;
+    comment?: string;
+    createdAt: string;
+    user?: { name?: string; email: string };
+  }[];
+  avgRating: number;
+  totalRatings: number;
+}
+
+export async function getProductRatings(
+  productId: string,
+): Promise<RatingResult> {
+  return safeFetch(
+    `${API_URL}/products/${productId}/ratings`,
+    { next: { revalidate: 60, tags: [`ratings-${productId}`] } },
+    { ratings: [], avgRating: 0, totalRatings: 0 },
+  );
+}
+
 // Health check - Systems-Oriented: Verificar conectividad
 export async function checkApiHealth(): Promise<boolean> {
   try {

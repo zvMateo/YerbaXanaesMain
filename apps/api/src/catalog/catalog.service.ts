@@ -72,6 +72,9 @@ export class CatalogService {
           slug: `${slug}-${Date.now()}`,
           categoryId: dto.categoryId,
           isActive: dto.isActive ?? true,
+          isFeatured: dto.isFeatured ?? false,
+          metaTitle: dto.metaTitle,
+          metaDescription: dto.metaDescription,
         },
       });
 
@@ -85,6 +88,9 @@ export class CatalogService {
               name: variantDto.name,
               price: variantDto.price,
               stock: variantDto.stock,
+              sku: variantDto.sku,
+              costPrice: variantDto.costPrice,
+              weight: variantDto.weight,
             },
           });
 
@@ -162,35 +168,75 @@ export class CatalogService {
   }
 
   async update(id: string, updateCatalogDto: UpdateCatalogDto) {
-    // Separamos variants para no intentar actualizar la relación directamente
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { variants, ...productData } = updateCatalogDto;
 
-    // Si el nombre cambia, regeneramos el slug
-    const data: Record<string, any> = { ...productData };
-    if (productData.name) {
-      data.slug = productData.name
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Actualizar campos del producto
+      const data: Record<string, any> = { ...productData };
+      if (productData.name) {
+        data.slug = productData.name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+      }
 
-    const product = await this.prisma.product.update({
-      where: { id },
-      data,
-      include: {
-        variants: {
-          include: {
-            ingredients: { include: { inventoryItem: true } },
+      await tx.product.update({ where: { id }, data });
+
+      // 2. Si vienen variantes, reemplazarlas completamente (delete+create)
+      if (variants !== undefined) {
+        // Borrar ingredientes y variantes existentes
+        const existingVariants = await tx.productVariant.findMany({
+          where: { productId: id },
+          select: { id: true },
+        });
+        const variantIds = existingVariants.map((v) => v.id);
+
+        await tx.variantIngredient.deleteMany({
+          where: { variantId: { in: variantIds } },
+        });
+        await tx.productVariant.deleteMany({ where: { productId: id } });
+
+        // Crear las nuevas variantes
+        for (const variantDto of variants) {
+          const variant = await tx.productVariant.create({
+            data: {
+              productId: id,
+              name: variantDto.name,
+              price: variantDto.price,
+              stock: variantDto.stock,
+              sku: variantDto.sku,
+              costPrice: variantDto.costPrice,
+              weight: variantDto.weight,
+            },
+          });
+
+          if (variantDto.ingredients && variantDto.ingredients.length > 0) {
+            await tx.variantIngredient.createMany({
+              data: variantDto.ingredients.map((ing) => ({
+                variantId: variant.id,
+                inventoryItemId: ing.inventoryItemId,
+                quantityRequired: ing.quantityRequired,
+              })),
+            });
+          }
+        }
+      }
+
+      // 3. Retornar producto actualizado
+      const product = await tx.product.findUnique({
+        where: { id },
+        include: {
+          variants: {
+            include: { ingredients: { include: { inventoryItem: true } } },
           },
+          category: true,
         },
-        category: true,
-      },
-    });
+      });
 
-    return this.mapProductWithStock(product);
+      return this.mapProductWithStock(product);
+    });
   }
 
   async remove(id: string) {

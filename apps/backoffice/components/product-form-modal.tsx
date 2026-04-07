@@ -51,6 +51,7 @@ export function ProductFormModal({
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [isFeatured, setIsFeatured] = useState(false);
   const [productType, setProductType] = useState<ProductType>("packaged");
   const [variants, setVariants] = useState<VariantForm[]>([
     { name: "", price: 0, stock: 0, inventoryItemId: "", quantityRequired: 0 },
@@ -65,6 +66,7 @@ export function ProductFormModal({
       setDescription(product.description || "");
       setCategoryId(product.categoryId);
       setIsActive(product.isActive);
+      setIsFeatured(product.isFeatured ?? false);
 
       // Detectar tipo: si tiene ingredientes es "a granel"
       const hasIngredients = product.variants.some(
@@ -86,6 +88,7 @@ export function ProductFormModal({
       setDescription("");
       setCategoryId("");
       setIsActive(true);
+      setIsFeatured(false);
       setProductType("packaged");
       setVariants([
         {
@@ -103,42 +106,52 @@ export function ProductFormModal({
 
   const isPending = createProduct.isPending || updateProduct.isPending;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (isEditing) {
-      updateProduct.mutate(
-        { id: product.id, data: { name, description, categoryId, isActive } },
-        { onSuccess: onClose },
-      );
-    } else {
-      // Construir variantes con o sin ingredientes
-      const variantsPayload = variants.map((v) => {
-        if (
-          productType === "bulk" &&
-          v.inventoryItemId &&
-          v.quantityRequired > 0
-        ) {
-          return {
-            name: v.name,
-            price: v.price,
-            ingredients: [
-              {
-                inventoryItemId: v.inventoryItemId,
-                quantityRequired: v.quantityRequired,
-              },
-            ],
-          };
-        }
+  const buildVariantsPayload = () =>
+    variants.map((v) => {
+      if (productType === "bulk" && v.inventoryItemId && v.quantityRequired > 0) {
         return {
           name: v.name,
           price: v.price,
-          stock: v.stock,
+          ingredients: [
+            {
+              inventoryItemId: v.inventoryItemId,
+              quantityRequired: v.quantityRequired,
+            },
+          ],
         };
-      });
+      }
+      return { name: v.name, price: v.price, stock: v.stock };
+    });
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const variantsPayload = buildVariantsPayload();
+
+    if (isEditing) {
+      updateProduct.mutate(
+        {
+          id: product.id,
+          data: {
+            name,
+            description,
+            categoryId,
+            isActive,
+            isFeatured,
+            variants: variantsPayload,
+          },
+        },
+        { onSuccess: onClose },
+      );
+    } else {
       createProduct.mutate(
-        { name, description, categoryId, isActive, variants: variantsPayload },
+        {
+          name,
+          description,
+          categoryId,
+          isActive,
+          isFeatured,
+          variants: variantsPayload,
+        },
         { onSuccess: onClose },
       );
     }
@@ -255,12 +268,11 @@ export function ProductFormModal({
             </select>
           </div>
 
-          {/* Tipo de Producto (solo en creación) */}
-          {!isEditing && (
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-2">
-                Tipo de producto
-              </label>
+          {/* Tipo de Producto */}
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              Tipo de producto
+            </label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -293,29 +305,44 @@ export function ProductFormModal({
                   <p className="text-xs text-stone-500">Yerba, hierbas...</p>
                 </button>
               </div>
-            </div>
-          )}
+          </div>
 
-          {/* Activo */}
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="isActive"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="rounded border-stone-300 text-yerba-600 focus:ring-yerba-500"
-            />
-            <label
-              htmlFor="isActive"
-              className="text-sm font-medium text-stone-700"
-            >
-              Producto activo (visible en la tienda)
-            </label>
+          {/* Activo + Destacado */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="rounded border-stone-300 text-yerba-600 focus:ring-yerba-500"
+              />
+              <label
+                htmlFor="isActive"
+                className="text-sm font-medium text-stone-700"
+              >
+                Producto activo (visible en la tienda)
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="isFeatured"
+                checked={isFeatured}
+                onChange={(e) => setIsFeatured(e.target.checked)}
+                className="rounded border-stone-300 text-yerba-600 focus:ring-yerba-500"
+              />
+              <label
+                htmlFor="isFeatured"
+                className="text-sm font-medium text-stone-700"
+              >
+                Destacado en la homepage
+              </label>
+            </div>
           </div>
 
           {/* Variantes */}
-          {!isEditing && (
-            <div>
+          <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-stone-700">
                   Variantes / Presentaciones *
@@ -474,7 +501,6 @@ export function ProductFormModal({
                 })}
               </div>
             </div>
-          )}
 
           {/* Acciones */}
           <div className="flex gap-3 pt-2">

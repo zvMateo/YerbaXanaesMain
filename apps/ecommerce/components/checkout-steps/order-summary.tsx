@@ -34,8 +34,11 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
     : typeof shippingCostRaw === "number"
       ? shippingCostRaw
       : null;
+  const couponDiscount = formData.couponDiscount ?? 0;
   const finalTotal: number =
-    shippingCost === null ? total : total + shippingCost;
+    shippingCost === null
+      ? total - couponDiscount
+      : total + shippingCost - couponDiscount;
 
   const PaymentIcon =
     paymentMethodLabels[formData.paymentMethod]?.icon || CreditCard;
@@ -223,6 +226,12 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
                   : `$${shippingCost.toLocaleString()}`}
             </span>
           </div>
+          {couponDiscount > 0 && (
+            <div className="flex justify-between text-green-300">
+              <span>Cupón ({formData.couponCode})</span>
+              <span>-${couponDiscount.toLocaleString()}</span>
+            </div>
+          )}
           <div className="border-t border-yerba-500 pt-2 mt-2">
             <div className="flex justify-between text-lg font-bold">
               <span>Total a pagar</span>

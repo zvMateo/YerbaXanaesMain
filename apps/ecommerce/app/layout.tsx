@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
-import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
+import "./global.css";
 import { Providers } from "@/components/providers";
 
 // Fuente principal - Sans-serif moderna
@@ -92,6 +93,7 @@ export default function RootLayout({
         className={`${inter.variable} ${playfair.variable} font-sans antialiased bg-stone-50 text-stone-900`}
       >
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );

@@ -12,6 +12,7 @@ async function fetchAPI<T>(
 ): Promise<T> {
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    credentials: "include", // Send Better Auth session cookie automatically
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,

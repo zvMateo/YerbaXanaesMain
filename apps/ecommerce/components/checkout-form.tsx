@@ -11,12 +11,108 @@ import {
 import { useCartStore } from "@/stores/cart-store";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Tag, Check, X } from "lucide-react";
 
+import { useFormContext } from "react-hook-form";
 import { PersonalInfoStep } from "./checkout-steps/personal-info-step";
 import { DeliveryStep } from "./checkout-steps/delivery-step";
 import { PaymentStep } from "./checkout-steps/payment-step";
 import { OrderSummary } from "./checkout-steps/order-summary";
+
+function CouponInput({ total }: { total: number }) {
+  const { setValue, watch } = useFormContext<CheckoutFormData>();
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const appliedCode = watch("couponCode");
+  const discount = watch("couponDiscount") ?? 0;
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  const apply = async () => {
+    if (!code.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/coupons/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim(), orderAmount: total }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Cupón inválido");
+        return;
+      }
+      setValue("couponCode", code.trim().toUpperCase());
+      setValue("couponDiscount", data.discountAmount);
+      setCode("");
+    } catch {
+      setError("Error al validar el cupón");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const remove = () => {
+    setValue("couponCode", undefined);
+    setValue("couponDiscount", 0);
+    setError(null);
+  };
+
+  if (appliedCode) {
+    return (
+      <div className="flex items-center justify-between bg-yerba-50 border border-yerba-200 rounded-xl px-4 py-3 mb-4">
+        <div className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-yerba-600" />
+          <span className="text-sm font-semibold text-yerba-700 font-mono">
+            {appliedCode}
+          </span>
+          <span className="text-sm text-yerba-600">
+            — ${discount.toLocaleString("es-AR")} de descuento
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={remove}
+          className="p-1 text-stone-400 hover:text-red-500 transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => { setCode(e.target.value.toUpperCase()); setError(null); }}
+            onKeyDown={(e) => e.key === "Enter" && apply()}
+            placeholder="¿Tenés un cupón?"
+            className="w-full pl-9 pr-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={apply}
+          disabled={loading || !code.trim()}
+          className="px-4 py-2.5 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Aplicar
+        </button>
+      </div>
+      {error && (
+        <p className="text-red-600 text-xs mt-1.5 ml-1">{error}</p>
+      )}
+    </div>
+  );
+}
 
 const steps = [
   { id: "personal", label: "Tus Datos", number: 1 },
@@ -202,6 +298,7 @@ export function CheckoutForm() {
             shippingZip: data.zipCode,
             shippingCost: data.shippingCost ?? 0,
             shippingProvider: data.shippingProvider,
+            couponCode: data.couponCode || undefined,
           }),
         });
 
@@ -236,6 +333,7 @@ export function CheckoutForm() {
           shippingZip: data.zipCode,
           shippingCost: data.shippingCost ?? 0,
           shippingProvider: data.shippingProvider,
+          couponCode: data.couponCode || undefined,
           items: items.map((item) => ({
             variantId: item.variantId,
             quantity: item.quantity,
@@ -353,7 +451,10 @@ export function CheckoutForm() {
                 />
               )}
               {currentStep === 3 && (
-                <OrderSummary items={items} total={total} />
+                <>
+                  <CouponInput total={total} />
+                  <OrderSummary items={items} total={total} />
+                </>
               )}
             </motion.div>
           </AnimatePresence>

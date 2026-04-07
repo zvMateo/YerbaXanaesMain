@@ -25,6 +25,7 @@ interface SuccessPageProps {
 export const metadata: Metadata = {
   title: "Estado del Pedido | YerbaXanaes",
   description: "Información sobre el estado de tu compra",
+  robots: { index: false, follow: false },
 };
 
 export default async function CheckoutSuccessPage({

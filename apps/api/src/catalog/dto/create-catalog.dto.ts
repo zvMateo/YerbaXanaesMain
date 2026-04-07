@@ -39,6 +39,18 @@ class CreateProductVariantDto {
   @IsNumber()
   @IsOptional()
   stock?: number; // Para productos simples sin receta
+
+  @IsString()
+  @IsOptional()
+  sku?: string;
+
+  @IsNumber()
+  @IsOptional()
+  costPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  weight?: number;
 }
 
 export class CreateCatalogDto {
@@ -63,4 +75,16 @@ export class CreateCatalogDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isFeatured?: boolean;
+
+  @IsString()
+  @IsOptional()
+  metaTitle?: string;
+
+  @IsString()
+  @IsOptional()
+  metaDescription?: string;
 }

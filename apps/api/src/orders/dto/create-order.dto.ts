@@ -95,6 +95,11 @@ export class CreateOrderDto {
   @IsOptional()
   shippingProvider?: string; // "correo_argentino" | "flat_rate" | "pickup"
 
+  // Descuento con Cupón
+  @IsString()
+  @IsOptional()
+  couponCode?: string;
+
   // Carrito de Compras
   @IsArray()
   @ValidateNested({ each: true })

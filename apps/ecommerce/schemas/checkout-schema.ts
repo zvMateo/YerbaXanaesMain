@@ -46,6 +46,10 @@ export const checkoutSchema = z.object({
   shippingProvider: z.string(), // "correo_argentino" | "flat_rate" | "pickup"
   shippingProvinceCode: z.string(), // Código de provincia Correo Argentino
 
+  // Cupón de descuento (opcional)
+  couponCode: z.string().optional(),
+  couponDiscount: z.number().optional(), // Monto a descontar del total
+
   // Notas adicionales
   notes: z
     .string()

@@ -153,7 +153,7 @@ export class DashboardService {
       topSellingProducts,
       weeklySales,
       salesByCategory,
-      hourlySales: this.getHourlySalesData(),
+      hourlySales: await this.getHourlySalesData(),
     };
   }
 
@@ -319,20 +319,32 @@ export class DashboardService {
       .slice(0, 5);
   }
 
-  private getHourlySalesData() {
-    return [
-      { hour: '9hs', orders: 2 },
-      { hour: '10hs', orders: 3 },
-      { hour: '11hs', orders: 5 },
-      { hour: '12hs', orders: 4 },
-      { hour: '13hs', orders: 3 },
-      { hour: '14hs', orders: 2 },
-      { hour: '15hs', orders: 4 },
-      { hour: '16hs', orders: 3 },
-      { hour: '17hs', orders: 2 },
-      { hour: '18hs', orders: 5 },
-      { hour: '19hs', orders: 4 },
-      { hour: '20hs', orders: 3 },
-    ];
+  private async getHourlySalesData() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        createdAt: { gte: today, lt: tomorrow },
+        status: { in: [OrderStatus.PAID, OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.DELIVERED] },
+        deletedAt: null,
+      },
+      select: { createdAt: true },
+    });
+
+    // Build a map hour → count
+    const hourMap: Record<number, number> = {};
+    for (const order of orders) {
+      const h = order.createdAt.getHours();
+      hourMap[h] = (hourMap[h] || 0) + 1;
+    }
+
+    // Return hours 8–22
+    return Array.from({ length: 15 }, (_, i) => {
+      const h = i + 8;
+      return { hour: `${h}hs`, orders: hourMap[h] || 0 };
+    });
   }
 }

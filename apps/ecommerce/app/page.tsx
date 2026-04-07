@@ -395,7 +395,8 @@ export default async function Home() {
     getProducts({ inStock: true }),
     getCategories(),
   ]);
-  const featured = allProducts.slice(0, 4);
+  const featuredByFlag = allProducts.filter((p) => p.isFeatured);
+  const featured = featuredByFlag.length > 0 ? featuredByFlag.slice(0, 4) : allProducts.slice(0, 4);
 
   return (
     <div className="min-h-screen flex flex-col">

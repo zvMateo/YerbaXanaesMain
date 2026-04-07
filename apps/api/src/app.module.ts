@@ -15,6 +15,8 @@ import { CustomersModule } from './customers/customers.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ShippingModule } from './shipping/shipping.module';
+import { RatingsModule } from './ratings/ratings.module';
+import { CouponsModule } from './coupons/coupons.module';
 
 @Module({
   imports: [
@@ -40,6 +42,8 @@ import { ShippingModule } from './shipping/shipping.module';
     DashboardModule,
     PaymentsModule,
     ShippingModule,
+    RatingsModule,
+    CouponsModule,
   ],
   controllers: [AppController],
   providers: [

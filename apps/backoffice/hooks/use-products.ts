@@ -41,6 +41,7 @@ export interface Product {
   description: string | null;
   slug: string;
   isActive: boolean;
+  isFeatured: boolean;
   images: string[];
   categoryId: string;
   category?: Category;
@@ -49,20 +50,26 @@ export interface Product {
   updatedAt: string;
 }
 
+export interface VariantDto {
+  name: string;
+  price: number;
+  stock?: number;
+  sku?: string;
+  costPrice?: number;
+  weight?: number;
+  ingredients?: {
+    inventoryItemId: string;
+    quantityRequired: number;
+  }[];
+}
+
 export interface CreateProductDto {
   name: string;
   description?: string;
   categoryId: string;
   isActive?: boolean;
-  variants: {
-    name: string;
-    price: number;
-    stock?: number;
-    ingredients?: {
-      inventoryItemId: string;
-      quantityRequired: number;
-    }[];
-  }[];
+  isFeatured?: boolean;
+  variants: VariantDto[];
 }
 
 export interface UpdateProductDto {
@@ -70,6 +77,8 @@ export interface UpdateProductDto {
   description?: string;
   categoryId?: string;
   isActive?: boolean;
+  isFeatured?: boolean;
+  variants?: VariantDto[];
 }
 
 // ============================================

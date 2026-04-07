@@ -84,7 +84,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
       data-category={product.category?.name}
     >
       {/* Agents-Ready: Estructura semántica clara */}
-      <Link href={`/productos/${product.id}`} className="block">
+      <Link href={`/productos/${product.slug}`} className="block">
         {/* Image Container - Human-Core: Organic feel */}
         <div className="aspect-square bg-stone-100 relative overflow-hidden">
           {/* Placeholder Image */}

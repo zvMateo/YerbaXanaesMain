@@ -29,6 +29,7 @@ model User {
   // Business relations
   address       Address?
   orders        Order[]
+  ratings       ProductRating[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -130,24 +131,35 @@ model Category {
   id          String    @id @default(uuid())
   name        String    @unique
   slug        String    @unique
+  description String?
   products    Product[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Product {
-  id          String    @id @default(uuid())
-  name        String
-  description String?
-  slug        String    @unique
-  isActive    Boolean   @default(true)
-  images      String[]
-  
+  id              String    @id @default(uuid())
+  name            String
+  description     String?
+  slug            String    @unique
+  isActive        Boolean   @default(true)
+  isFeatured      Boolean   @default(false)
+  images          String[]
+  metaTitle       String?
+  metaDescription String?
+
   categoryId  String
   category    Category  @relation(fields: [categoryId], references: [id])
 
   variants    ProductVariant[]
+  ratings     ProductRating[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([isActive])
 }
 
 model ProductVariant {
@@ -156,26 +168,35 @@ model ProductVariant {
   price       Decimal   @db.Decimal(10, 2)
   stock       Int?
   weight      Int?      // Peso en gramos — usado para calcular envío con Correo Argentino
+  sku         String?   @unique
+  costPrice   Decimal?  @db.Decimal(10, 2)
 
   productId   String
   product     Product   @relation(fields: [productId], references: [id])
 
   ingredients VariantIngredient[]
-  
+
   // Relación con lineas de ordenes
   orderItems  OrderItem[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([productId])
 }
 
 model VariantIngredient {
   id              String         @id @default(uuid())
-  
+
   variantId       String
   variant         ProductVariant @relation(fields: [variantId], references: [id])
-  
+
   inventoryItemId String
   inventoryItem   InventoryItem  @relation(fields: [inventoryItemId], references: [id])
-  
+
   quantityRequired Int
+
+  @@unique([variantId, inventoryItemId])
 }
 
 // ---------------------------------------------------------
@@ -185,6 +206,9 @@ model VariantIngredient {
 enum OrderStatus {
   PENDING
   PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
   REJECTED
   CANCELLED
   REFUNDED
@@ -235,21 +259,77 @@ model Order {
 
   // Relaciones
   items           OrderItem[]
+  discount        OrderDiscount?
 
   @@index([customerEmail])
   @@index([mpPaymentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId])
 }
 
 model OrderItem {
   id              String          @id @default(uuid())
   orderId         String
   order           Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
+
   variantId       String
   variant         ProductVariant  @relation(fields: [variantId], references: [id])
-  
+
   quantity        Int
   price           Decimal         @db.Decimal(10, 2) // Precio Snapshot
 
   @@index([orderId])
+}
+
+// ---------------------------------------------------------
+// RATINGS
+// ---------------------------------------------------------
+
+model ProductRating {
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  orderId    String?
+  rating     Int      // 1–5
+  comment    String?
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ---------------------------------------------------------
+// COUPONS
+// ---------------------------------------------------------
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+model Coupon {
+  id             String        @id @default(uuid())
+  code           String        @unique
+  discountType   DiscountType
+  discountValue  Decimal       @db.Decimal(10, 2)
+  minOrderAmount Decimal?      @db.Decimal(10, 2)
+  maxUses        Int?
+  currentUses    Int           @default(0)
+  expiresAt      DateTime?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+
+  discounts      OrderDiscount[]
+}
+
+model OrderDiscount {
+  id             String   @id @default(uuid())
+  orderId        String   @unique
+  order          Order    @relation(fields: [orderId], references: [id])
+  couponId       String
+  coupon         Coupon   @relation(fields: [couponId], references: [id])
+  discountAmount Decimal  @db.Decimal(10, 2)
 }

@@ -23,6 +23,7 @@
     "packages/*"
   ],
   "dependencies": {
-    "@tanstack/react-query-devtools": "^5.91.3"
+    "@tanstack/react-query-devtools": "^5.91.3",
+    "@vercel/analytics": "^2.0.1"
   }
 }

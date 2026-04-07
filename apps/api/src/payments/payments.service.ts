@@ -237,10 +237,10 @@ export class PaymentsService {
 
     const webhookSecret = this.config.get<string>('MP_WEBHOOK_SECRET');
 
-    // Rechazar si el secret no está configurado — no procesar webhooks sin validación
+    // Rechazar si el secret no está configurado — lanzar error para que MP reintente
     if (!webhookSecret) {
       this.logger.error('MP_WEBHOOK_SECRET no configurado — rechazando webhook');
-      return { status: 'config_error' };
+      throw new InternalServerErrorException('Webhook secret not configured');
     }
 
     // Rechazar si no viene firma
