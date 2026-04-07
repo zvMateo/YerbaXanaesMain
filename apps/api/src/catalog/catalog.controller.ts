@@ -66,21 +66,17 @@ export class CatalogController {
           'image/heif',
         ];
 
-        // El navegador a veces manda .HEIC como 'application/octet-stream'
-        const isGenericBinary = file.mimetype === 'application/octet-stream';
-        const isHeicExtension = file.originalname
-          .toLowerCase()
-          .match(/\.(heic|heif)$/);
+        // El navegador a veces manda .HEIC como 'application/octet-stream' o vacío
+        const isHeicExtension =
+          file.originalname &&
+          file.originalname.toLowerCase().match(/\.(heic|heif)$/);
 
-        if (
-          allowedTypes.includes(file.mimetype) ||
-          (isGenericBinary && isHeicExtension)
-        ) {
+        if (allowedTypes.includes(file.mimetype) || isHeicExtension) {
           cb(null, true);
         } else {
           cb(
             new BadRequestException(
-              'Invalid file type. Only JPG, PNG, WebP, and HEIC are allowed.',
+              `Invalid file type. Received mimetype: ${file.mimetype} and name: ${file.originalname}. Only JPG, PNG, WebP, and HEIC are allowed.`,
             ),
             false,
           );

@@ -14,9 +14,13 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   }
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
+
+  // Si el body es FormData, dejamos que el navegador ponga el Content-Type con el boundary
+  if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
 
   // 2. Si obtuvimos el token, lo enviamos como Bearer token (AuthGuard de NestJS lee Authorization: Bearer)
   if (sessionToken) {
