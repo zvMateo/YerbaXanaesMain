@@ -48,12 +48,24 @@ export function ImageUploader({ productId, images }: ImageUploaderProps) {
   };
 
   const handleFiles = async (files: File[]) => {
-    const validFiles = files.filter((f) =>
-      ["image/jpeg", "image/png", "image/webp"].includes(f.type),
-    );
+    const validFiles = files.filter((f) => {
+      const isTypeValid = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+      ].includes(f.type);
+      const isExtValid =
+        f.name.toLowerCase().endsWith(".heic") ||
+        f.name.toLowerCase().endsWith(".heif");
+      return isTypeValid || isExtValid;
+    });
 
     if (validFiles.length !== files.length) {
-      toast.error("Algunos archivos no son imágenes válidas (JPG, PNG, WebP)");
+      toast.error(
+        "Algunos archivos no son imágenes válidas (JPG, PNG, WebP, HEIC)",
+      );
     }
 
     if (images.length + validFiles.length > 5) {
@@ -165,14 +177,14 @@ export function ImageUploader({ productId, images }: ImageUploaderProps) {
                 Hacé click para subir o arrastrá
               </p>
               <p className="text-xs text-stone-500">
-                JPG, PNG o WebP (Max. 5MB)
+                JPG, PNG, WebP o HEIC (Max. 5MB)
               </p>
             </div>
           </div>
           <input
             type="file"
             className="hidden"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
             multiple
             onChange={handleFileInput}
           />
