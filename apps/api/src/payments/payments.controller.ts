@@ -52,20 +52,20 @@ export class PaymentsController {
     description: 'Webhook procesado',
   })
   async handleWebhook(
-    @Body() body: any,
+    @Body() body: Record<string, any>,
     @Headers('x-signature') signature: string,
     @Headers('x-request-id') requestId: string,
     @Query('data.id') dataId: string,
     @Query('type') type: string,
   ) {
     // Si es un ping de prueba de Mercado Pago
-    if (body.action === 'test.created') {
+    if (body['action'] === 'test.created') {
       return { status: 'ok' };
     }
 
     // MercadoPago puede enviar type o topic
-    const typeUrl = type || body?.type || body?.topic;
-    const dataIdUrl = dataId || body?.data?.id;
+    const typeUrl = type || String(body['type'] || body['topic'] || '');
+    const dataIdUrl = dataId || String(body['data']?.id || '');
 
     return this.paymentsService.handleWebhook({
       body,

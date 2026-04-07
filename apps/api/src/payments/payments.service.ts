@@ -239,7 +239,9 @@ export class PaymentsService {
 
     // Rechazar si el secret no está configurado — lanzar error para que MP reintente
     if (!webhookSecret) {
-      this.logger.error('MP_WEBHOOK_SECRET no configurado — rechazando webhook');
+      this.logger.error(
+        'MP_WEBHOOK_SECRET no configurado — rechazando webhook',
+      );
       throw new InternalServerErrorException('Webhook secret not configured');
     }
 

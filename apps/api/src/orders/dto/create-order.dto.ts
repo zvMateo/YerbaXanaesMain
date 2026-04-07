@@ -32,11 +32,11 @@ enum PaymentMethod {
 export class CreateOrderItemDto {
   @IsUUID()
   @IsNotEmpty()
-  variantId: string;
+  variantId!: string;
 
   @IsNumber()
   @Min(1)
-  quantity: number;
+  quantity!: number;
 }
 
 export class CreateOrderDto {
@@ -105,5 +105,5 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   @IsNotEmpty()
-  items: CreateOrderItemDto[];
+  items!: CreateOrderItemDto[];
 }

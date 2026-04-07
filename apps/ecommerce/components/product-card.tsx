@@ -7,6 +7,7 @@ import { Product } from "@repo/types";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCartStore } from "@/stores/cart-store";
+import Image from "next/image";
 
 interface ProductCardProps {
   product: Product;
@@ -94,10 +95,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
             {product.images?.[0] ? (
-              <img
+              <Image
                 src={product.images[0]}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                className="object-cover"
               />
             ) : (
               <div className="text-center">

@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { CouponsService } from './coupons.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
+import { CreateCouponDto } from './dto/create-coupon.dto';
+import { ValidateCouponDto } from './dto/validate-coupon.dto';
 
 @Controller('coupons')
 export class CouponsController {
@@ -20,7 +22,7 @@ export class CouponsController {
   // POST /coupons — crear cupón (solo admin)
   @Post()
   @UseGuards(AuthGuard)
-  create(@Body() body: any) {
+  create(@Body() body: CreateCouponDto) {
     return this.couponsService.create(body);
   }
 
@@ -34,7 +36,7 @@ export class CouponsController {
   // POST /coupons/validate — validar cupón (público, desde checkout)
   @Post('validate')
   @HttpCode(HttpStatus.OK)
-  validate(@Body() body: { code: string; orderAmount: number }) {
+  validate(@Body() body: ValidateCouponDto) {
     return this.couponsService.validate(body.code, body.orderAmount);
   }
 

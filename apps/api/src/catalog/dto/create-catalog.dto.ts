@@ -80,6 +80,11 @@ export class CreateCatalogDto {
   @IsOptional()
   isFeatured?: boolean;
 
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  images?: string[];
+
   @IsString()
   @IsOptional()
   metaTitle?: string;

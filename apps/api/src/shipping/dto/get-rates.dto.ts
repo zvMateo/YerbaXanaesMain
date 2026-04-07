@@ -12,20 +12,20 @@ import {
 export class RateItemDto {
   @IsUUID()
   @IsNotEmpty()
-  variantId: string;
+  variantId!: string;
 
   @IsNumber()
   @Min(1)
-  quantity: number;
+  quantity!: number;
 }
 
 export class GetShippingRatesDto {
   @IsString()
   @IsNotEmpty()
-  postalCodeDestination: string;
+  postalCodeDestination!: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => RateItemDto)
-  items: RateItemDto[];
+  items!: RateItemDto[];
 }

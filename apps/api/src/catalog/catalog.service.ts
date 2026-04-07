@@ -1,16 +1,48 @@
 import {
   BadRequestException,
+  InternalServerErrorException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { CreateCatalogDto } from './dto/create-catalog.dto';
 import { UpdateCatalogDto } from './dto/update-catalog.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+
+const productInclude = {
+  variants: {
+    include: {
+      ingredients: {
+        include: { inventoryItem: true },
+      },
+    },
+  },
+  category: true,
+} satisfies Prisma.ProductInclude;
+
+type ProductWithRelations = Prisma.ProductGetPayload<{
+  include: typeof productInclude;
+}>;
+
+type VariantWithRelations = ProductWithRelations['variants'][number];
+
+type VariantWithComputedStock = Omit<VariantWithRelations, 'stock'> & {
+  stock: number;
+  isVirtualStock: boolean;
+};
+
+type ProductWithComputedStock = Omit<ProductWithRelations, 'variants'> & {
+  variants: VariantWithComputedStock[];
+};
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   // -------------------------------------------------------
   // CATEGORIES
@@ -75,6 +107,7 @@ export class CatalogService {
           isFeatured: dto.isFeatured ?? false,
           metaTitle: dto.metaTitle,
           metaDescription: dto.metaDescription,
+          images: dto.images || [],
         },
       });
 
@@ -110,19 +143,18 @@ export class CatalogService {
       }
 
       // Retornar el producto completo
-      return prisma.product.findUnique({
+      const createdProduct = await prisma.product.findUnique({
         where: { id: product.id },
-        include: {
-          variants: {
-            include: {
-              ingredients: {
-                include: { inventoryItem: true },
-              },
-            },
-          },
-          category: true,
-        },
+        include: productInclude,
       });
+
+      if (!createdProduct) {
+        throw new InternalServerErrorException(
+          'No se pudo recuperar el producto recién creado',
+        );
+      }
+
+      return createdProduct;
     });
 
     return this.mapProductWithStock(newProduct);
@@ -130,16 +162,7 @@ export class CatalogService {
 
   async findAll() {
     const products = await this.prisma.product.findMany({
-      include: {
-        category: true,
-        variants: {
-          include: {
-            ingredients: {
-              include: { inventoryItem: true },
-            },
-          },
-        },
-      },
+      include: productInclude,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -150,16 +173,7 @@ export class CatalogService {
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
-      include: {
-        variants: {
-          include: {
-            ingredients: {
-              include: { inventoryItem: true },
-            },
-          },
-        },
-        category: true,
-      },
+      include: productInclude,
     });
 
     if (!product) throw new NotFoundException(`Product #${id} not found`);
@@ -172,7 +186,10 @@ export class CatalogService {
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Actualizar campos del producto
-      const data: Record<string, any> = { ...productData };
+      const data: Prisma.ProductUncheckedUpdateInput = { ...productData };
+      if (productData.images !== undefined) {
+        data.images = productData.images;
+      }
       if (productData.name) {
         data.slug = productData.name
           .toLowerCase()
@@ -227,13 +244,12 @@ export class CatalogService {
       // 3. Retornar producto actualizado
       const product = await tx.product.findUnique({
         where: { id },
-        include: {
-          variants: {
-            include: { ingredients: { include: { inventoryItem: true } } },
-          },
-          category: true,
-        },
+        include: productInclude,
       });
+
+      if (!product) {
+        throw new NotFoundException(`Product #${id} not found`);
+      }
 
       return this.mapProductWithStock(product);
     });
@@ -283,39 +299,92 @@ export class CatalogService {
     return this.prisma.category.delete({ where: { id } });
   }
 
+  // -------------------------------------------------------
+  // IMAGES
+  // -------------------------------------------------------
+
+  async addImage(productId: string, fileBuffer: Buffer) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+
+    const url = await this.cloudinary.uploadImage(fileBuffer);
+
+    const updatedProduct = await this.prisma.product.update({
+      where: { id: productId },
+      data: { images: { push: url } },
+      include: productInclude,
+    });
+
+    return this.mapProductWithStock(updatedProduct);
+  }
+
+  async removeImage(productId: string, imageUrl: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product)
+      throw new NotFoundException(`Product #${productId} not found`);
+
+    if (!product.images.includes(imageUrl)) {
+      throw new BadRequestException('La imagen no pertenece a este producto');
+    }
+
+    const publicId = this.cloudinary.extractPublicId(imageUrl);
+    if (publicId) {
+      await this.cloudinary.deleteImage(publicId);
+    }
+
+    const updatedProduct = await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        images: product.images.filter((img) => img !== imageUrl),
+      },
+      include: productInclude,
+    });
+
+    return this.mapProductWithStock(updatedProduct);
+  }
+
   /**
    * MÉTODO MÁGICO: Calcula el stock real disponible basado en recetas
    */
-  private mapProductWithStock(product: any) {
-    const variantsWithStock = product.variants.map((variant) => {
-      let availableStock = 0;
+  private mapProductWithStock(
+    product: ProductWithRelations,
+  ): ProductWithComputedStock {
+    const variantsWithStock: VariantWithComputedStock[] = product.variants.map(
+      (variant) => {
+        let availableStock = 0;
 
-      // 1. Si NO tiene ingredientes, usamos el stock manual (ej: Mate de Madera)
-      if (!variant.ingredients || variant.ingredients.length === 0) {
-        availableStock = variant.stock || 0;
-      }
-      // 2. Si TIENE ingredientes, calculamos cuánto podemos fabricar
-      else {
-        // Calculamos cuánto podemos hacer con CADA ingrediente
-        const limits = variant.ingredients.map((ing) => {
-          const rawStock = ing.inventoryItem.currentStock; // Stock de la bolsa madre (ej: 10000g)
-          const required = ing.quantityRequired; // Cuánto usa esta variante (ej: 500g)
+        // 1. Si NO tiene ingredientes, usamos el stock manual (ej: Mate de Madera)
+        if (!variant.ingredients || variant.ingredients.length === 0) {
+          availableStock = variant.stock ?? 0;
+        }
+        // 2. Si TIENE ingredientes, calculamos cuánto podemos fabricar
+        else {
+          // Calculamos cuánto podemos hacer con CADA ingrediente
+          const limits: number[] = variant.ingredients.map((ing) => {
+            const rawStock = ing.inventoryItem.currentStock; // Stock de la bolsa madre (ej: 10000g)
+            const required = ing.quantityRequired; // Cuánto usa esta variante (ej: 500g)
 
-          if (required === 0) return 999999; // Evitar división por cero
-          return Math.floor(rawStock / required);
-        });
+            if (required === 0) return Number.MAX_SAFE_INTEGER; // Evitar división por cero
+            return Math.floor(rawStock / required);
+          });
 
-        // El stock real es el MÍNIMO de lo que permiten los ingredientes
-        // (La cadena es tan fuerte como su eslabón más débil)
-        availableStock = Math.min(...limits);
-      }
+          // El stock real es el MÍNIMO de lo que permiten los ingredientes
+          // (La cadena es tan fuerte como su eslabón más débil)
+          availableStock = limits.length > 0 ? Math.min(...limits) : 0;
+        }
 
-      return {
-        ...variant,
-        stock: availableStock, // SOBREESCRIBIMOS el stock visual con el calculado
-        isVirtualStock: variant.ingredients.length > 0, // Flag para saber si es calculado
-      };
-    });
+        return {
+          ...variant,
+          stock: availableStock, // SOBREESCRIBIMOS el stock visual con el calculado
+          isVirtualStock: variant.ingredients.length > 0, // Flag para saber si es calculado
+        };
+      },
+    );
 
     return {
       ...product,

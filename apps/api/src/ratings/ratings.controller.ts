@@ -21,9 +21,18 @@ export class RatingsController {
 
   // POST /ratings — submit a review (público, el userId es opcional)
   @Post('ratings')
-  create(@Body() body: any, @Request() req: any) {
+  create(
+    @Body() body: Record<string, any>,
+    @Request() req: { user?: { id?: string } },
+  ) {
     const userId = req.user?.id;
-    return this.ratingsService.create({ ...body, userId });
+    return this.ratingsService.create({
+      productId: String(body['productId'] || ''),
+      rating: Number(body['rating'] || 0),
+      comment: body['comment'] ? String(body['comment']) : undefined,
+      orderId: body['orderId'] ? String(body['orderId']) : undefined,
+      userId,
+    });
   }
 
   // GET /products/:id/ratings — ratings aprobados de un producto

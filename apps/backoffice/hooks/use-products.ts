@@ -216,6 +216,81 @@ export function useDeleteProduct() {
   });
 }
 
+async function uploadProductImage({
+  productId,
+  file,
+}: {
+  productId: string;
+  file: File;
+}): Promise<Product> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetchWithAuth(
+    `${API_URL}/catalog/${productId}/images`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+  if (!response.ok) throw new Error("Error al subir imagen");
+  return response.json();
+}
+
+async function removeProductImage({
+  productId,
+  url,
+}: {
+  productId: string;
+  url: string;
+}): Promise<Product> {
+  const response = await fetchWithAuth(
+    `${API_URL}/catalog/${productId}/images`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    },
+  );
+  if (!response.ok) throw new Error("Error al eliminar imagen");
+  return response.json();
+}
+
+export function useUploadProductImage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: uploadProductImage,
+    onSuccess: (data) => {
+      // Update cache
+      queryClient.setQueryData(
+        productKeys.lists(),
+        (old: Product[] | undefined) => {
+          if (!old) return old;
+          return old.map((p) => (p.id === data.id ? data : p));
+        },
+      );
+    },
+  });
+}
+
+export function useRemoveProductImage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: removeProductImage,
+    onSuccess: (data) => {
+      queryClient.setQueryData(
+        productKeys.lists(),
+        (old: Product[] | undefined) => {
+          if (!old) return old;
+          return old.map((p) => (p.id === data.id ? data : p));
+        },
+      );
+    },
+  });
+}
+
 // ============================================
 // CATEGORY MUTATIONS
 // ============================================

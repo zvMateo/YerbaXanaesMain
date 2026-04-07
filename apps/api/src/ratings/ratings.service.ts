@@ -72,7 +72,9 @@ export class RatingsService {
   }
 
   async approve(id: string) {
-    const rating = await this.prisma.productRating.findUnique({ where: { id } });
+    const rating = await this.prisma.productRating.findUnique({
+      where: { id },
+    });
     if (!rating) throw new NotFoundException('Reseña no encontrada');
     return this.prisma.productRating.update({
       where: { id },
@@ -81,7 +83,9 @@ export class RatingsService {
   }
 
   async reject(id: string) {
-    const rating = await this.prisma.productRating.findUnique({ where: { id } });
+    const rating = await this.prisma.productRating.findUnique({
+      where: { id },
+    });
     if (!rating) throw new NotFoundException('Reseña no encontrada');
     return this.prisma.productRating.update({
       where: { id },
@@ -90,7 +94,9 @@ export class RatingsService {
   }
 
   async remove(id: string) {
-    const rating = await this.prisma.productRating.findUnique({ where: { id } });
+    const rating = await this.prisma.productRating.findUnique({
+      where: { id },
+    });
     if (!rating) throw new NotFoundException('Reseña no encontrada');
     return this.prisma.productRating.delete({ where: { id } });
   }

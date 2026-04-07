@@ -19,8 +19,9 @@ export class OrdersService {
   async create(dto: CreateOrderDto) {
     // Validar cupón ANTES de la transacción (lectura externa segura)
     // La validación final se hace dentro de la tx para evitar race conditions
-    let couponValidation: Awaited<ReturnType<CouponsService['validate']>> | null =
-      null;
+    let couponValidation: Awaited<
+      ReturnType<CouponsService['validate']>
+    > | null = null;
     if (dto.couponCode) {
       // We'll get the amount after calculating; use a placeholder — re-validate inside tx
       // For now just check the coupon exists & is active

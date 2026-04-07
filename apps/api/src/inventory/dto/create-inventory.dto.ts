@@ -12,7 +12,7 @@ import { MeasurementUnit } from '@prisma/client';
 export class CreateInventoryDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsString()
   @IsOptional()
@@ -20,7 +20,7 @@ export class CreateInventoryDto {
 
   @IsInt()
   @Min(0)
-  currentStock: number;
+  currentStock!: number;
 
   @IsInt()
   @IsOptional()
@@ -28,7 +28,7 @@ export class CreateInventoryDto {
   minStockAlert?: number;
 
   @IsEnum(MeasurementUnit)
-  unit: MeasurementUnit;
+  unit!: MeasurementUnit;
 
   @IsNumber()
   @IsOptional()

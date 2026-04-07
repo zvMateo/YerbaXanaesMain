@@ -12,6 +12,8 @@ import {
 } from "@/hooks/use-products";
 import { useInventory, type InventoryItem } from "@/hooks/use-inventory";
 
+import { ImageUploader } from "./image-uploader";
+
 interface ProductFormModalProps {
   open: boolean;
   onClose: () => void;
@@ -57,6 +59,8 @@ export function ProductFormModal({
     { name: "", price: 0, stock: 0, inventoryItemId: "", quantityRequired: 0 },
   ]);
 
+  const [images, setImages] = useState<string[]>([]);
+
   // Filtrar solo insumos a granel (GRAMS)
   const bulkItems = inventory.filter((item) => item.unit === "GRAMS");
 
@@ -73,6 +77,7 @@ export function ProductFormModal({
         (v: ProductVariant) => v.ingredients && v.ingredients.length > 0,
       );
       setProductType(hasIngredients ? "bulk" : "packaged");
+      setImages(product.images || []);
 
       setVariants(
         product.variants.map((v: ProductVariant) => ({
@@ -90,6 +95,7 @@ export function ProductFormModal({
       setIsActive(true);
       setIsFeatured(false);
       setProductType("packaged");
+      setImages([]);
       setVariants([
         {
           name: "",
@@ -108,7 +114,11 @@ export function ProductFormModal({
 
   const buildVariantsPayload = () =>
     variants.map((v) => {
-      if (productType === "bulk" && v.inventoryItemId && v.quantityRequired > 0) {
+      if (
+        productType === "bulk" &&
+        v.inventoryItemId &&
+        v.quantityRequired > 0
+      ) {
         return {
           name: v.name,
           price: v.price,
@@ -273,38 +283,36 @@ export function ProductFormModal({
             <label className="block text-sm font-medium text-stone-700 mb-2">
               Tipo de producto
             </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setProductType("packaged")}
-                  className={`p-3 border-2 rounded-xl text-center transition-all ${
-                    productType === "packaged"
-                      ? "border-yerba-600 bg-yerba-50"
-                      : "border-stone-200 hover:border-stone-300"
-                  }`}
-                >
-                  <Package className="h-5 w-5 mx-auto mb-1 text-stone-600" />
-                  <p className="text-sm font-medium text-stone-900">
-                    Pre-empacado
-                  </p>
-                  <p className="text-xs text-stone-500">
-                    Mates, bombillas, etc.
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProductType("bulk")}
-                  className={`p-3 border-2 rounded-xl text-center transition-all ${
-                    productType === "bulk"
-                      ? "border-yerba-600 bg-yerba-50"
-                      : "border-stone-200 hover:border-stone-300"
-                  }`}
-                >
-                  <Scale className="h-5 w-5 mx-auto mb-1 text-stone-600" />
-                  <p className="text-sm font-medium text-stone-900">A granel</p>
-                  <p className="text-xs text-stone-500">Yerba, hierbas...</p>
-                </button>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setProductType("packaged")}
+                className={`p-3 border-2 rounded-xl text-center transition-all ${
+                  productType === "packaged"
+                    ? "border-yerba-600 bg-yerba-50"
+                    : "border-stone-200 hover:border-stone-300"
+                }`}
+              >
+                <Package className="h-5 w-5 mx-auto mb-1 text-stone-600" />
+                <p className="text-sm font-medium text-stone-900">
+                  Pre-empacado
+                </p>
+                <p className="text-xs text-stone-500">Mates, bombillas, etc.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProductType("bulk")}
+                className={`p-3 border-2 rounded-xl text-center transition-all ${
+                  productType === "bulk"
+                    ? "border-yerba-600 bg-yerba-50"
+                    : "border-stone-200 hover:border-stone-300"
+                }`}
+              >
+                <Scale className="h-5 w-5 mx-auto mb-1 text-stone-600" />
+                <p className="text-sm font-medium text-stone-900">A granel</p>
+                <p className="text-xs text-stone-500">Yerba, hierbas...</p>
+              </button>
+            </div>
           </div>
 
           {/* Activo + Destacado */}
@@ -343,164 +351,174 @@ export function ProductFormModal({
 
           {/* Variantes */}
           <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-stone-700">
-                  Variantes / Presentaciones *
-                </label>
-                <button
-                  type="button"
-                  onClick={addVariant}
-                  className="text-xs text-yerba-600 hover:text-yerba-700 flex items-center gap-1 font-medium"
-                >
-                  <Plus className="h-3 w-3" />
-                  Agregar
-                </button>
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-stone-700">
+                Variantes / Presentaciones *
+              </label>
+              <button
+                type="button"
+                onClick={addVariant}
+                className="text-xs text-yerba-600 hover:text-yerba-700 flex items-center gap-1 font-medium"
+              >
+                <Plus className="h-3 w-3" />
+                Agregar
+              </button>
+            </div>
 
-              <div className="space-y-3">
-                {variants.map((variant, idx) => {
-                  const availableStock = getAvailableStock(variant);
-                  const selectedItem = inventory.find(
-                    (i) => i.id === variant.inventoryItemId,
-                  );
+            <div className="space-y-3">
+              {variants.map((variant, idx) => {
+                const availableStock = getAvailableStock(variant);
+                const selectedItem = inventory.find(
+                  (i) => i.id === variant.inventoryItemId,
+                );
 
-                  return (
-                    <div
-                      key={idx}
-                      className="p-4 bg-stone-50 rounded-xl space-y-3"
-                    >
-                      {/* Nombre de variante */}
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={variant.name}
-                          onChange={(e) =>
-                            updateVariant(idx, "name", e.target.value)
-                          }
-                          required
-                          className="flex-1 px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                          placeholder="Ej: 500g, 1kg, 2kg..."
-                        />
-                        {variants.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeVariant(idx)}
-                            className="p-2 text-red-400 hover:text-red-600 rounded-lg transition-colors"
+                return (
+                  <div
+                    key={idx}
+                    className="p-4 bg-stone-50 rounded-xl space-y-3"
+                  >
+                    {/* Nombre de variante */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={variant.name}
+                        onChange={(e) =>
+                          updateVariant(idx, "name", e.target.value)
+                        }
+                        required
+                        className="flex-1 px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                        placeholder="Ej: 500g, 1kg, 2kg..."
+                      />
+                      {variants.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeVariant(idx)}
+                          className="p-2 text-red-400 hover:text-red-600 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Precio */}
+                    <div>
+                      <label className="text-xs text-stone-500 mb-1 block">
+                        Precio de venta ($)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={variant.price || ""}
+                        onChange={(e) =>
+                          updateVariant(idx, "price", Number(e.target.value))
+                        }
+                        required
+                        className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                        placeholder="Ej: 3500"
+                      />
+                    </div>
+
+                    {/* Campos según tipo */}
+                    {productType === "bulk" ? (
+                      <>
+                        {/* Selector de insumo */}
+                        <div>
+                          <label className="text-xs text-stone-500 mb-1 block">
+                            Insumo de origen *
+                          </label>
+                          <select
+                            value={variant.inventoryItemId}
+                            onChange={(e) =>
+                              updateVariant(
+                                idx,
+                                "inventoryItemId",
+                                e.target.value,
+                              )
+                            }
+                            required
+                            className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:ring-1 focus:ring-yerba-500 focus:outline-none"
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
+                            <option value="">Seleccionar insumo...</option>
+                            {bulkItems.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name} (
+                                {(item.currentStock / 1000).toFixed(2)} kg
+                                disponibles)
+                              </option>
+                            ))}
+                          </select>
+                          {bulkItems.length === 0 && (
+                            <p className="text-xs text-amber-600 mt-1">
+                              ⚠️ No hay insumos a granel. Andá a Inventario
+                              primero.
+                            </p>
+                          )}
+                        </div>
 
-                      {/* Precio */}
+                        {/* Peso por unidad en gramos */}
+                        <div>
+                          <label className="text-xs text-stone-500 mb-1 block">
+                            Peso por unidad (en gramos) *
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={variant.quantityRequired || ""}
+                            onChange={(e) =>
+                              updateVariant(
+                                idx,
+                                "quantityRequired",
+                                Number(e.target.value),
+                              )
+                            }
+                            required
+                            className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                            placeholder="Ej: 500 (para 500g)"
+                          />
+                          {selectedItem && variant.quantityRequired > 0 && (
+                            <p className="text-xs text-yerba-600 mt-1">
+                              📦 Stock disponible:{" "}
+                              <strong>{availableStock} unidades</strong>
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      /* Stock fijo para pre-empacados */
                       <div>
                         <label className="text-xs text-stone-500 mb-1 block">
-                          Precio de venta ($)
+                          Stock inicial (unidades)
                         </label>
                         <input
                           type="number"
                           min={0}
-                          value={variant.price || ""}
+                          value={variant.stock || ""}
                           onChange={(e) =>
-                            updateVariant(idx, "price", Number(e.target.value))
+                            updateVariant(idx, "stock", Number(e.target.value))
                           }
-                          required
                           className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                          placeholder="Ej: 3500"
+                          placeholder="Ej: 50"
                         />
                       </div>
-
-                      {/* Campos según tipo */}
-                      {productType === "bulk" ? (
-                        <>
-                          {/* Selector de insumo */}
-                          <div>
-                            <label className="text-xs text-stone-500 mb-1 block">
-                              Insumo de origen *
-                            </label>
-                            <select
-                              value={variant.inventoryItemId}
-                              onChange={(e) =>
-                                updateVariant(
-                                  idx,
-                                  "inventoryItemId",
-                                  e.target.value,
-                                )
-                              }
-                              required
-                              className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                            >
-                              <option value="">Seleccionar insumo...</option>
-                              {bulkItems.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name} (
-                                  {(item.currentStock / 1000).toFixed(2)} kg
-                                  disponibles)
-                                </option>
-                              ))}
-                            </select>
-                            {bulkItems.length === 0 && (
-                              <p className="text-xs text-amber-600 mt-1">
-                                ⚠️ No hay insumos a granel. Andá a Inventario
-                                primero.
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Peso por unidad en gramos */}
-                          <div>
-                            <label className="text-xs text-stone-500 mb-1 block">
-                              Peso por unidad (en gramos) *
-                            </label>
-                            <input
-                              type="number"
-                              min={1}
-                              value={variant.quantityRequired || ""}
-                              onChange={(e) =>
-                                updateVariant(
-                                  idx,
-                                  "quantityRequired",
-                                  Number(e.target.value),
-                                )
-                              }
-                              required
-                              className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                              placeholder="Ej: 500 (para 500g)"
-                            />
-                            {selectedItem && variant.quantityRequired > 0 && (
-                              <p className="text-xs text-yerba-600 mt-1">
-                                📦 Stock disponible:{" "}
-                                <strong>{availableStock} unidades</strong>
-                              </p>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        /* Stock fijo para pre-empacados */
-                        <div>
-                          <label className="text-xs text-stone-500 mb-1 block">
-                            Stock inicial (unidades)
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={variant.stock || ""}
-                            onChange={(e) =>
-                              updateVariant(
-                                idx,
-                                "stock",
-                                Number(e.target.value),
-                              )
-                            }
-                            className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                            placeholder="Ej: 50"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+          </div>
+
+          {/* Imágenes */}
+          {isEditing && product ? (
+            <div className="pt-2 border-t border-stone-100">
+              <ImageUploader productId={product.id} images={images} />
+            </div>
+          ) : (
+            <div className="p-4 bg-yerba-50 border border-yerba-100 rounded-xl">
+              <p className="text-sm text-yerba-800">
+                💡 Podrás subir imágenes una vez que guardes el producto por
+                primera vez.
+              </p>
+            </div>
+          )}
 
           {/* Acciones */}
           <div className="flex gap-3 pt-2">

@@ -50,7 +50,9 @@ export class ShippingController {
   @UseGuards(AuthGuard, AdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Ver seguimiento de envío (admin)' })
-  async getTracking(@Param('orderId') orderId: string) {
+  async getTracking(
+    @Param('orderId') orderId: string,
+  ): Promise<Record<string, any>> {
     return this.shippingService.getTracking(orderId);
   }
 }
