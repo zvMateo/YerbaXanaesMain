@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X,
@@ -243,19 +243,20 @@ function FreeShippingProgress({
 
 // Main Drawer Component
 export function CartDrawer() {
-  const { items, isOpen, closeCart, toggleCart, freeShippingThreshold } =
-    useCartStore();
-  const [mounted, setMounted] = useState(false);
+  const { items, isOpen, closeCart, freeShippingThreshold } = useCartStore();
+
+  // Evita setState en effect para detectar hidratación cliente
+  const isHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const total = items.reduce(
     (sum, item) => sum + Number(item.price) * item.quantity,
     0,
   );
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Close on escape key
   useEffect(() => {
@@ -274,7 +275,7 @@ export function CartDrawer() {
     };
   }, [isOpen, closeCart]);
 
-  if (!mounted) return null;
+  if (!isHydrated) return null;
 
   return (
     <>
