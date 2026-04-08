@@ -12,6 +12,7 @@ import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreatePreferenceDto } from './dto/create-preference.dto';
 import { OrderStatus, PaymentProvider } from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { CouponsService } from '../coupons/coupons.service';
 
 @Injectable()
 export class PaymentsService {
@@ -21,6 +22,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly coupons: CouponsService,
   ) {
     const client = new MercadoPagoConfig({
       accessToken: this.config.get<string>('MP_ACCESS_TOKEN')!,
@@ -45,13 +47,48 @@ export class PaymentsService {
       0,
     );
 
+    const shippingCost = Number(dto.shippingCost ?? 0);
+    const subtotalWithShipping = totalAmount + shippingCost;
+
+    let couponValidation: Awaited<
+      ReturnType<CouponsService['validate']>
+    > | null = null;
+
+    if (dto.couponCode) {
+      couponValidation = await this.coupons.validate(
+        dto.couponCode,
+        subtotalWithShipping,
+      );
+    }
+
+    const discount = couponValidation?.discountAmount ?? 0;
+    const finalAmount = Math.max(0, subtotalWithShipping - discount);
+
     const order = await this.createPendingOrder({
       customerEmail: dto.payerEmail,
       customerName: dto.customerName,
       customerPhone: dto.customerPhone,
       orderItems: dto.orderItems || [],
-      totalAmount,
+      totalAmount: finalAmount,
+      deliveryType: dto.deliveryType,
+      shippingAddress: dto.shippingAddress,
+      shippingCity: dto.shippingCity,
+      shippingProvinceCode: dto.shippingProvinceCode,
+      shippingZip: dto.shippingZip,
+      shippingCost,
+      shippingProvider: dto.shippingProvider,
     });
+
+    if (couponValidation) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.coupons.applyToOrder(
+          tx,
+          order.id,
+          couponValidation.couponId,
+          couponValidation.discountAmount,
+        );
+      });
+    }
 
     const successUrl = `${frontendUrl}/checkout/success?orderId=${order.id}`;
 
@@ -355,6 +392,13 @@ export class PaymentsService {
     customerPhone?: string;
     orderItems: { variantId: string; quantity: number }[];
     totalAmount: number;
+    deliveryType?: string;
+    shippingAddress?: string;
+    shippingCity?: string;
+    shippingProvinceCode?: string;
+    shippingZip?: string;
+    shippingCost?: number;
+    shippingProvider?: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const orderItemsData: {
@@ -420,6 +464,16 @@ export class PaymentsService {
           total: params.totalAmount,
           status: OrderStatus.PENDING,
           paymentProvider: PaymentProvider.MERCADOPAGO,
+          deliveryType: params.deliveryType || 'pickup',
+          shippingAddress: params.shippingAddress,
+          shippingCity: params.shippingCity,
+          shippingProvinceCode: params.shippingProvinceCode,
+          shippingZip: params.shippingZip,
+          shippingCost:
+            params.shippingCost && params.shippingCost > 0
+              ? params.shippingCost
+              : null,
+          shippingProvider: params.shippingProvider,
           items: { create: orderItemsData },
         },
       });
