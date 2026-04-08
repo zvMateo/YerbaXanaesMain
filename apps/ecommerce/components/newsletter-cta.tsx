@@ -29,11 +29,11 @@ export function NewsletterCta() {
             <Mail className="h-7 w-7 text-white" />
           </div>
           <h2 className="font-serif text-3xl md:text-4xl font-bold text-white mb-4">
-            Unite a la comunidad mateadora
+            Unite a la comunidad matera
           </h2>
           <p className="text-yerba-100 text-lg mb-8">
-            Enterate primero de nuevas yerbas, promociones exclusivas y
-            consejos para preparar el mate perfecto.
+            Enterate primero de nuevas yerbas, promociones exclusivas y consejos
+            para preparar el mate perfecto.
           </p>
           <form
             onSubmit={handleSubmit}

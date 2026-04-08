@@ -220,6 +220,14 @@ enum PaymentProvider {
   TRANSFER
 }
 
+enum SalesChannel {
+  ONLINE
+  STORE
+  INSTAGRAM
+  WHATSAPP
+  FAIR
+}
+
 model Order {
   id              String          @id @default(uuid())
   total           Decimal         @db.Decimal(10, 2)
@@ -231,6 +239,10 @@ model Order {
   customerPhone   String?
   userId          String?         // Opcional: si es usuario registrado
   user            User?           @relation(fields: [userId], references: [id])
+
+  // Canal de venta y notas internas
+  channel         SalesChannel?   @default(ONLINE)
+  notes           String?         // Notas internas (ej: "@usuario_ig", "Feria Palermo stand 12")
 
   // Datos de Pago (Mercado Pago)
   paymentProvider PaymentProvider @default(MERCADOPAGO)
