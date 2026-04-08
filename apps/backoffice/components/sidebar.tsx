@@ -39,6 +39,10 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { createPortal } from "react-dom";
 
+import { useOrders } from "@/hooks/use-orders";
+import { useInventory } from "@/hooks/use-inventory";
+import { useRatings } from "@/hooks/use-ratings";
+
 // ============================================
 // HOOK PARA PERSISTIR ESTADO DE SIDEBAR
 // ============================================
@@ -101,7 +105,7 @@ const navigation = [
     href: "/ordenes",
     icon: ShoppingCart,
     description: "Gestión de pedidos",
-    badge: 3,
+    id: "orders",
     shortcut: "⌘O",
   },
   {
@@ -116,7 +120,6 @@ const navigation = [
     href: "/clientes",
     icon: Users,
     description: "Base de clientes",
-    badge: 0,
     shortcut: "⌘C",
   },
   {
@@ -124,7 +127,7 @@ const navigation = [
     href: "/inventario",
     icon: Warehouse,
     description: "Stock y materia prima",
-    alert: true,
+    id: "inventory",
     shortcut: "⌘I",
   },
   {
@@ -145,6 +148,7 @@ const navigation = [
     href: "/resenas",
     icon: Star,
     description: "Moderación de reseñas",
+    id: "ratings",
   },
 ];
 
@@ -161,10 +165,12 @@ function NavItem({
   item,
   isCollapsed,
   isActive,
+  badgeCount,
 }: {
   item: any;
   isCollapsed: boolean;
   isActive: boolean;
+  badgeCount?: number;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
@@ -220,9 +226,9 @@ function NavItem({
                 : "text-stone-400 group-hover:text-stone-600"
             }`}
           />
-          {(item.badge || item.alert) && (
+          {badgeCount !== undefined && badgeCount > 0 && (
             <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
-              {item.badge || "!"}
+              {item.id === "inventory" ? "!" : badgeCount}
             </span>
           )}
         </div>
@@ -269,9 +275,9 @@ function NavItem({
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium">{item.name}</span>
-                {item.badge && (
+                {badgeCount !== undefined && badgeCount > 0 && (
                   <span className="px-1.5 py-0.5 bg-red-500 rounded-full text-[10px]">
-                    {item.badge}
+                    {item.id === "inventory" ? "!" : badgeCount}
                   </span>
                 )}
               </div>
@@ -314,7 +320,44 @@ function SidebarContent({
   userInitials: string;
 }) {
   const pathname = usePathname();
-  const notifications = 5;
+
+  // Hooks para datos reales
+  const { data: orders = [] } = useOrders();
+  const { data: inventory = [] } = useInventory();
+  const { data: ratings = [] } = useRatings();
+
+  // Cálculos de notificaciones
+  const pendingOrders = orders.filter((o) => o.status === "PENDING").length;
+  const lowStockItems = inventory.filter(
+    (i) => i.minStockAlert !== null && i.currentStock <= i.minStockAlert,
+  ).length;
+  const pendingRatings = ratings.filter((r) => !r.isApproved).length;
+
+  const getBadgeCount = (id?: string) => {
+    if (id === "orders") return pendingOrders;
+    if (id === "inventory") return lowStockItems;
+    if (id === "ratings") return pendingRatings;
+    return 0;
+  };
+
+  const totalNotifications = pendingOrders + lowStockItems + pendingRatings;
+
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        notifRef.current &&
+        !notifRef.current.contains(event.target as Node)
+      ) {
+        setShowNotifications(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -385,6 +428,7 @@ function SidebarContent({
             isActive={
               pathname === item.href || pathname.startsWith(`${item.href}/`)
             }
+            badgeCount={getBadgeCount(item.id)}
           />
         ))}
       </nav>
@@ -450,13 +494,101 @@ function SidebarContent({
             </div>
           )}
 
-          {!isCollapsed && notifications > 0 && (
-            <button className="relative p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                {notifications}
-              </span>
-            </button>
+          {!isCollapsed && totalNotifications > 0 && (
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
+              >
+                <Bell className="h-5 w-5" />
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {totalNotifications}
+                </span>
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute bottom-full right-0 mb-2 w-64 bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden z-50"
+                  >
+                    <div className="p-3 bg-stone-50 border-b border-stone-200">
+                      <h3 className="text-sm font-bold text-stone-900">
+                        Notificaciones
+                      </h3>
+                    </div>
+                    <div className="p-2 space-y-1">
+                      {pendingOrders > 0 && (
+                        <Link
+                          href="/ordenes"
+                          onClick={() => setShowNotifications(false)}
+                          className="flex items-start gap-3 p-2 hover:bg-stone-50 rounded-lg transition-colors"
+                        >
+                          <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg shrink-0">
+                            <ShoppingCart className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-stone-900">
+                              Órdenes pendientes
+                            </p>
+                            <p className="text-xs text-stone-500">
+                              Tenés {pendingOrders}{" "}
+                              {pendingOrders === 1 ? "orden" : "órdenes"} por
+                              revisar
+                            </p>
+                          </div>
+                        </Link>
+                      )}
+
+                      {lowStockItems > 0 && (
+                        <Link
+                          href="/inventario"
+                          onClick={() => setShowNotifications(false)}
+                          className="flex items-start gap-3 p-2 hover:bg-stone-50 rounded-lg transition-colors"
+                        >
+                          <div className="p-1.5 bg-amber-100 text-amber-600 rounded-lg shrink-0">
+                            <Warehouse className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-stone-900">
+                              Stock bajo
+                            </p>
+                            <p className="text-xs text-stone-500">
+                              Hay {lowStockItems} insumos con poco stock
+                            </p>
+                          </div>
+                        </Link>
+                      )}
+
+                      {pendingRatings > 0 && (
+                        <Link
+                          href="/resenas"
+                          onClick={() => setShowNotifications(false)}
+                          className="flex items-start gap-3 p-2 hover:bg-stone-50 rounded-lg transition-colors"
+                        >
+                          <div className="p-1.5 bg-purple-100 text-purple-600 rounded-lg shrink-0">
+                            <Star className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-stone-900">
+                              Nuevas reseñas
+                            </p>
+                            <p className="text-xs text-stone-500">
+                              Tenés {pendingRatings}{" "}
+                              {pendingRatings === 1 ? "reseña" : "reseñas"} para
+                              moderar
+                            </p>
+                          </div>
+                        </Link>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
         </div>
 

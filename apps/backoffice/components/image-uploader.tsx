@@ -12,9 +12,16 @@ import Image from "next/image";
 interface ImageUploaderProps {
   productId: string;
   images: string[];
+  onUploadSuccess?: (newImage: string) => void;
+  onDeleteSuccess?: (deletedUrl: string) => void;
 }
 
-export function ImageUploader({ productId, images }: ImageUploaderProps) {
+export function ImageUploader({
+  productId,
+  images,
+  onUploadSuccess,
+  onDeleteSuccess,
+}: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<number>(0);
   const uploadMutation = useUploadProductImage();
@@ -83,7 +90,15 @@ export function ImageUploader({ productId, images }: ImageUploaderProps) {
       }
 
       try {
-        await uploadMutation.mutateAsync({ productId, file });
+        const updatedProduct = await uploadMutation.mutateAsync({
+          productId,
+          file,
+        });
+        if (updatedProduct.images.length > 0 && onUploadSuccess) {
+          onUploadSuccess(
+            updatedProduct.images[updatedProduct.images.length - 1],
+          );
+        }
       } catch (error) {
         console.error(error);
         toast.error(`Error subiendo ${file.name}`);
@@ -97,6 +112,9 @@ export function ImageUploader({ productId, images }: ImageUploaderProps) {
     if (confirm("¿Estás seguro de eliminar esta imagen?")) {
       try {
         await removeMutation.mutateAsync({ productId, url });
+        if (onDeleteSuccess) {
+          onDeleteSuccess(url);
+        }
         toast.success("Imagen eliminada");
       } catch (error) {
         console.error(error);

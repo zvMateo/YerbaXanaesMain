@@ -18,6 +18,7 @@ interface ProductFormModalProps {
   open: boolean;
   onClose: () => void;
   product?: Product | null;
+  onProductCreated?: (product: Product) => void;
 }
 
 // ============================================================
@@ -42,8 +43,13 @@ export function ProductFormModal({
   open,
   onClose,
   product,
+  onProductCreated,
 }: ProductFormModalProps) {
-  const isEditing = !!product;
+  const [createdProduct, setCreatedProduct] = useState<Product | null>(null);
+
+  // Use createdProduct if we just created one, otherwise use passed product
+  const activeProduct = createdProduct || product;
+  const isEditing = !!activeProduct;
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const { data: categories = [] } = useCategories();
@@ -65,22 +71,22 @@ export function ProductFormModal({
   const bulkItems = inventory.filter((item) => item.unit === "GRAMS");
 
   useEffect(() => {
-    if (product) {
-      setName(product.name);
-      setDescription(product.description || "");
-      setCategoryId(product.categoryId);
-      setIsActive(product.isActive);
-      setIsFeatured(product.isFeatured ?? false);
+    if (activeProduct) {
+      setName(activeProduct.name);
+      setDescription(activeProduct.description || "");
+      setCategoryId(activeProduct.categoryId);
+      setIsActive(activeProduct.isActive);
+      setIsFeatured(activeProduct.isFeatured ?? false);
 
       // Detectar tipo: si tiene ingredientes es "a granel"
-      const hasIngredients = product.variants.some(
+      const hasIngredients = activeProduct.variants.some(
         (v: ProductVariant) => v.ingredients && v.ingredients.length > 0,
       );
       setProductType(hasIngredients ? "bulk" : "packaged");
-      setImages(product.images || []);
+      setImages(activeProduct.images || []);
 
       setVariants(
-        product.variants.map((v: ProductVariant) => ({
+        activeProduct.variants.map((v: ProductVariant) => ({
           name: v.name,
           price: Number(v.price),
           stock: v.stock || 0,
@@ -105,8 +111,9 @@ export function ProductFormModal({
           quantityRequired: 0,
         },
       ]);
+      setCreatedProduct(null);
     }
-  }, [product, open]);
+  }, [activeProduct, open]);
 
   if (!open) return null;
 
@@ -137,10 +144,10 @@ export function ProductFormModal({
     e.preventDefault();
     const variantsPayload = buildVariantsPayload();
 
-    if (isEditing) {
+    if (isEditing && activeProduct) {
       updateProduct.mutate(
         {
-          id: product.id,
+          id: activeProduct.id,
           data: {
             name,
             description,
@@ -162,7 +169,15 @@ export function ProductFormModal({
           isFeatured,
           variants: variantsPayload,
         },
-        { onSuccess: onClose },
+        {
+          onSuccess: (newProduct) => {
+            setCreatedProduct(newProduct);
+            if (onProductCreated) {
+              onProductCreated(newProduct);
+            }
+            // No cerramos el modal, lo dejamos en modo edición
+          },
+        },
       );
     }
   };
@@ -507,9 +522,30 @@ export function ProductFormModal({
           </div>
 
           {/* Imágenes */}
-          {isEditing && product ? (
+          {isEditing && activeProduct ? (
             <div className="pt-2 border-t border-stone-100">
-              <ImageUploader productId={product.id} images={images} />
+              {createdProduct && (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
+                  <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-green-900">
+                      ¡Producto guardado exitosamente!
+                    </h4>
+                    <p className="text-xs text-green-700 mt-0.5">
+                      Ya podés subir las imágenes para este producto o cerrar si
+                      terminaste.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <ImageUploader
+                productId={activeProduct.id}
+                images={images}
+                onUploadSuccess={(url) => setImages([...images, url])}
+                onDeleteSuccess={(url) =>
+                  setImages(images.filter((i) => i !== url))
+                }
+              />
             </div>
           ) : (
             <div className="p-4 bg-yerba-50 border border-yerba-100 rounded-xl">
