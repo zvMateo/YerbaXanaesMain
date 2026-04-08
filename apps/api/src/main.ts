@@ -28,15 +28,48 @@ async function bootstrap() {
 
   // 3. Habilitar CORS
   // En producción: ALLOWED_ORIGINS=https://tudominio.com,https://admin.tudominio.com
-  // En desarrollo: fallback a localhost automático
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : ['http://localhost:3000', 'http://localhost:3002'];
+  // Nota: normalizamos comillas y trailing slash para evitar falsos negativos.
+  const normalizeOrigin = (origin: string): string =>
+    origin
+      .trim()
+      .replace(/^\"+|\"+$/g, '')
+      .replace(/\/$/, '');
+
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3002',
+    'https://www.yerbaxanaes.com',
+    'https://yerbaxanaes.com',
+  ];
+
+  const envOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+        .map((origin) => normalizeOrigin(origin))
+        .filter((origin) => origin.length > 0)
+    : [];
+
+  const allowedOrigins = new Set(
+    [...defaultOrigins, ...envOrigins].map((origin) => normalizeOrigin(origin)),
+  );
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const normalizedOrigin = normalizeOrigin(origin);
+      callback(null, allowedOrigins.has(normalizedOrigin));
+    },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    optionsSuccessStatus: 204,
   });
+
+  logger.log(
+    `🌐 CORS allowed origins: ${Array.from(allowedOrigins).join(', ')}`,
+  );
 
   // 4. Configuración de Swagger
   const config = new DocumentBuilder()
