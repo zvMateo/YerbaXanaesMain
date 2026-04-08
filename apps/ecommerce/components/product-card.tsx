@@ -95,13 +95,24 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
             {product.images?.[0] ? (
-              <Image
-                src={product.images[0]}
-                alt={product.name}
-                fill
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                className="object-cover"
-              />
+              <>
+                <Image
+                  src={product.images[0]}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                  className={`object-cover transition-opacity duration-500 ${isHovered && product.images[1] ? "opacity-0" : "opacity-100"}`}
+                />
+                {product.images[1] && (
+                  <Image
+                    src={product.images[1]}
+                    alt={`${product.name} - Vista alternativa`}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                    className={`object-cover absolute inset-0 transition-opacity duration-500 ${isHovered ? "opacity-100" : "opacity-0"}`}
+                  />
+                )}
+              </>
             ) : (
               <div className="text-center">
                 <span className="text-6xl block mb-2">🧉</span>
