@@ -25,6 +25,7 @@ import {
   useImportShipping,
   type Order,
   type OrderStatus,
+  type SalesChannel,
 } from "@/hooks/use-orders";
 import { OrdersSkeleton } from "./skeletons";
 import { EmptyState, ErrorState } from "./empty-states";
@@ -39,6 +40,51 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { CreateOrderModal } from "./create-order-modal";
+
+const channelConfig: Record<
+  SalesChannel,
+  { label: string; icon: string; color: string }
+> = {
+  ONLINE: {
+    label: "Online",
+    icon: "🛒",
+    color: "bg-blue-100 text-blue-700 border-blue-200",
+  },
+  STORE: {
+    label: "Tienda",
+    icon: "🏪",
+    color: "bg-stone-100 text-stone-700 border-stone-200",
+  },
+  INSTAGRAM: {
+    label: "Instagram",
+    icon: "📸",
+    color: "bg-purple-100 text-purple-700 border-purple-200",
+  },
+  WHATSAPP: {
+    label: "WhatsApp",
+    icon: "💬",
+    color: "bg-green-100 text-green-700 border-green-200",
+  },
+  FAIR: {
+    label: "Feria",
+    icon: "🎪",
+    color: "bg-amber-100 text-amber-700 border-amber-200",
+  },
+};
+
+function ChannelBadge({ channel }: { channel?: SalesChannel }) {
+  const config = channelConfig[channel || "ONLINE"];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${config.color}`}
+      title={config.label}
+    >
+      <span className="text-sm">{config.icon}</span>
+      {config.label}
+    </span>
+  );
+}
 
 // Status configurations - Systems-Oriented: Consistent status styling
 const statusConfig: Record<
@@ -218,6 +264,8 @@ export function OrdersTable() {
   const updateStatus = useUpdateOrderStatus();
   const bulkUpdate = useBulkUpdateOrderStatus();
 
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
   const handleBulkAction = (status: OrderStatus) => {
     const selectedIds = table
       .getSelectedRowModel()
@@ -352,6 +400,11 @@ export function OrdersTable() {
       ),
     },
     {
+      accessorKey: "channel",
+      header: "Canal",
+      cell: ({ row }) => <ChannelBadge channel={row.original.channel} />,
+    },
+    {
       accessorKey: "status",
       header: "Estado",
       cell: ({ row }) => <StatusBadge status={row.original.status} />,
@@ -436,6 +489,11 @@ export function OrdersTable() {
 
   return (
     <div className="space-y-4">
+      <CreateOrderModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+      />
+
       {/* Filters Toolbar - Generative UI: Adaptive interface */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-200">
         <div className="flex flex-col sm:flex-row gap-4">
@@ -470,13 +528,13 @@ export function OrdersTable() {
             </select>
           </div>
 
-          {/* Export */}
+          {/* Nueva Venta */}
           <button
-            onClick={() => toast.success("Exportando órdenes...")}
-            className="flex items-center gap-2 px-4 py-2.5 border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+            onClick={() => setIsCreateOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors shadow-sm font-medium"
           >
-            <Download className="h-5 w-5 text-stone-600" />
-            <span className="text-stone-700">Exportar</span>
+            <CheckCircle className="h-5 w-5" />
+            <span>Nueva Venta</span>
           </button>
         </div>
 

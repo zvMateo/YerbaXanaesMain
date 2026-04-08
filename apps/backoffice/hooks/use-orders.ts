@@ -16,6 +16,28 @@ export type OrderStatus =
   | "CANCELLED"
   | "REFUNDED";
 
+export type SalesChannel =
+  | "ONLINE"
+  | "STORE"
+  | "INSTAGRAM"
+  | "WHATSAPP"
+  | "FAIR";
+
+export interface CreateOrderInput {
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  channel: SalesChannel;
+  paymentMethod: "CASH" | "TRANSFER" | "MERCADOPAGO";
+  deliveryType?: "pickup" | "shipping";
+  shippingAddress?: string;
+  shippingCity?: string;
+  shippingZip?: string;
+  shippingCost?: number;
+  notes?: string;
+  items: { variantId: string; quantity: number }[];
+}
+
 export interface Order {
   id: string;
   customerName?: string;
@@ -23,6 +45,8 @@ export interface Order {
   customerPhone?: string;
   total: number;
   status: OrderStatus;
+  channel?: SalesChannel;
+  notes?: string;
   createdAt: string; // ISO string
   paymentProvider: string;
   items: Array<any>; // Idealmente definir el tipo OrderItem
@@ -303,6 +327,42 @@ export function useOrderStats() {
 // ============================================================
 // HOOK: Importar envío a Correo Argentino
 // ============================================================
+
+// ============================================================
+// HOOK: Crear orden manual
+// ============================================================
+
+async function createOrderApi(input: CreateOrderInput): Promise<Order> {
+  const response = await fetchWithAuth(`${API_URL}/orders`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || "Error al registrar la venta",
+    );
+  }
+  return response.json() as Promise<Order>;
+}
+
+export function useCreateOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createOrderApi,
+    onSuccess: (order) => {
+      void queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      toast.success("Venta registrada", {
+        description: `Orden #${order.id.slice(0, 8)} creada correctamente`,
+      });
+    },
+    onError: (error: Error) => {
+      toast.error("Error al registrar la venta", {
+        description: error.message,
+      });
+    },
+  });
+}
 
 async function importShippingToCorreo(
   orderId: string,

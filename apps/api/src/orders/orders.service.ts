@@ -149,6 +149,8 @@ export class OrdersService {
           customerName: dto.customerName,
           customerEmail: dto.customerEmail || dto.customerPhone || 'anonimo',
           customerPhone: dto.customerPhone,
+          channel: dto.channel ?? 'ONLINE',
+          notes: dto.notes,
           paymentProvider: paymentProvider,
           status: OrderStatus.PENDING,
           total: totalWithShipping,

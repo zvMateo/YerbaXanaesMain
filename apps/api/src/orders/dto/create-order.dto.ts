@@ -18,8 +18,11 @@ import {
 // ---------------------------------------------------------
 
 enum SalesChannel {
-  ONLINE = 'ONLINE',
-  STORE = 'STORE',
+  ONLINE    = 'ONLINE',
+  STORE     = 'STORE',
+  INSTAGRAM = 'INSTAGRAM',
+  WHATSAPP  = 'WHATSAPP',
+  FAIR      = 'FAIR',
 }
 
 enum PaymentMethod {
@@ -94,6 +97,11 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   shippingProvider?: string; // "correo_argentino" | "flat_rate" | "pickup"
+
+  // Notas internas (para ventas manuales)
+  @IsString()
+  @IsOptional()
+  notes?: string;
 
   // Descuento con Cupón
   @IsString()
