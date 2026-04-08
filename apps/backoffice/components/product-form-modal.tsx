@@ -222,15 +222,15 @@ export function ProductFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-4xl flex flex-col max-h-[90vh]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-stone-200">
+        <div className="flex items-center justify-between p-6 border-b border-stone-200 shrink-0">
           <h2 className="text-lg font-semibold text-stone-900">
             {isEditing ? "Editar producto" : "Nuevo producto"}
           </h2>
@@ -242,328 +242,360 @@ export function ProductFormModal({
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Nombre */}
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Nombre del producto *
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Yerba Mate Entrefina"
-              className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all focus:outline-none"
-              autoFocus
-              required
-            />
-          </div>
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col overflow-hidden min-h-0"
+        >
+          <div className="p-6 overflow-y-auto space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Columna Izquierda: Info Básica */}
+              <div className="space-y-4">
+                {/* Nombre */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    Nombre del producto *
+                  </label>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ej: Yerba Mate Entrefina"
+                    className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all focus:outline-none"
+                    autoFocus
+                    required
+                  />
+                </div>
 
-          {/* Descripción */}
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Descripción
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all focus:outline-none resize-none"
-              placeholder="Descripción del producto..."
-            />
-          </div>
+                {/* Descripción */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    Descripción
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                    className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all focus:outline-none resize-none"
+                    placeholder="Descripción del producto..."
+                  />
+                </div>
 
-          {/* Categoría */}
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Categoría *
-            </label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-4 py-3 border border-stone-200 rounded-xl bg-white focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all focus:outline-none"
-              required
-            >
-              <option value="">Seleccionar categoría...</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Tipo de Producto */}
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">
-              Tipo de producto
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setProductType("packaged")}
-                className={`p-3 border-2 rounded-xl text-center transition-all ${
-                  productType === "packaged"
-                    ? "border-yerba-600 bg-yerba-50"
-                    : "border-stone-200 hover:border-stone-300"
-                }`}
-              >
-                <Package className="h-5 w-5 mx-auto mb-1 text-stone-600" />
-                <p className="text-sm font-medium text-stone-900">
-                  Pre-empacado
-                </p>
-                <p className="text-xs text-stone-500">Mates, bombillas, etc.</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setProductType("bulk")}
-                className={`p-3 border-2 rounded-xl text-center transition-all ${
-                  productType === "bulk"
-                    ? "border-yerba-600 bg-yerba-50"
-                    : "border-stone-200 hover:border-stone-300"
-                }`}
-              >
-                <Scale className="h-5 w-5 mx-auto mb-1 text-stone-600" />
-                <p className="text-sm font-medium text-stone-900">A granel</p>
-                <p className="text-xs text-stone-500">Yerba, hierbas...</p>
-              </button>
-            </div>
-          </div>
-
-          {/* Activo + Destacado */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="isActive"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded border-stone-300 text-yerba-600 focus:ring-yerba-500"
-              />
-              <label
-                htmlFor="isActive"
-                className="text-sm font-medium text-stone-700"
-              >
-                Producto activo (visible en la tienda)
-              </label>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="isFeatured"
-                checked={isFeatured}
-                onChange={(e) => setIsFeatured(e.target.checked)}
-                className="rounded border-stone-300 text-yerba-600 focus:ring-yerba-500"
-              />
-              <label
-                htmlFor="isFeatured"
-                className="text-sm font-medium text-stone-700"
-              >
-                Destacado en la homepage
-              </label>
-            </div>
-          </div>
-
-          {/* Variantes */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-stone-700">
-                Variantes / Presentaciones *
-              </label>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="text-xs text-yerba-600 hover:text-yerba-700 flex items-center gap-1 font-medium"
-              >
-                <Plus className="h-3 w-3" />
-                Agregar
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {variants.map((variant, idx) => {
-                const availableStock = getAvailableStock(variant);
-                const selectedItem = inventory.find(
-                  (i) => i.id === variant.inventoryItemId,
-                );
-
-                return (
-                  <div
-                    key={idx}
-                    className="p-4 bg-stone-50 rounded-xl space-y-3"
+                {/* Categoría */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                    Categoría *
+                  </label>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    className="w-full px-4 py-3 border border-stone-200 rounded-xl bg-white focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all focus:outline-none"
+                    required
                   >
-                    {/* Nombre de variante */}
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={variant.name}
-                        onChange={(e) =>
-                          updateVariant(idx, "name", e.target.value)
-                        }
-                        required
-                        className="flex-1 px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                        placeholder="Ej: 500g, 1kg, 2kg..."
-                      />
-                      {variants.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeVariant(idx)}
-                          className="p-2 text-red-400 hover:text-red-600 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    <option value="">Seleccionar categoría...</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    {/* Precio */}
-                    <div>
-                      <label className="text-xs text-stone-500 mb-1 block">
-                        Precio de venta ($)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={variant.price || ""}
-                        onChange={(e) =>
-                          updateVariant(idx, "price", Number(e.target.value))
-                        }
-                        required
-                        className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                        placeholder="Ej: 3500"
-                      />
-                    </div>
-
-                    {/* Campos según tipo */}
-                    {productType === "bulk" ? (
-                      <>
-                        {/* Selector de insumo */}
-                        <div>
-                          <label className="text-xs text-stone-500 mb-1 block">
-                            Insumo de origen *
-                          </label>
-                          <select
-                            value={variant.inventoryItemId}
-                            onChange={(e) =>
-                              updateVariant(
-                                idx,
-                                "inventoryItemId",
-                                e.target.value,
-                              )
-                            }
-                            required
-                            className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                          >
-                            <option value="">Seleccionar insumo...</option>
-                            {bulkItems.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name} (
-                                {(item.currentStock / 1000).toFixed(2)} kg
-                                disponibles)
-                              </option>
-                            ))}
-                          </select>
-                          {bulkItems.length === 0 && (
-                            <p className="text-xs text-amber-600 mt-1">
-                              ⚠️ No hay insumos a granel. Andá a Inventario
-                              primero.
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Peso por unidad en gramos */}
-                        <div>
-                          <label className="text-xs text-stone-500 mb-1 block">
-                            Peso por unidad (en gramos) *
-                          </label>
-                          <input
-                            type="number"
-                            min={1}
-                            value={variant.quantityRequired || ""}
-                            onChange={(e) =>
-                              updateVariant(
-                                idx,
-                                "quantityRequired",
-                                Number(e.target.value),
-                              )
-                            }
-                            required
-                            className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                            placeholder="Ej: 500 (para 500g)"
-                          />
-                          {selectedItem && variant.quantityRequired > 0 && (
-                            <p className="text-xs text-yerba-600 mt-1">
-                              📦 Stock disponible:{" "}
-                              <strong>{availableStock} unidades</strong>
-                            </p>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      /* Stock fijo para pre-empacados */
-                      <div>
-                        <label className="text-xs text-stone-500 mb-1 block">
-                          Stock inicial (unidades)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={variant.stock || ""}
-                          onChange={(e) =>
-                            updateVariant(idx, "stock", Number(e.target.value))
-                          }
-                          className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
-                          placeholder="Ej: 50"
-                        />
-                      </div>
-                    )}
+                {/* Activo + Destacado */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="isActive"
+                      checked={isActive}
+                      onChange={(e) => setIsActive(e.target.checked)}
+                      className="w-4 h-4 rounded border-stone-300 text-yerba-600 focus:ring-yerba-500 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="isActive"
+                      className="text-sm font-medium text-stone-700 cursor-pointer"
+                    >
+                      Producto activo (visible en la tienda)
+                    </label>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Imágenes */}
-          {isEditing && activeProduct ? (
-            <div className="pt-2 border-t border-stone-100">
-              {createdProduct && (
-                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
-                  <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-medium text-green-900">
-                      ¡Producto guardado exitosamente!
-                    </h4>
-                    <p className="text-xs text-green-700 mt-0.5">
-                      Ya podés subir las imágenes para este producto o cerrar si
-                      terminaste.
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="isFeatured"
+                      checked={isFeatured}
+                      onChange={(e) => setIsFeatured(e.target.checked)}
+                      className="w-4 h-4 rounded border-stone-300 text-yerba-600 focus:ring-yerba-500 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="isFeatured"
+                      className="text-sm font-medium text-stone-700 cursor-pointer"
+                    >
+                      Destacado en la homepage
+                    </label>
                   </div>
                 </div>
-              )}
-              <ImageUploader
-                productId={activeProduct.id}
-                images={images}
-                onUploadSuccess={(url) => setImages([...images, url])}
-                onDeleteSuccess={(url) =>
-                  setImages(images.filter((i) => i !== url))
-                }
-              />
-            </div>
-          ) : (
-            <div className="p-4 bg-yerba-50 border border-yerba-100 rounded-xl">
-              <p className="text-sm text-yerba-800">
-                💡 Podrás subir imágenes una vez que guardes el producto por
-                primera vez.
-              </p>
-            </div>
-          )}
+              </div>
 
-          {/* Acciones */}
-          <div className="flex gap-3 pt-2">
+              {/* Columna Derecha: Variantes e Imágenes */}
+              <div className="space-y-6">
+                {/* Tipo de Producto */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">
+                    Tipo de producto
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setProductType("packaged")}
+                      className={`p-3 border-2 rounded-xl text-center transition-all ${
+                        productType === "packaged"
+                          ? "border-yerba-600 bg-yerba-50"
+                          : "border-stone-200 hover:border-stone-300"
+                      }`}
+                    >
+                      <Package className="h-5 w-5 mx-auto mb-1 text-stone-600" />
+                      <p className="text-sm font-medium text-stone-900">
+                        Pre-empacado
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        Mates, bombillas, etc.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProductType("bulk")}
+                      className={`p-3 border-2 rounded-xl text-center transition-all ${
+                        productType === "bulk"
+                          ? "border-yerba-600 bg-yerba-50"
+                          : "border-stone-200 hover:border-stone-300"
+                      }`}
+                    >
+                      <Scale className="h-5 w-5 mx-auto mb-1 text-stone-600" />
+                      <p className="text-sm font-medium text-stone-900">
+                        A granel
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        Yerba, hierbas...
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Variantes */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-stone-700">
+                      Variantes / Presentaciones *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addVariant}
+                      className="text-xs px-2 py-1 bg-yerba-50 text-yerba-700 hover:bg-yerba-100 rounded-md flex items-center gap-1 font-medium transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Agregar
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                    {variants.map((variant, idx) => {
+                      const availableStock = getAvailableStock(variant);
+                      const selectedItem = inventory.find(
+                        (i) => i.id === variant.inventoryItemId,
+                      );
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-4 bg-stone-50 rounded-xl space-y-3 border border-stone-200/60 relative group"
+                        >
+                          {variants.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeVariant(idx)}
+                              className="absolute top-2 right-2 p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+
+                          {/* Nombre y Precio */}
+                          <div className="grid grid-cols-2 gap-3 pr-8">
+                            <div>
+                              <label className="text-xs text-stone-500 mb-1 block">
+                                Nombre *
+                              </label>
+                              <input
+                                value={variant.name}
+                                onChange={(e) =>
+                                  updateVariant(idx, "name", e.target.value)
+                                }
+                                required
+                                className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                                placeholder="Ej: 500g, 1kg..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-stone-500 mb-1 block">
+                                Precio de venta ($) *
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={variant.price || ""}
+                                onChange={(e) =>
+                                  updateVariant(
+                                    idx,
+                                    "price",
+                                    Number(e.target.value),
+                                  )
+                                }
+                                required
+                                className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                                placeholder="Ej: 3500"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Campos según tipo */}
+                          {productType === "bulk" ? (
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Selector de insumo */}
+                              <div>
+                                <label className="text-xs text-stone-500 mb-1 block">
+                                  Insumo de origen *
+                                </label>
+                                <select
+                                  value={variant.inventoryItemId}
+                                  onChange={(e) =>
+                                    updateVariant(
+                                      idx,
+                                      "inventoryItemId",
+                                      e.target.value,
+                                    )
+                                  }
+                                  required
+                                  className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                                >
+                                  <option value="">Seleccionar...</option>
+                                  {bulkItems.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.name} (
+                                      {(item.currentStock / 1000).toFixed(2)}{" "}
+                                      kg)
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Peso por unidad */}
+                              <div>
+                                <label className="text-xs text-stone-500 mb-1 block">
+                                  Peso ud. (gramos) *
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={variant.quantityRequired || ""}
+                                  onChange={(e) =>
+                                    updateVariant(
+                                      idx,
+                                      "quantityRequired",
+                                      Number(e.target.value),
+                                    )
+                                  }
+                                  required
+                                  className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                                  placeholder="Ej: 500"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            /* Stock fijo para pre-empacados */
+                            <div>
+                              <label className="text-xs text-stone-500 mb-1 block">
+                                Stock inicial (unidades)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={variant.stock || ""}
+                                onChange={(e) =>
+                                  updateVariant(
+                                    idx,
+                                    "stock",
+                                    Number(e.target.value),
+                                  )
+                                }
+                                className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-1 focus:ring-yerba-500 focus:outline-none"
+                                placeholder="Ej: 50"
+                              />
+                            </div>
+                          )}
+
+                          {/* Info de stock calculado (solo granel) */}
+                          {productType === "bulk" &&
+                            selectedItem &&
+                            variant.quantityRequired > 0 && (
+                              <div className="pt-2 border-t border-stone-200/60">
+                                <p className="text-xs text-yerba-700 font-medium">
+                                  📦 Stock calculado: {availableStock} unidades
+                                  disponibles
+                                </p>
+                              </div>
+                            )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sección Inferior de Imágenes (Abarca todo el ancho) */}
+            <div className="mt-8 pt-6 border-t border-stone-200">
+              {isEditing && activeProduct ? (
+                <div>
+                  {createdProduct && (
+                    <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
+                      <Check className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-medium text-green-900">
+                          ¡Producto guardado exitosamente!
+                        </h4>
+                        <p className="text-sm text-green-700 mt-0.5">
+                          Ya podés subir las imágenes para este producto o
+                          cerrar si terminaste.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <ImageUploader
+                    productId={activeProduct.id}
+                    images={images}
+                    onUploadSuccess={(url) => setImages([...images, url])}
+                    onDeleteSuccess={(url) =>
+                      setImages(images.filter((i) => i !== url))
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="p-6 bg-yerba-50 border border-yerba-100 rounded-xl flex items-center justify-center text-center">
+                  <p className="text-sm text-yerba-800">
+                    💡 Podrás subir imágenes de inmediato una vez que crees el
+                    producto.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer Fijo con Acciones */}
+          <div className="p-6 border-t border-stone-200 bg-stone-50 shrink-0 flex gap-3 justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-stone-200 text-stone-700 rounded-xl hover:bg-stone-50 transition-colors font-medium"
+              className="px-6 py-2.5 border border-stone-300 text-stone-700 rounded-xl hover:bg-stone-100 transition-colors font-medium shadow-sm"
             >
-              Cancelar
+              Cerrar
             </button>
             <button
               type="submit"
@@ -573,7 +605,7 @@ export function ProductFormModal({
                 !categoryId ||
                 variants.some((v) => !v.name)
               }
-              className="flex-1 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="px-8 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {isPending ? (
                 <>

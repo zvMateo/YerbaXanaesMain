@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
@@ -22,6 +23,10 @@ import { ProductFormModal } from "./product-form-modal";
 
 // Componente principal
 export function ProductsManager() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
   const { data: products, isLoading, error } = useProducts();
   const deleteProduct = useDeleteProduct();
 
@@ -29,17 +34,39 @@ export function ProductsManager() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Modal State via URL Query Params
+  const action = searchParams.get("action");
+  const productId = searchParams.get("id");
+
+  const modalOpen = action === "new" || action === "edit";
+
+  const editingProduct = useMemo(() => {
+    if (action === "edit" && productId && products) {
+      return products.find((p) => p.id === productId) || null;
+    }
+    return null;
+  }, [action, productId, products]);
 
   const openCreate = () => {
-    setEditingProduct(null);
-    setModalOpen(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("action", "new");
+    params.delete("id");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const openEdit = (product: Product) => {
-    setEditingProduct(product);
-    setModalOpen(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("action", "edit");
+    params.set("id", product.id);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const closeModal = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("action");
+    params.delete("id");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   // Filtrar productos
@@ -114,7 +141,7 @@ export function ProductsManager() {
     <div className="space-y-6">
       <ProductFormModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={closeModal}
         product={editingProduct}
       />
       {/* Header y filtros */}
