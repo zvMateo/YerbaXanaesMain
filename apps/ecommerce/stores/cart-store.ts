@@ -34,13 +34,8 @@ interface CartStore {
   closeCart: () => void;
   toggleCart: () => void;
 
-  // Computed
-  total: number;
-  itemCount: number;
-  subtotal: number;
+  // Constants
   freeShippingThreshold: number;
-  amountForFreeShipping: number;
-  isFreeShipping: boolean;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -115,30 +110,6 @@ export const useCartStore = create<CartStore>()(
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
       toggleCart: () => set((state) => ({ isOpen: !state.isOpen })),
-
-      get total() {
-        return get().items.reduce(
-          (sum, item) => sum + item.price * item.quantity,
-          0,
-        );
-      },
-
-      get itemCount() {
-        return get().items.reduce((sum, item) => sum + item.quantity, 0);
-      },
-
-      get subtotal() {
-        return get().total;
-      },
-
-      get isFreeShipping() {
-        return get().total >= get().freeShippingThreshold;
-      },
-
-      get amountForFreeShipping() {
-        const remaining = get().freeShippingThreshold - get().total;
-        return remaining > 0 ? remaining : 0;
-      },
     }),
     {
       name: "yerbaxanaes-cart",

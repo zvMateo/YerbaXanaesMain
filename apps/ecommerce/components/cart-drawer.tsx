@@ -118,7 +118,7 @@ function CartItem({ item, index }: CartItemProps) {
 
           {/* Price */}
           <span className="font-semibold text-stone-900">
-            ${(item.price * item.quantity).toLocaleString()}
+            ${(Number(item.price) * item.quantity).toLocaleString()}
           </span>
         </div>
       </div>
@@ -243,16 +243,15 @@ function FreeShippingProgress({
 
 // Main Drawer Component
 export function CartDrawer() {
-  const {
-    items,
-    isOpen,
-    closeCart,
-    toggleCart,
-    total,
-    itemCount,
-    freeShippingThreshold,
-  } = useCartStore();
+  const { items, isOpen, closeCart, toggleCart, freeShippingThreshold } =
+    useCartStore();
   const [mounted, setMounted] = useState(false);
+
+  const total = items.reduce(
+    (sum, item) => sum + Number(item.price) * item.quantity,
+    0,
+  );
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   useEffect(() => {
     setMounted(true);
