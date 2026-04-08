@@ -128,6 +128,10 @@ export class OrdersService {
             ? PaymentProvider.TRANSFER
             : PaymentProvider.MERCADOPAGO;
 
+      // El type de channel puede venir como enum o string, validamos si existe
+      // Prisma lo acepta casteado a cualquier tipo dentro del enum
+      const salesChannel = dto.channel as any;
+
       // Total con envío incluido
       const shippingCost = dto.shippingCost ? Number(dto.shippingCost) : 0;
       const subtotalWithShipping = totalAmount + shippingCost;
@@ -149,7 +153,7 @@ export class OrdersService {
           customerName: dto.customerName,
           customerEmail: dto.customerEmail || dto.customerPhone || 'anonimo',
           customerPhone: dto.customerPhone,
-          channel: dto.channel ?? 'ONLINE',
+          channel: salesChannel ?? 'ONLINE',
           notes: dto.notes,
           paymentProvider: paymentProvider,
           status: OrderStatus.PENDING,
