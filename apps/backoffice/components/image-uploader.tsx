@@ -83,8 +83,8 @@ export function ImageUploader({
     setUploadingFiles(validFiles.length);
 
     for (const file of validFiles) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`La imagen ${file.name} supera los 5MB`);
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`La imagen ${file.name} supera los 10MB`);
         setUploadingFiles((prev) => prev - 1);
         continue;
       }
@@ -195,7 +195,7 @@ export function ImageUploader({
                 Hacé click para subir o arrastrá
               </p>
               <p className="text-xs text-stone-500">
-                JPG, PNG, WebP o HEIC (Max. 5MB)
+                JPG, PNG, WebP o HEIC (Max. 10MB)
               </p>
             </div>
           </div>
