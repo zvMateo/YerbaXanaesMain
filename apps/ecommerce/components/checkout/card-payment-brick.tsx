@@ -47,7 +47,19 @@ export function CardPaymentBrick({
     setIsProcessing(true);
 
     try {
-      const { customerName, customerEmail, customerPhone } = getValues();
+      const {
+        customerName,
+        customerEmail,
+        customerPhone,
+        deliveryType,
+        address,
+        city,
+        shippingProvinceCode,
+        zipCode,
+        shippingCost,
+        shippingProvider,
+        couponCode,
+      } = getValues();
 
       if (!cardData.token) {
         throw new Error(
@@ -75,6 +87,14 @@ export function CardPaymentBrick({
           },
           customerName,
           customerPhone,
+          deliveryType,
+          shippingAddress: address,
+          shippingCity: city,
+          shippingProvinceCode,
+          shippingZip: zipCode,
+          shippingCost: shippingCost ?? 0,
+          shippingProvider,
+          couponCode: couponCode || undefined,
           orderItems: items.map((item) => ({
             variantId: item.variantId,
             quantity: item.quantity,

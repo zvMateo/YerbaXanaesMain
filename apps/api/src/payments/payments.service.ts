@@ -124,6 +124,12 @@ export class PaymentsService {
       };
     } catch (error) {
       this.logger.error('Error creando preferencia MP', error);
+      // Rollback de stock si falla MP
+      await this.restoreOrderStock(order.id);
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.CANCELLED, deletedAt: new Date() },
+      });
       throw new InternalServerErrorException('Error creando preferencia MP');
     }
   }
@@ -199,8 +205,9 @@ export class PaymentsService {
       const data = await response.json();
 
       if (!response.ok) {
-        this.logger.error('Error de MP al crear Order', data);
-        // Hacer rollback de la orden local
+        this.logger.error('Error de MP al procesar Order', data);
+        // Hacer rollback de la orden local y restaurar stock
+        await this.restoreOrderStock(order.id);
         await this.prisma.order.update({
           where: { id: order.id },
           data: { status: OrderStatus.CANCELLED, deletedAt: new Date() },
@@ -365,6 +372,9 @@ export class PaymentsService {
         }
 
         if (newStatus) {
+          if (newStatus === OrderStatus.CANCELLED) {
+            await this.restoreOrderStock(extRef);
+          }
           await this.prisma.order.update({
             where: { id: extRef },
             data: {
@@ -381,6 +391,44 @@ export class PaymentsService {
     }
 
     return { status: 'ok' };
+  }
+
+  // -------------------------------------------------------
+  // HELPER INTERNO: Restaurar Stock de Orden Cancelada
+  // -------------------------------------------------------
+  private async restoreOrderStock(orderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      });
+      if (!order) return;
+
+      for (const item of order.items) {
+        const variant = await tx.productVariant.findUnique({
+          where: { id: item.variantId },
+          include: { ingredients: true },
+        });
+
+        if (!variant) continue;
+
+        if (variant.ingredients && variant.ingredients.length > 0) {
+          for (const ingredient of variant.ingredients) {
+            const totalQuantityToRestore =
+              ingredient.quantityRequired * item.quantity;
+            await tx.inventoryItem.update({
+              where: { id: ingredient.inventoryItemId },
+              data: { currentStock: { increment: totalQuantityToRestore } },
+            });
+          }
+        } else {
+          await tx.productVariant.update({
+            where: { id: variant.id },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+    });
   }
 
   // -------------------------------------------------------
@@ -432,7 +480,15 @@ export class PaymentsService {
         if (variant.ingredients && variant.ingredients.length > 0) {
           for (const ingredient of variant.ingredients) {
             const totalNeeded = ingredient.quantityRequired * item.quantity;
-            if (ingredient.inventoryItem.currentStock < totalNeeded) {
+
+            // SELECT FOR UPDATE: bloquea la fila hasta que la transacción termine
+            await tx.$queryRaw`SELECT id FROM "InventoryItem" WHERE id = ${ingredient.inventoryItemId} FOR UPDATE`;
+            const lockedItem = await tx.inventoryItem.findUnique({
+              where: { id: ingredient.inventoryItemId },
+            });
+            const currentStock = lockedItem!.currentStock;
+
+            if (currentStock < totalNeeded) {
               throw new BadRequestException(
                 `Stock insuficiente de '${ingredient.inventoryItem.name}'.`,
               );
@@ -443,7 +499,13 @@ export class PaymentsService {
             });
           }
         } else {
-          const available = variant.stock || 0;
+          // SELECT FOR UPDATE: bloquea la fila de la variante
+          await tx.$queryRaw`SELECT id FROM "ProductVariant" WHERE id = ${variant.id} FOR UPDATE`;
+          const lockedVariant = await tx.productVariant.findUnique({
+            where: { id: variant.id },
+          });
+          const available = lockedVariant!.stock || 0;
+
           if (available < item.quantity) {
             throw new BadRequestException(
               `Stock insuficiente de '${variant.product.name}'.`,

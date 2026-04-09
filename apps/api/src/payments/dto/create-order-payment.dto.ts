@@ -69,6 +69,40 @@ export class CreateOrderPaymentDto {
   @IsString()
   customerPhone?: string;
 
+  // Datos de entrega (opcionales, para persistir en la orden)
+  @IsOptional()
+  @IsString()
+  deliveryType?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingCity?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingProvinceCode?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingZip?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  shippingCost?: number;
+
+  @IsOptional()
+  @IsString()
+  shippingProvider?: string;
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
