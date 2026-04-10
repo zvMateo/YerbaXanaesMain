@@ -11,6 +11,7 @@ import {
   AlertCircle,
   XCircle,
 } from "lucide-react";
+import { CheckoutSuccessCleanup } from "@/components/checkout/checkout-success-cleanup";
 
 interface SuccessPageProps {
   searchParams: Promise<{
@@ -42,9 +43,45 @@ export default async function CheckoutSuccessPage({
     redirect("/");
   }
 
-  // MP agrega status=approved | pending | null al back_url en producción
-  const isPending = status === "pending" || status === "in_process";
-  const isFailure = status === "failure" || status === "rejected";
+  // Estado canónico desde backend (fuente de verdad) cuando tenemos orderId.
+  const apiUrl = (
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+  ).replace(/\/$/, "");
+
+  let backendOrderStatus: string | null = null;
+
+  if (orderId) {
+    try {
+      const response = await fetch(
+        `${apiUrl}/payments/order-status/${orderId}`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          data?: { status?: string };
+        };
+        backendOrderStatus = payload.data?.status ?? null;
+      }
+    } catch {
+      // Si falla la consulta, dejamos fallback conservador a estado pendiente.
+    }
+  }
+
+  const queryStatus = (status || "").toLowerCase();
+
+  const isPending =
+    backendOrderStatus === "PENDING" ||
+    (!backendOrderStatus &&
+      ["", "approved", "pending", "in_process"].includes(queryStatus));
+
+  const isFailure =
+    backendOrderStatus === "CANCELLED" ||
+    (!backendOrderStatus && ["failure", "rejected"].includes(queryStatus));
+
+  const isSuccess = backendOrderStatus === "PAID";
 
   // ── Estado: Pedido Pendiente ──────────────────────────────────────────────
   if (isPending) {
@@ -128,44 +165,88 @@ export default async function CheckoutSuccessPage({
     );
   }
 
-  // ── Estado: Pago Exitoso (default) ────────────────────────────────────────
+  // ── Estado: Pago Exitoso (solo confirmado por backend) ────────────────────
+  if (isSuccess) {
+    return (
+      <PageShell>
+        <CheckoutSuccessCleanup shouldClearCart={true} />
+        <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+          <div className="mb-6">
+            <div className="w-20 h-20 bg-yerba-100 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle className="w-12 h-12 text-yerba-600" />
+            </div>
+          </div>
+
+          <h1 className="text-3xl font-bold text-stone-900 mb-2">
+            ¡Pedido Confirmado!
+          </h1>
+          <p className="text-stone-600 mb-6">
+            Gracias por tu compra. Te enviamos un email con todos los detalles.
+          </p>
+
+          <OrderIdBox id={resolvedId} label="Número de orden" />
+
+          <div className="text-left space-y-4 mb-8">
+            <h2 className="font-semibold text-stone-900">¿Qué sigue?</h2>
+            <InfoRow
+              icon={<Mail className="w-4 h-4 text-yerba-600" />}
+              color="yerba"
+              title="Confirmación por email"
+              text="Te enviamos un email con todos los detalles de tu pedido"
+            />
+            <InfoRow
+              icon={<Clock className="w-4 h-4 text-yerba-600" />}
+              color="yerba"
+              title="Procesamiento"
+              text="Prepararemos tu pedido en 24-48 horas hábiles"
+            />
+            <InfoRow
+              icon={<Package className="w-4 h-4 text-yerba-600" />}
+              color="yerba"
+              title="Envío"
+              text="Te notificaremos cuando tu pedido esté en camino"
+            />
+          </div>
+
+          <ActionButtons />
+        </div>
+      </PageShell>
+    );
+  }
+
+  // ── Estado conservador por defecto: pendiente de verificación ─────────────
   return (
     <PageShell>
       <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
         <div className="mb-6">
-          <div className="w-20 h-20 bg-yerba-100 rounded-full flex items-center justify-center mx-auto">
-            <CheckCircle className="w-12 h-12 text-yerba-600" />
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+            <Clock className="w-12 h-12 text-amber-600" />
           </div>
         </div>
 
         <h1 className="text-3xl font-bold text-stone-900 mb-2">
-          ¡Pedido Confirmado!
+          Estamos verificando tu pago
         </h1>
         <p className="text-stone-600 mb-6">
-          Gracias por tu compra. Te enviamos un email con todos los detalles.
+          Todavía no tenemos confirmación final del pago. Te avisamos por email
+          apenas se acredite.
         </p>
 
-        <OrderIdBox id={resolvedId} label="Número de orden" />
+        <OrderIdBox id={resolvedId} label="Número de referencia" />
 
         <div className="text-left space-y-4 mb-8">
-          <h2 className="font-semibold text-stone-900">¿Qué sigue?</h2>
+          <h2 className="font-semibold text-stone-900">¿Qué pasa ahora?</h2>
           <InfoRow
-            icon={<Mail className="w-4 h-4 text-yerba-600" />}
-            color="yerba"
-            title="Confirmación por email"
-            text="Te enviamos un email con todos los detalles de tu pedido"
+            icon={<AlertCircle className="w-4 h-4 text-amber-600" />}
+            color="amber"
+            title="Validación en curso"
+            text="Mercado Pago está terminando de validar la operación"
           />
           <InfoRow
-            icon={<Clock className="w-4 h-4 text-yerba-600" />}
-            color="yerba"
-            title="Procesamiento"
-            text="Prepararemos tu pedido en 24-48 horas hábiles"
-          />
-          <InfoRow
-            icon={<Package className="w-4 h-4 text-yerba-600" />}
-            color="yerba"
-            title="Envío"
-            text="Te notificaremos cuando tu pedido esté en camino"
+            icon={<Mail className="w-4 h-4 text-amber-600" />}
+            color="amber"
+            title="Notificación"
+            text="Te notificaremos cuando el estado final cambie"
           />
         </div>
 

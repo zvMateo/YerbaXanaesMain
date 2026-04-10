@@ -4,20 +4,36 @@ import {
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
+  OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreatePreferenceDto } from './dto/create-preference.dto';
-import { OrderStatus, PaymentProvider } from '@prisma/client';
+import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { CouponsService } from '../coupons/coupons.service';
 
+/**
+ * Métricas devueltas por el cleanup de órdenes PENDING
+ */
+export interface CleanupMetrics {
+  checked: number; // Órdenes PENDING encontradas
+  cancelled: number; // Órdenes canceladas exitosamente
+  failed: number; // Intentos fallidos
+  totalStockRestored: number; // Unidades totales de stock restauradas
+  ttlMinutes: number; // TTL usado en esta ejecución
+  durationMs: number; // Tiempo total en milisegundos
+  timestamp: Date;
+}
+
 @Injectable()
-export class PaymentsService {
+export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PaymentsService.name);
   private readonly preferenceClient: Preference;
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -29,6 +45,29 @@ export class PaymentsService {
       options: { timeout: 10000 },
     });
     this.preferenceClient = new Preference(client);
+  }
+
+  onModuleInit() {
+    const intervalMinutes = Math.max(
+      1,
+      Number(this.config.get('MP_PENDING_CLEANUP_INTERVAL_MINUTES') ?? 10),
+    );
+
+    this.cleanupInterval = setInterval(() => {
+      void this.cleanupExpiredPendingOrders();
+    }, intervalMinutes * 60_000);
+
+    this.cleanupInterval.unref?.();
+    this.logger.log(
+      `Cleanup automático de ordenes PENDING iniciado (cada ${intervalMinutes} min)`,
+    );
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
   }
 
   // -------------------------------------------------------
@@ -125,11 +164,10 @@ export class PaymentsService {
     } catch (error) {
       this.logger.error('Error creando preferencia MP', error);
       // Rollback de stock si falla MP
-      await this.restoreOrderStock(order.id);
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: { status: OrderStatus.CANCELLED, deletedAt: new Date() },
-      });
+      await this.cancelPendingOrderWithStockRestore(
+        order.id,
+        'preference_creation_error',
+      );
       throw new InternalServerErrorException('Error creando preferencia MP');
     }
   }
@@ -190,14 +228,27 @@ export class PaymentsService {
         },
       };
 
+      const idempotencyKey = crypto
+        .createHash('sha256')
+        .update(
+          JSON.stringify({
+            orderId: order.id,
+            amount: amountStr,
+            paymentMethodId: dto.payment_method_id,
+            installments: dto.installments || 1,
+            payerEmail: dto.payer.email,
+          }),
+        )
+        .digest('hex');
+
       // 3. Ejecutar POST a Mercado Pago vía fetch nativo
-      this.logger.log(`Enviando POST a /v1/orders con token ${dto.token}`);
+      this.logger.log(`Enviando POST a /v1/orders para order ${order.id}`);
       const response = await fetch('https://api.mercadopago.com/v1/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
-          'X-Idempotency-Key': crypto.randomUUID(), // UUID V4 único por request
+          'X-Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify(mpPayload),
       });
@@ -207,11 +258,10 @@ export class PaymentsService {
       if (!response.ok) {
         this.logger.error('Error de MP al procesar Order', data);
         // Hacer rollback de la orden local y restaurar stock
-        await this.restoreOrderStock(order.id);
-        await this.prisma.order.update({
-          where: { id: order.id },
-          data: { status: OrderStatus.CANCELLED, deletedAt: new Date() },
-        });
+        await this.cancelPendingOrderWithStockRestore(
+          order.id,
+          'direct_payment_error',
+        );
 
         throw new BadRequestException({
           message: 'Error de MercadoPago al procesar el pago',
@@ -264,6 +314,111 @@ export class PaymentsService {
       }
       throw new InternalServerErrorException('Error interno al procesar pago');
     }
+  }
+
+  async getOrderPaymentStatus(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        mpStatus: true,
+        mpPaymentId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Orden #${orderId} no encontrada`);
+    }
+
+    return {
+      data: order,
+      message: 'Estado de orden obtenido',
+    };
+  }
+
+  async cleanupExpiredPendingOrders(ttlMinuteOverride?: number): Promise<{
+    data: CleanupMetrics;
+    message: string;
+  }> {
+    const startTime = Date.now();
+
+    const ttlMinutes = Math.max(
+      1,
+      ttlMinuteOverride ??
+        Number(this.config.get('MP_PENDING_ORDER_TTL_MINUTES') ?? 60),
+    );
+
+    const cutoff = new Date(Date.now() - ttlMinutes * 60_000);
+
+    const expiredOrders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+        createdAt: { lte: cutoff },
+      },
+      select: { id: true, items: true },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+
+    let cancelled = 0;
+    let failed = 0;
+    let totalStockRestored = 0;
+
+    // Procesar cada orden expirada
+    for (const order of expiredOrders) {
+      try {
+        const wasCancelled = await this.cancelPendingOrderWithStockRestore(
+          order.id,
+          'expired_pending_timeout',
+        );
+        if (wasCancelled) {
+          cancelled += 1;
+          // Contar stock restaurado
+          totalStockRestored += order.items.reduce(
+            (sum, item) => sum + item.quantity,
+            0,
+          );
+        }
+      } catch (error) {
+        failed += 1;
+        this.logger.error(
+          `Error cancelando orden expirada ${order.id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          'CleanupExpiredPending',
+        );
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+    const metrics: CleanupMetrics = {
+      checked: expiredOrders.length,
+      cancelled,
+      failed,
+      totalStockRestored,
+      ttlMinutes,
+      durationMs,
+      timestamp: new Date(),
+    };
+
+    // Log estructurado para observabilidad
+    if (expiredOrders.length > 0) {
+      this.logger.log(
+        {
+          event: 'cleanup_pending_orders_executed',
+          metrics,
+          summary: `Cleanup completado: encontradas=${expiredOrders.length}, canceladas=${cancelled}, fallidas=${failed}, stock_restaurado=${totalStockRestored}`,
+        },
+        'CleanupExpiredPending',
+      );
+    }
+
+    return {
+      data: metrics,
+      message: 'Cleanup de ordenes pendientes ejecutado',
+    };
   }
 
   // -------------------------------------------------------
@@ -373,16 +528,21 @@ export class PaymentsService {
 
         if (newStatus) {
           if (newStatus === OrderStatus.CANCELLED) {
-            await this.restoreOrderStock(extRef);
+            await this.cancelPendingOrderWithStockRestore(
+              extRef,
+              'mp_order_cancelled',
+              mpOrder.transactions?.payments?.[0]?.id,
+            );
+          } else {
+            await this.prisma.order.update({
+              where: { id: extRef },
+              data: {
+                status: newStatus,
+                mpPaymentId: mpOrder.transactions?.payments?.[0]?.id,
+                mpStatus: mpOrder.status_detail,
+              },
+            });
           }
-          await this.prisma.order.update({
-            where: { id: extRef },
-            data: {
-              status: newStatus,
-              mpPaymentId: mpOrder.transactions?.payments?.[0]?.id,
-              mpStatus: mpOrder.status_detail,
-            },
-          });
           this.logger.log(`Order ${extRef} actualizada a ${newStatus}`);
         }
       } catch (error) {
@@ -394,41 +554,74 @@ export class PaymentsService {
   }
 
   // -------------------------------------------------------
-  // HELPER INTERNO: Restaurar Stock de Orden Cancelada
+  // HELPER INTERNO: Cancela orden PENDING y restaura stock
   // -------------------------------------------------------
-  private async restoreOrderStock(orderId: string) {
+  private async cancelPendingOrderWithStockRestore(
+    orderId: string,
+    reason: string,
+    mpPaymentId?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id
+        FROM "Order"
+        WHERE id = ${orderId}
+        FOR UPDATE
+      `;
+
       const order = await tx.order.findUnique({
         where: { id: orderId },
         include: { items: true },
       });
-      if (!order) return;
 
-      for (const item of order.items) {
-        const variant = await tx.productVariant.findUnique({
-          where: { id: item.variantId },
-          include: { ingredients: true },
-        });
+      if (!order || order.deletedAt || order.status !== OrderStatus.PENDING) {
+        return false;
+      }
 
-        if (!variant) continue;
+      await this.restoreOrderStockInTransaction(tx, order.items);
 
-        if (variant.ingredients && variant.ingredients.length > 0) {
-          for (const ingredient of variant.ingredients) {
-            const totalQuantityToRestore =
-              ingredient.quantityRequired * item.quantity;
-            await tx.inventoryItem.update({
-              where: { id: ingredient.inventoryItemId },
-              data: { currentStock: { increment: totalQuantityToRestore } },
-            });
-          }
-        } else {
-          await tx.productVariant.update({
-            where: { id: variant.id },
-            data: { stock: { increment: item.quantity } },
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.CANCELLED,
+          deletedAt: new Date(),
+          mpStatus: reason,
+          ...(mpPaymentId ? { mpPaymentId } : {}),
+        },
+      });
+
+      return true;
+    });
+  }
+
+  private async restoreOrderStockInTransaction(
+    tx: Prisma.TransactionClient,
+    orderItems: { variantId: string; quantity: number }[],
+  ) {
+    for (const item of orderItems) {
+      const variant = await tx.productVariant.findUnique({
+        where: { id: item.variantId },
+        include: { ingredients: true },
+      });
+
+      if (!variant) continue;
+
+      if (variant.ingredients && variant.ingredients.length > 0) {
+        for (const ingredient of variant.ingredients) {
+          const totalQuantityToRestore =
+            ingredient.quantityRequired * item.quantity;
+          await tx.inventoryItem.update({
+            where: { id: ingredient.inventoryItemId },
+            data: { currentStock: { increment: totalQuantityToRestore } },
           });
         }
+      } else {
+        await tx.productVariant.update({
+          where: { id: variant.id },
+          data: { stock: { increment: item.quantity } },
+        });
       }
-    });
+    }
   }
 
   // -------------------------------------------------------

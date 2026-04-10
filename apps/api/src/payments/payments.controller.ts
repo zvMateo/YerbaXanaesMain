@@ -1,17 +1,27 @@
 import {
   Controller,
   Post,
+  Get,
+  Param,
   Body,
   HttpCode,
   HttpStatus,
   Headers,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreatePreferenceDto } from './dto/create-preference.dto';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { AuthGuard } from '../auth/guards/auth.guard';
 
 @ApiTags('Payments')
 @Controller('payments')
@@ -38,6 +48,20 @@ export class PaymentsController {
   })
   async processCardPayment(@Body() dto: CreateOrderPaymentDto) {
     return this.paymentsService.processCardPayment(dto);
+  }
+
+  @Get('order-status/:id')
+  @ApiOperation({
+    summary: 'Consultar estado canónico de orden/pago',
+    description:
+      'Devuelve el estado actual de la orden para sincronizar UX de checkout',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado de la orden obtenido',
+  })
+  getOrderPaymentStatus(@Param('id') id: string) {
+    return this.paymentsService.getOrderPaymentStatus(id);
   }
 
   @Post('webhook')
@@ -74,5 +98,36 @@ export class PaymentsController {
       dataIdUrl,
       typeUrl,
     });
+  }
+
+  @Post('cleanup-manual')
+  @UseGuards(AuthGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Trigger manual de cleanup de órdenes PENDING expiradas',
+    description:
+      'Solo admin. Dispara manualmente la limpieza de órdenes PENDING. Overridea TTL si se especifica.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cleanup ejecutado con métricas',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Permisos insuficientes',
+  })
+  async manualCleanup(@Query('ttl_minutes') ttlMinutesParam?: string) {
+    let ttlOverride: number | undefined;
+
+    if (ttlMinutesParam) {
+      const parsed = parseInt(ttlMinutesParam, 10);
+      // parseInt retorna NaN si no es un número válido
+      if (!isNaN(parsed)) {
+        ttlOverride = parsed;
+      }
+    }
+
+    return await this.paymentsService.cleanupExpiredPendingOrders(ttlOverride);
   }
 }

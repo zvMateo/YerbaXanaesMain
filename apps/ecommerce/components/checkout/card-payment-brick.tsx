@@ -127,7 +127,6 @@ export function CardPaymentBrick({
         data.status === "action_required" ||
         data.status === "pending"
       ) {
-        clearCart();
         toast.info("Pago en proceso", {
           description:
             "Estamos verificando tu pago. Te notificaremos por email.",
