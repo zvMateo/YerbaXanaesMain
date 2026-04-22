@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   InternalServerErrorException,
   Injectable,
   NotFoundException,
@@ -16,6 +17,9 @@ const productInclude = {
     include: {
       ingredients: {
         include: { inventoryItem: true },
+      },
+      _count: {
+        select: { orderItems: true },
       },
     },
   },
@@ -170,13 +174,15 @@ export class CatalogService {
     return products.map((product) => this.mapProductWithStock(product));
   }
 
-  async findOne(id: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
+  async findOne(idOrSlug: string) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+      },
       include: productInclude,
     });
 
-    if (!product) throw new NotFoundException(`Product #${id} not found`);
+    if (!product) throw new NotFoundException(`Product '${idOrSlug}' not found`);
 
     return this.mapProductWithStock(product);
   }
@@ -209,6 +215,18 @@ export class CatalogService {
           select: { id: true },
         });
         const variantIds = existingVariants.map((v) => v.id);
+
+        // Verificar que ninguna variante a eliminar tenga OrderItems
+        const orderedItems = await tx.orderItem.findFirst({
+          where: { variantId: { in: variantIds } },
+          select: { variantId: true },
+        });
+        if (orderedItems) {
+          throw new ConflictException(
+            'No se pueden reemplazar variantes que tienen órdenes asociadas. ' +
+              'Modificá el stock, precio o nombre de las variantes existentes en lugar de reemplazarlas.',
+          );
+        }
 
         await tx.variantIngredient.deleteMany({
           where: { variantId: { in: variantIds } },
@@ -260,10 +278,34 @@ export class CatalogService {
     const product = await this.prisma.product.findUnique({ where: { id } });
     if (!product) throw new NotFoundException(`Product #${id} not found`);
 
-    // Eliminamos variantes primero (y sus ingredientes en cascada)
-    // luego el producto, todo en una transacción
     return this.prisma.$transaction(async (tx) => {
-      await tx.productVariant.deleteMany({ where: { productId: id } });
+      const variants = await tx.productVariant.findMany({
+        where: { productId: id },
+        select: { id: true },
+      });
+      const variantIds = variants.map((v) => v.id);
+
+      // Bloquear eliminación si alguna variante tiene órdenes asociadas
+      if (variantIds.length > 0) {
+        const orderedItem = await tx.orderItem.findFirst({
+          where: { variantId: { in: variantIds } },
+          select: { variantId: true },
+        });
+        if (orderedItem) {
+          throw new ConflictException(
+            'No se puede eliminar un producto que tiene órdenes asociadas. ' +
+              'Desactivalo usando el campo "Activo" para que no aparezca en la tienda.',
+          );
+        }
+      }
+
+      // Eliminar ingredientes → variantes → producto (orden correcto de FKs)
+      if (variantIds.length > 0) {
+        await tx.variantIngredient.deleteMany({
+          where: { variantId: { in: variantIds } },
+        });
+        await tx.productVariant.deleteMany({ where: { productId: id } });
+      }
       return tx.product.delete({ where: { id } });
     });
   }
@@ -355,6 +397,19 @@ export class CatalogService {
     });
 
     return this.mapProductWithStock(updatedProduct);
+  }
+
+  async toggleStatus(id: string, isActive: boolean) {
+    const product = await this.prisma.product.findUnique({ where: { id } });
+    if (!product) throw new NotFoundException(`Product #${id} not found`);
+
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: { isActive },
+      include: productInclude,
+    });
+
+    return this.mapProductWithStock(updated);
   }
 
   /**
