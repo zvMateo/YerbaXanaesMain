@@ -35,28 +35,15 @@ async function safeFetch<T>(
     });
 
     if (!res.ok) {
-      console.error(`API Error: ${res.status} - ${res.statusText}`);
       if (fallbackData) return fallbackData;
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
 
     return res.json();
   } catch (error) {
-    const connectionRefused = hasConnectionRefused(error);
-
     if (fallbackData) {
-      if (connectionRefused) {
-        console.warn(`API no disponible (${url}); devolviendo fallback local.`);
-      } else {
-        // Human-Core: Error message claro para debugging
-        console.error(`Fetch failed for ${url}:`, error);
-        console.warn(`Returning fallback data for ${url}`);
-      }
       return fallbackData;
     }
-
-    // Sin fallback, mantenemos logging completo para facilitar diagnóstico.
-    console.error(`Fetch failed for ${url}:`, error);
 
     throw error;
   }

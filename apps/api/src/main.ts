@@ -71,23 +71,25 @@ async function bootstrap() {
     `🌐 CORS allowed origins: ${Array.from(allowedOrigins).join(', ')}`,
   );
 
-  // 4. Configuración de Swagger
-  const config = new DocumentBuilder()
-    .setTitle('YerbaXanaes API')
-    .setDescription('API para gestión de Inventario y E-commerce de Yerba Mate')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addTag('auth', 'Autenticación (manejada por Better Auth en Next.js)')
-    .addTag('customers', 'Gestión de Clientes')
-    .addTag('dashboard', 'Métricas y Estadísticas')
-    .addTag('inventory', 'Gestión de Stock y Materia Prima')
-    .addTag('catalog', 'Gestión de Productos y Variantes')
-    .addTag('orders', 'Gestión de Órdenes')
-    .addTag('payments', 'Pagos con MercadoPago')
-    .build();
+  // 4. Configuración de Swagger (solo en desarrollo)
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('YerbaXanaes API')
+      .setDescription('API para gestión de Inventario y E-commerce de Yerba Mate')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addTag('auth', 'Autenticación (manejada por Better Auth en Next.js)')
+      .addTag('customers', 'Gestión de Clientes')
+      .addTag('dashboard', 'Métricas y Estadísticas')
+      .addTag('inventory', 'Gestión de Stock y Materia Prima')
+      .addTag('catalog', 'Gestión de Productos y Variantes')
+      .addTag('orders', 'Gestión de Órdenes')
+      .addTag('payments', 'Pagos con MercadoPago')
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   // 5. Arrancar el servidor
   const port = process.env.PORT || 3001;

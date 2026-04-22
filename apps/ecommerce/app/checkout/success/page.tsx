@@ -47,8 +47,9 @@ export default async function CheckoutSuccessPage({
   }
 
   // Estado canónico desde backend (fuente de verdad) cuando tenemos orderId.
+  // Server Component: use private API_URL (not exposed to browser bundle)
   const apiUrl = (
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
   ).replace(/\/$/, "");
 
   let backendOrderStatus: string | null = null;

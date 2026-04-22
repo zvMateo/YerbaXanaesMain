@@ -49,14 +49,12 @@ function CouponInput({ total }: { total: number }) {
 
   const appliedCode = watch("couponCode");
   const discount = watch("couponDiscount") ?? 0;
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
   const apply = async () => {
     if (!code.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/coupons/validate`, {
+      const res = await fetch(`${API_URL}/coupons/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: code.trim(), orderAmount: total }),
@@ -141,6 +139,8 @@ function CouponInput({ total }: { total: number }) {
   );
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
 const steps = [
   { id: "personal", label: "Tus Datos", number: 1 },
   { id: "delivery", label: "Entrega", number: 2 },
@@ -165,6 +165,12 @@ export function CheckoutForm() {
     deeplink: string;
     expiresAt: string;
   } | null>(null);
+
+  // Hoist brick state so PaymentBrick doesn't re-init on every remount (step nav)
+  const [brickOrderId, setBrickOrderId] = useState<string | null>(null);
+  const [brickPreferenceId, setBrickPreferenceId] = useState<string | null>(
+    null,
+  );
 
   const { items, clearCart } = useCartStore();
   const router = useRouter();
@@ -267,8 +273,7 @@ export function CheckoutForm() {
     setIsValidatingStock(true);
     setStockErrors([]);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/orders/validate`, {
+      const response = await fetch(`${API_URL}/orders/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -305,10 +310,9 @@ export function CheckoutForm() {
     if (!stockValid) return;
 
     setIsSubmitting(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
     try {
-      const response = await fetch(`${apiUrl}/payments/modo`, {
+      const response = await fetch(`${API_URL}/payments/modo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -362,13 +366,12 @@ export function CheckoutForm() {
     if (!stockValid) return;
 
     setIsSubmitting(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      const response = await fetch(`${apiUrl}/orders`, {
+      const response = await fetch(`${API_URL}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -503,6 +506,12 @@ export function CheckoutForm() {
                       </h3>
                       <PaymentBrick
                         amount={brickAmount}
+                        existingOrderId={brickOrderId}
+                        existingPreferenceId={brickPreferenceId}
+                        onInit={({ orderId, preferenceId }) => {
+                          setBrickOrderId(orderId);
+                          setBrickPreferenceId(preferenceId);
+                        }}
                         onGoToDelivery={() => setCurrentStep(1)}
                         onSuccess={({ orderId }) => {
                           clearStoredData();
@@ -584,10 +593,26 @@ export function CheckoutForm() {
         </div>
 
         {/* Resumen del total */}
-        <div className="mt-8 bg-stone-50 p-6 rounded-xl">
-          <div className="flex justify-between font-bold text-lg">
-            <span>Total</span>
+        <div className="mt-8 bg-stone-50 p-6 rounded-xl space-y-2 text-sm">
+          <div className="flex justify-between text-stone-600">
+            <span>Subtotal</span>
             <span>${total.toLocaleString("es-AR")}</span>
+          </div>
+          {shippingCost > 0 && (
+            <div className="flex justify-between text-stone-600">
+              <span>Envío</span>
+              <span>${shippingCost.toLocaleString("es-AR")}</span>
+            </div>
+          )}
+          {couponDiscount > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>Descuento</span>
+              <span>−${couponDiscount.toLocaleString("es-AR")}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold text-lg pt-2 border-t border-stone-200">
+            <span>Total</span>
+            <span>${brickAmount.toLocaleString("es-AR")}</span>
           </div>
         </div>
       </div>

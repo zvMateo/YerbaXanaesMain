@@ -285,13 +285,20 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
 
       try {
         // Fetch payment status desde Mercado Pago
-        const response = await fetch(
-          `https://api.mercadopago.com/v1/payments/${order.mpPaymentId}`,
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            timeout: 5000,
-          } as any,
-        );
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        let response: Response;
+        try {
+          response = await fetch(
+            `https://api.mercadopago.com/v1/payments/${order.mpPaymentId}`,
+            {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              signal: controller.signal,
+            },
+          );
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
           this.logger.warn(

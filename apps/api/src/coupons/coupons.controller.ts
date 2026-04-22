@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { CouponsService } from './coupons.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { ValidateCouponDto } from './dto/validate-coupon.dto';
 
@@ -21,14 +22,14 @@ export class CouponsController {
 
   // POST /coupons — crear cupón (solo admin)
   @Post()
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   create(@Body() body: CreateCouponDto) {
     return this.couponsService.create(body);
   }
 
   // GET /coupons — listar cupones (solo admin)
   @Get()
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   findAll() {
     return this.couponsService.findAll();
   }
@@ -42,14 +43,14 @@ export class CouponsController {
 
   // PATCH /coupons/:id/toggle — activar/desactivar (solo admin)
   @Patch(':id/toggle')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   toggle(@Param('id') id: string) {
     return this.couponsService.toggleActive(id);
   }
 
   // DELETE /coupons/:id — eliminar (solo admin)
   @Delete(':id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   remove(@Param('id') id: string) {
     return this.couponsService.remove(id);
   }

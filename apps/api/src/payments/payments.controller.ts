@@ -28,6 +28,7 @@ import { CreatePreferenceDto } from './dto/create-preference.dto';
 import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
 import { BrickInitDto } from './dto/brick-init.dto';
 import { CreateModoPaymentDto } from './dto/create-modo-payment.dto';
+import { OverrideOrderStatusDto } from './dto/override-order-status.dto';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { OrderStatus } from '@prisma/client';
@@ -199,7 +200,7 @@ export class PaymentsController {
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
   async overrideOrderStatus(
     @Param('id') orderId: string,
-    @Body() body: { status: OrderStatus; reason: string },
+    @Body() body: OverrideOrderStatusDto,
     @Req() req: any,
   ) {
     const changedByEmail: string =

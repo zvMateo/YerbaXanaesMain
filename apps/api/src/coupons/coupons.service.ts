@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DiscountType } from '@prisma/client';
+import { DiscountType, Prisma } from '@prisma/client';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 
 export interface ValidateCouponResult {
@@ -107,7 +107,7 @@ export class CouponsService {
    * Records the discount and increments currentUses.
    */
   async applyToOrder(
-    tx: any,
+    tx: Prisma.TransactionClient,
     orderId: string,
     couponId: string,
     discountAmount: number,

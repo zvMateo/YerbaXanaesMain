@@ -1737,44 +1737,44 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    // 1. Validar cupón
+    // 1. Calcular monto real ANTES de validar cupón
+    const itemsSubtotal = await this.calculateOrderItemsSubtotal(dto.orderItems);
+    const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
+    const grossAmount = itemsSubtotal + shippingCost;
+
+    // 2. Validar cupón sobre el monto real
     let couponValidation: Awaited<
       ReturnType<CouponsService['validate']>
     > | null = null;
     if (dto.couponCode) {
       try {
-        // Estimamos el total para validar el cupón (se recalcula después)
-        const estimatedTotal = 0; // Se pasará 0 — la validación usa la orden real
         couponValidation = await this.coupons.validate(
           dto.couponCode,
-          estimatedTotal,
+          grossAmount,
         );
       } catch {
         this.logger.warn(`Cupón ${dto.couponCode} inválido en MODO — ignorado`);
       }
     }
 
-    // 2. Crear orden PENDING y descontar stock
+    const discount = couponValidation?.discountAmount ?? 0;
+    const totalAmount = Math.max(0, grossAmount - discount);
+
+    // 3. Crear orden PENDING con el total correcto y descontar stock
     const order = await this.createPendingOrder({
       customerEmail: dto.customerEmail,
       customerName: dto.customerName,
       customerPhone: dto.customerPhone,
       orderItems: dto.orderItems,
-      totalAmount: 0, // se actualiza abajo con el total real
+      totalAmount,
       deliveryType: dto.deliveryType,
       shippingAddress: dto.shippingAddress,
       shippingCity: dto.shippingCity,
       shippingProvinceCode: dto.shippingProvinceCode,
       shippingZip: dto.shippingZip,
-      shippingCost: dto.shippingCost,
+      shippingCost,
       shippingProvider: dto.shippingProvider,
     });
-
-    // Obtener el total real de la orden (calculado por createPendingOrder)
-    const createdOrder = await this.prisma.order.findUnique({
-      where: { id: order.id },
-    });
-    const totalAmount = Number(createdOrder!.total);
 
     // Aplicar cupón si corresponde
     if (couponValidation) {
@@ -1925,23 +1925,24 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       return { status: 'ignored' };
     }
 
-    // Actualizar estado con auditoría (reutiliza PaymentsSyncService)
-    await this.paymentsSync.updateOrderStatusWithAudit({
-      orderId,
-      newStatus,
-      source: 'WEBHOOK_MODO',
-      mpPaymentId: checkoutId,
-      mpRawStatus: modoStatus,
-    });
-
-    // Si fue cancelado/rechazado → restaurar stock
+    // Para CANCELLED: delegar TODO a cancelPendingOrderWithStockRestore, que tiene
+    // protección interna contra degradar órdenes ya PAID y maneja la auditoría.
+    // Para cualquier otro estado positivo: solo actualizar con auditoría.
     if (newStatus === OrderStatus.CANCELLED) {
       await this.cancelPendingOrderWithStockRestore(
         orderId,
         `modo_${modoStatus}`,
         checkoutId,
-        'WEBHOOK_MERCADOPAGO', // reutiliza fuente de cancelación con protección de override
+        'WEBHOOK_MODO',
       );
+    } else {
+      await this.paymentsSync.updateOrderStatusWithAudit({
+        orderId,
+        newStatus,
+        source: 'WEBHOOK_MODO',
+        mpPaymentId: checkoutId,
+        mpRawStatus: modoStatus,
+      });
     }
 
     return { status: 'processed' };

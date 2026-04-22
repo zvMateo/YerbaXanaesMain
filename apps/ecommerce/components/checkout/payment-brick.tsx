@@ -23,6 +23,15 @@ type BrickSelectedPaymentMethod =
 interface PaymentBrickProps {
   /** Monto final (items + envío - descuento cupón) */
   amount: number;
+  /**
+   * Si el padre ya realizó un brick-init previo, pasar el orderId aquí
+   * para evitar crear una nueva orden PENDING al remontar el componente.
+   */
+  existingOrderId?: string | null;
+  /** preferenceId de un brick-init previo (hoisted desde el padre) */
+  existingPreferenceId?: string | null;
+  /** Callback que notifica al padre cuando se completa el brick-init */
+  onInit?: (data: { orderId: string; preferenceId: string }) => void;
   onSuccess?: (data: { orderId: string; status: string }) => void;
   onError?: (error: Error) => void;
   /** Callback para editar datos de envío desde el review step del Brick */
@@ -143,6 +152,9 @@ function createCorrelationId(): string {
 
 export function PaymentBrick({
   amount,
+  existingOrderId,
+  existingPreferenceId,
+  onInit,
   onSuccess,
   onError,
   onGoToDelivery,
@@ -249,7 +261,16 @@ export function PaymentBrick({
 
   // Brick-init: crea la orden PENDING + preferencia MP al entrar al paso de pago.
   // El preferenceId habilita "Mercado Pago Wallet" y "Cuotas sin Tarjeta" en el Brick.
+  // Si el padre ya tiene una orden inicializada, restauramos el estado local y salimos
+  // sin llamar al backend — así evitamos crear órdenes PENDING duplicadas al volver al paso.
   useEffect(() => {
+    if (existingOrderId && existingPreferenceId) {
+      setPreferenceId(existingPreferenceId);
+      setBrickOrderId(existingOrderId);
+      setIsInitializing(false);
+      return;
+    }
+
     let cancelled = false;
 
     const initBrick = async () => {
@@ -285,6 +306,7 @@ export function PaymentBrick({
           setPreferenceId(json.data.preferenceId);
           setBrickOrderId(json.data.orderId);
           setIsInitializing(false);
+          onInit?.({ orderId: json.data.orderId, preferenceId: json.data.preferenceId });
         }
       } catch {
         if (!cancelled) {
@@ -491,6 +513,24 @@ export function PaymentBrick({
         <button
           onClick={() => window.location.reload()}
           className="text-sm text-red-600 underline underline-offset-2"
+        >
+          Recargar página
+        </button>
+      </div>
+    );
+  }
+
+  // Fallback: brick-init terminó sin error pero tampoco devolvió preferenceId
+  if (!isInitializing && !preferenceId) {
+    return (
+      <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-3">
+        <p className="text-sm font-medium text-amber-800">
+          No se pudo inicializar el formulario de pago. Recargá la página para
+          intentar nuevamente.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="text-sm text-amber-700 underline underline-offset-2"
         >
           Recargar página
         </button>

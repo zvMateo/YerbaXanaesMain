@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -60,7 +60,7 @@ export class InventoryService {
     const newStock = item.currentStock + quantityChange;
 
     if (newStock < 0) {
-      throw new Error(
+      throw new BadRequestException(
         `Stock insuficiente para ${item.name}. Stock actual: ${item.currentStock}, Intentaste restar: ${Math.abs(quantityChange)}`,
       );
     }

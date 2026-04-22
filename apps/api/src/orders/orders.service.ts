@@ -7,7 +7,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
-import { OrderStatus, PaymentProvider } from '@prisma/client';
+import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -36,7 +36,11 @@ export class OrdersService {
     // -------------------------------------------------------------
     return this.prisma.$transaction(async (tx) => {
       let totalAmount = 0;
-      const orderItemsData: any[] = [];
+      const orderItemsData: Array<{
+        variantId: string;
+        quantity: number;
+        price: Prisma.Decimal;
+      }> = [];
 
       // 1. Validar Stock y Calcular Precios
       for (const item of dto.items) {
@@ -207,8 +211,8 @@ export class OrdersService {
   }
 
   findOne(id: string) {
-    return this.prisma.order.findUnique({
-      where: { id },
+    return this.prisma.order.findFirst({
+      where: { id, deletedAt: null },
       include: {
         items: {
           include: {

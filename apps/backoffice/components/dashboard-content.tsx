@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "motion/react";
 import {
   TrendingUp,
@@ -427,12 +428,12 @@ export function DashboardContent() {
             <h3 className="font-semibold text-stone-900">
               Productos más vendidos
             </h3>
-            <button
-              onClick={() => toast.success("Ver todos los productos...")}
+            <Link
+              href="/productos"
               className="text-sm text-yerba-600 hover:text-yerba-700"
             >
               Ver todos
-            </button>
+            </Link>
           </div>
           <div className="space-y-4">
             {metrics.topSellingProducts.map((product, index) => (

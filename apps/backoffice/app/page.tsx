@@ -9,16 +9,7 @@ export const metadata: Metadata = {
   description: "Panel de control de ventas y métricas",
 };
 
-import { authClient } from "@/lib/auth-client";
-
 export default function DashboardPage() {
-  // Debug session
-  if (typeof window !== "undefined") {
-    authClient.getSession().then(({ data }) => {
-      console.log("🔍 Session Data from Client:", data);
-    });
-  }
-
   return (
     <div className="flex min-h-screen bg-stone-50/50">
       <Sidebar />

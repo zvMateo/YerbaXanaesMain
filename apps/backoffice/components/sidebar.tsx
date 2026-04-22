@@ -182,7 +182,7 @@ function NavItem({
     if (iconRef.current && isCollapsed) {
       const rect = iconRef.current.getBoundingClientRect();
       setTooltipPos({
-        top: rect.top + rect.height / 100,
+        top: rect.top + rect.height / 2,
 
         left: rect.right + 20,
       });

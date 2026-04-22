@@ -99,8 +99,7 @@ export function ImageUploader({
             updatedProduct.images[updatedProduct.images.length - 1],
           );
         }
-      } catch (error) {
-        console.error(error);
+      } catch {
         toast.error(`Error subiendo ${file.name}`);
       } finally {
         setUploadingFiles((prev) => prev - 1);
@@ -116,8 +115,7 @@ export function ImageUploader({
           onDeleteSuccess(url);
         }
         toast.success("Imagen eliminada");
-      } catch (error) {
-        console.error(error);
+      } catch {
         toast.error("Error eliminando imagen");
       }
     }

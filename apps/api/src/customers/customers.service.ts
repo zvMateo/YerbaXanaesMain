@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
 
@@ -96,7 +96,7 @@ export class CustomersService {
     });
 
     if (!user) {
-      throw new Error('Customer not found');
+      throw new NotFoundException('Customer not found');
     }
 
     const totalSpent = user.orders.reduce(

@@ -9,8 +9,8 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     // El servidor sí puede leer la cookie HttpOnly y devolvernos el token en el body
     const { data } = await authClient.getSession();
     sessionToken = data?.session?.token;
-  } catch (error) {
-    console.error("Error obteniendo sesión:", error);
+  } catch {
+    // Session unavailable — request proceeds without auth header
   }
 
   const headers: Record<string, string> = {
