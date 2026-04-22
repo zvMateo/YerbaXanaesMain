@@ -11,15 +11,15 @@ import { Type } from 'class-transformer';
 
 export class PayerIdentification {
   @IsString()
-  type: string;
+  type!: string;
 
   @IsString()
-  number: string;
+  number!: string;
 }
 
 export class PayerDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsOptional()
   @ValidateNested()
@@ -29,28 +29,28 @@ export class PayerDto {
 
 class OrderItemDto {
   @IsString()
-  variantId: string;
+  variantId!: string;
 
   @IsNumber()
   @Min(1)
-  quantity: number;
+  quantity!: number;
 }
 
 export class CreateOrderPaymentDto {
   @IsNumber()
-  transaction_amount: number;
+  transaction_amount!: number;
 
   @IsString()
-  token: string;
+  token!: string;
 
   @IsString()
-  description: string;
+  description!: string;
 
   @IsNumber()
-  installments: number;
+  installments!: number;
 
   @IsString()
-  payment_method_id: string;
+  payment_method_id!: string;
 
   @IsOptional()
   @IsString()
@@ -58,7 +58,7 @@ export class CreateOrderPaymentDto {
 
   @ValidateNested()
   @Type(() => PayerDto)
-  payer: PayerDto;
+  payer!: PayerDto;
 
   // --- Datos de nuestra BD (no van a MP) ---
   @IsOptional()

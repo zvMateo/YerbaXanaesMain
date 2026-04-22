@@ -300,6 +300,37 @@ function NavItem({
   );
 }
 
+/**
+ * Avatar del usuario — renderizado solo en el cliente para evitar
+ * el hydration mismatch entre SSR (sin sesión) y cliente (con Google image).
+ */
+function UserAvatar({
+  user,
+  userInitials,
+}: {
+  user: { name?: string | null; image?: string | null } | null;
+  userInitials: string;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (mounted && user?.image) {
+    return (
+      <img
+        src={user.image}
+        alt={user.name || "Usuario"}
+        className="w-10 h-10 rounded-full object-cover shadow-lg"
+      />
+    );
+  }
+
+  return (
+    <div className="w-10 h-10 bg-gradient-to-br from-yerba-400 to-yerba-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg">
+      {userInitials}
+    </div>
+  );
+}
+
 function SidebarContent({
   isCollapsed,
   logout,
@@ -469,17 +500,7 @@ function SidebarContent({
           className={`flex items-center gap-3 ${isCollapsed ? "justify-center" : ""}`}
         >
           <div className="relative shrink-0">
-            {user?.image ? (
-              <img
-                src={user.image}
-                alt={user.name || "Usuario"}
-                className="w-10 h-10 rounded-full object-cover shadow-lg"
-              />
-            ) : (
-              <div className="w-10 h-10 bg-gradient-to-br from-yerba-400 to-yerba-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg">
-                {userInitials}
-              </div>
-            )}
+            <UserAvatar user={user} userInitials={userInitials} />
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
           </div>
 

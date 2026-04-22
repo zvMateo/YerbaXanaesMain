@@ -5,6 +5,8 @@ import { CheckoutFormData } from "@/schemas/checkout-schema";
 import { CartItem } from "@/stores/cart-store";
 import { Package, Truck, CreditCard, Banknote, Landmark } from "lucide-react";
 import Image from "next/image";
+import { MercadoPagoLogo } from "@/components/checkout/mercado-pago-logo";
+import { ModoLogo } from "@/components/checkout/modo-logo";
 
 interface OrderSummaryProps {
   items: CartItem[];
@@ -15,7 +17,8 @@ const paymentMethodLabels: Record<
   string,
   { label: string; icon: typeof CreditCard }
 > = {
-  mercadopago: { label: "MercadoPago", icon: CreditCard },
+  mercadopago: { label: "Mercado Pago", icon: CreditCard },
+  modo: { label: "MODO", icon: CreditCard },
   cash: { label: "Efectivo", icon: Banknote },
   transfer: { label: "Transferencia Bancaria", icon: Landmark },
 };
@@ -42,6 +45,8 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
 
   const PaymentIcon =
     paymentMethodLabels[formData.paymentMethod]?.icon || CreditCard;
+  const isMercadoPago = formData.paymentMethod === "mercadopago";
+  const isModo = formData.paymentMethod === "modo";
 
   return (
     <div className="space-y-6">
@@ -65,7 +70,7 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
               className="flex items-center gap-3 bg-white p-3 rounded-lg"
             >
               {/* Imagen */}
-              <div className="w-16 h-16 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0 relative">
+              <div className="w-16 h-16 bg-stone-100 rounded-lg overflow-hidden shrink-0 relative">
                 {item.image ? (
                   <Image
                     src={item.image}
@@ -187,7 +192,16 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
       {/* Pago */}
       <div className="bg-stone-50 rounded-xl p-4">
         <h3 className="font-semibold text-stone-900 mb-4 flex items-center gap-2">
-          <PaymentIcon className="h-5 w-5 text-yerba-600" />
+          {isMercadoPago ? (
+            <MercadoPagoLogo
+              variant="horizontal"
+              className="h-7 w-auto max-w-25 object-contain"
+            />
+          ) : isModo ? (
+            <ModoLogo className="h-7 w-auto max-w-25 object-contain" />
+          ) : (
+            <PaymentIcon className="h-5 w-5 text-yerba-600" />
+          )}
           Pago
         </h3>
         <div className="space-y-2 text-sm">

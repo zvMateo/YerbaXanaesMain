@@ -182,7 +182,8 @@ export class CatalogService {
       include: productInclude,
     });
 
-    if (!product) throw new NotFoundException(`Product '${idOrSlug}' not found`);
+    if (!product)
+      throw new NotFoundException(`Product '${idOrSlug}' not found`);
 
     return this.mapProductWithStock(product);
   }

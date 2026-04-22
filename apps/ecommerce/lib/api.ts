@@ -6,6 +6,21 @@ import { Product, Category } from "@repo/types";
 // Human-Core: URL con fallback claro
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+function hasConnectionRefused(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const typed = error as {
+    code?: string;
+    cause?: { code?: string; errors?: Array<{ code?: string }> };
+  };
+
+  if (typed.code === "ECONNREFUSED") return true;
+  if (typed.cause?.code === "ECONNREFUSED") return true;
+  return Boolean(
+    typed.cause?.errors?.some((item) => item.code === "ECONNREFUSED"),
+  );
+}
+
 // Systems-Oriented: Manejo de errores graceful
 async function safeFetch<T>(
   url: string,
@@ -27,13 +42,21 @@ async function safeFetch<T>(
 
     return res.json();
   } catch (error) {
-    // Human-Core: Error message claro para debugging
-    console.error(`Fetch failed for ${url}:`, error);
+    const connectionRefused = hasConnectionRefused(error);
 
     if (fallbackData) {
-      console.warn(`Returning fallback data for ${url}`);
+      if (connectionRefused) {
+        console.warn(`API no disponible (${url}); devolviendo fallback local.`);
+      } else {
+        // Human-Core: Error message claro para debugging
+        console.error(`Fetch failed for ${url}:`, error);
+        console.warn(`Returning fallback data for ${url}`);
+      }
       return fallbackData;
     }
+
+    // Sin fallback, mantenemos logging completo para facilitar diagnóstico.
+    console.error(`Fetch failed for ${url}:`, error);
 
     throw error;
   }

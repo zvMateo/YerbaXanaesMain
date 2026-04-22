@@ -39,7 +39,10 @@ export const checkoutSchema = z.object({
     .optional(),
 
   // Paso 3: Método de pago
-  paymentMethod: z.enum(["mercadopago", "cash", "transfer", "credit_card"]),
+  paymentMethod: z.enum(["mercadopago", "modo", "transfer"]),
+
+  // Cuotas MODO (solo aplica si paymentMethod === "modo")
+  modoInstallments: z.number().int().optional(),
 
   // Costo de envío calculado (lo setea el delivery-step tras cotizar)
   shippingCost: z.number(),

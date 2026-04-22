@@ -17,15 +17,21 @@ import {
   Loader2,
   Copy,
   Check,
+  ShieldAlert,
+  History,
+  X,
 } from "lucide-react";
 import {
   useOrders,
   useUpdateOrderStatus,
   useBulkUpdateOrderStatus,
   useImportShipping,
+  useOverrideOrderStatus,
+  useOrderStateHistory,
   type Order,
   type OrderStatus,
   type SalesChannel,
+  type StateChangeEntry,
 } from "@/hooks/use-orders";
 import { OrdersSkeleton } from "./skeletons";
 import { EmptyState, ErrorState } from "./empty-states";
@@ -138,13 +144,229 @@ function StatusBadge({ status }: { status: OrderStatus }) {
   );
 }
 
+// ─── Override Modal ────────────────────────────────────────────────────────
+const OVERRIDEABLE_STATUSES: OrderStatus[] = [
+  "PENDING",
+  "PAID",
+  "REJECTED",
+  "CANCELLED",
+  "REFUNDED",
+];
+
+function OverrideStatusModal({
+  order,
+  onClose,
+}: {
+  order: Order;
+  onClose: () => void;
+}) {
+  const override = useOverrideOrderStatus();
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>(
+    order.status,
+  );
+  const [reason, setReason] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reason.trim()) return;
+    override.mutate(
+      { orderId: order.id, status: selectedStatus, reason: reason.trim() },
+      { onSuccess: () => onClose() },
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-amber-500" />
+            <h2 className="text-lg font-semibold text-stone-900">
+              Override manual de estado
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-500"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className="text-sm text-stone-500 mb-5">
+          Este cambio quedará auditado y el webhook de Mercado Pago no lo
+          revertirá.
+          <span className="block mt-1 text-amber-600 font-medium">
+            Orden #{order.id.slice(0, 8)}
+          </span>
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">
+              Nuevo estado
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) =>
+                setSelectedStatus(e.target.value as OrderStatus)
+              }
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-yerba-500 focus:border-transparent"
+            >
+              {OVERRIDEABLE_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {statusConfig[s]?.label ?? s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">
+              Razón del cambio{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              placeholder="Ej: Cliente confirmó transferencia. Ej: Cliente solicitó cancelación."
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-yerba-500 focus:border-transparent resize-none"
+              required
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={!reason.trim() || override.isPending}
+              className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {override.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldAlert className="h-4 w-4" />
+              )}
+              Aplicar override
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── State History Modal ────────────────────────────────────────────────────
+const sourceLabels: Record<string, string> = {
+  WEBHOOK_MERCADOPAGO: "Webhook MP",
+  CARD_PAYMENT_API: "Pago con tarjeta",
+  MANUAL_OVERRIDE: "Override manual",
+  CLEANUP_TIMEOUT: "Limpieza automática",
+  PAYMENT_REJECTED: "Pago rechazado",
+  RECONCILIATION: "Reconciliación",
+  SYSTEM_ERROR: "Error del sistema",
+};
+
+function StateHistoryModal({
+  orderId,
+  onClose,
+}: {
+  orderId: string;
+  onClose: () => void;
+}) {
+  const { data: history, isLoading } = useOrderStateHistory(orderId);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-stone-600" />
+            <h2 className="text-lg font-semibold text-stone-900">
+              Historial de estado
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-500"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className="text-xs text-stone-500 mb-4">
+          Orden #{orderId.slice(0, 8)}
+        </p>
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+          </div>
+        )}
+
+        {!isLoading && (!history || history.length === 0) && (
+          <p className="text-sm text-stone-500 text-center py-8">
+            Sin registros de cambios de estado aún.
+          </p>
+        )}
+
+        {!isLoading && history && history.length > 0 && (
+          <ol className="relative border-l border-stone-200 ml-3 space-y-6">
+            {history.map((entry: StateChangeEntry) => (
+              <li key={entry.id} className="ml-4">
+                <div className="absolute -left-1.5 w-3 h-3 rounded-full bg-stone-300 border-2 border-white" />
+                <div className="bg-stone-50 rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-semibold text-stone-700">
+                      {entry.fromStatus ?? "—"} → {entry.toStatus}
+                    </span>
+                    <span className="text-[10px] text-stone-400 shrink-0">
+                      {new Date(entry.createdAt).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 mb-1">
+                    <span className="font-medium text-stone-600">
+                      {sourceLabels[entry.source] ?? entry.source}
+                    </span>
+                    {entry.changedByEmail && (
+                      <> · {entry.changedByEmail}</>
+                    )}
+                  </p>
+                  {entry.reason && (
+                    <p className="text-xs text-stone-500 italic">
+                      "{entry.reason}"
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Action Buttons Component
 function OrderActions({
   order,
   onUpdateStatus,
+  onOverride,
+  onViewHistory,
 }: {
   order: Order;
   onUpdateStatus: (id: string, status: OrderStatus) => void;
+  onOverride: (order: Order) => void;
+  onViewHistory: (orderId: string) => void;
 }) {
   const { status, id: orderId } = order;
   const importShipping = useImportShipping();
@@ -255,6 +477,26 @@ function OrderActions({
           </a>
         </div>
       )}
+
+      {/* Override manual + historial */}
+      <div className="flex items-center gap-1.5 pt-0.5">
+        <button
+          onClick={() => onOverride(order)}
+          title="Override manual de estado"
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors border border-amber-200"
+        >
+          <ShieldAlert className="h-3 w-3" />
+          Override
+        </button>
+        <button
+          onClick={() => onViewHistory(orderId)}
+          title="Ver historial de cambios"
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-stone-50 text-stone-600 hover:bg-stone-100 transition-colors border border-stone-200"
+        >
+          <History className="h-3 w-3" />
+          Historial
+        </button>
+      </div>
     </div>
   );
 }
@@ -265,6 +507,8 @@ export function OrdersTable() {
   const bulkUpdate = useBulkUpdateOrderStatus();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [overrideOrder, setOverrideOrder] = useState<Order | null>(null);
+  const [historyOrderId, setHistoryOrderId] = useState<string | null>(null);
 
   const handleBulkAction = (status: OrderStatus) => {
     const selectedIds = table
@@ -407,7 +651,20 @@ export function OrdersTable() {
     {
       accessorKey: "status",
       header: "Estado",
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="flex flex-col gap-1">
+          <StatusBadge status={row.original.status} />
+          {row.original.manualOverrideAt && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-medium"
+              title={`Override manual: ${row.original.manualOverrideReason ?? "sin razón"}`}
+            >
+              <ShieldAlert className="h-2.5 w-2.5" />
+              Override manual
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       accessorKey: "deliveryType",
@@ -444,6 +701,8 @@ export function OrdersTable() {
         <OrderActions
           order={row.original}
           onUpdateStatus={handleUpdateStatus}
+          onOverride={setOverrideOrder}
+          onViewHistory={setHistoryOrderId}
         />
       ),
     },
@@ -493,6 +752,20 @@ export function OrdersTable() {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
       />
+
+      {overrideOrder && (
+        <OverrideStatusModal
+          order={overrideOrder}
+          onClose={() => setOverrideOrder(null)}
+        />
+      )}
+
+      {historyOrderId && (
+        <StateHistoryModal
+          orderId={historyOrderId}
+          onClose={() => setHistoryOrderId(null)}
+        />
+      )}
 
       {/* Filters Toolbar - Generative UI: Adaptive interface */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-stone-200">

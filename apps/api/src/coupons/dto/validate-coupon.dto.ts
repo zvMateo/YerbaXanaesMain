@@ -2,9 +2,9 @@ import { IsNumber, IsString, Min } from 'class-validator';
 
 export class ValidateCouponDto {
   @IsString()
-  code: string;
+  code!: string;
 
   @IsNumber()
   @Min(0)
-  orderAmount: number;
+  orderAmount!: number;
 }

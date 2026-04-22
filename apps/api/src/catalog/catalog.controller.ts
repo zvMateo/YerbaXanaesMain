@@ -12,11 +12,23 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { IsBoolean } from 'class-validator';
 import { CatalogService } from './catalog.service';
 import { CreateCatalogDto } from './dto/create-catalog.dto';
 import { UpdateCatalogDto } from './dto/update-catalog.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+
+class UpdateProductStatusDto {
+  @IsBoolean()
+  isActive!: boolean;
+}
+
+type UploadedImageFile = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+};
 
 @Controller('catalog')
 export class CatalogController {
@@ -44,6 +56,15 @@ export class CatalogController {
   @UseGuards(AuthGuard, AdminGuard)
   update(@Param('id') id: string, @Body() updateCatalogDto: UpdateCatalogDto) {
     return this.catalogService.update(id, updateCatalogDto);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(AuthGuard, AdminGuard)
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductStatusDto,
+  ) {
+    return this.catalogService.toggleStatus(id, dto.isActive);
   }
 
   @Delete(':id')
@@ -86,7 +107,7 @@ export class CatalogController {
   )
   uploadImage(
     @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: UploadedImageFile,
   ) {
     if (!file) {
       throw new BadRequestException('No file uploaded or invalid file format.');

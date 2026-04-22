@@ -12,9 +12,13 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreatePreferenceDto } from './dto/create-preference.dto';
+import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
+import { BrickInitDto } from './dto/brick-init.dto';
+import { CreateModoPaymentDto } from './dto/create-modo-payment.dto';
 import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { CouponsService } from '../coupons/coupons.service';
+import { PaymentsSyncService } from './payments-sync.service';
 
 /**
  * Métricas devueltas por el cleanup de órdenes PENDING
@@ -39,6 +43,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly coupons: CouponsService,
+    private readonly paymentsSync: PaymentsSyncService,
   ) {
     const client = new MercadoPagoConfig({
       accessToken: this.config.get<string>('MP_ACCESS_TOKEN')!,
@@ -146,6 +151,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
             : {}),
           external_reference: order.id,
           notification_url: `${apiUrl}/payments/webhook`,
+          statement_descriptor: 'YERBAXANAES',
+          binary_mode: true,
           expires: true,
           expiration_date_from: new Date().toISOString(),
           expiration_date_to: new Date(
@@ -167,8 +174,163 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       await this.cancelPendingOrderWithStockRestore(
         order.id,
         'preference_creation_error',
+        undefined,
+        'PAYMENT_REJECTED',
       );
       throw new InternalServerErrorException('Error creando preferencia MP');
+    }
+  }
+
+  // -------------------------------------------------------
+  // BRICK INIT — Crea orden + preferencia para Wallet y Cuotas
+  // -------------------------------------------------------
+  /**
+   * Inicializa el Payment Brick con un preferenceId.
+   * Esto habilita las opciones "Mercado Pago Wallet" y "Cuotas sin Tarjeta"
+   * que el SDK oculta si no hay preferenceId en la inicialización.
+   *
+   * Flujo:
+   * 1. Calcula monto real (items + envío - cupón)
+   * 2. Crea la orden PENDING y decrementa stock
+   * 3. Crea preferencia MP con external_reference = orderId y back_urls configurados
+   * 4. Devuelve { preferenceId, orderId, amount }
+   */
+  async brickInit(dto: BrickInitDto): Promise<{
+    preferenceId: string;
+    orderId: string;
+    amount: number;
+  }> {
+    const frontendUrl = (
+      this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const apiUrl = (
+      this.config.get<string>('API_URL') || 'http://localhost:3001'
+    ).replace(/\/$/, '');
+
+    // 1. Calcular monto
+    const itemsSubtotal = await this.calculateOrderItemsSubtotal(
+      dto.orderItems,
+    );
+    const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
+    const grossAmount = itemsSubtotal + shippingCost;
+
+    let couponValidation: Awaited<
+      ReturnType<CouponsService['validate']>
+    > | null = null;
+
+    if (dto.couponCode) {
+      try {
+        couponValidation = await this.coupons.validate(
+          dto.couponCode,
+          grossAmount,
+        );
+      } catch {
+        this.logger.warn(
+          `Cupón ${dto.couponCode} inválido en brick-init — ignorado`,
+        );
+      }
+    }
+
+    const couponDiscount = couponValidation?.discountAmount ?? 0;
+    const finalAmount = Math.max(0, grossAmount - couponDiscount);
+
+    // 2. Crear orden PENDING (decrementa stock con row locks)
+    const order = await this.createPendingOrder({
+      customerEmail: dto.customerEmail,
+      customerName: dto.customerName,
+      customerPhone: dto.customerPhone,
+      orderItems: dto.orderItems,
+      totalAmount: finalAmount,
+      deliveryType: dto.deliveryType,
+      shippingAddress: dto.shippingAddress,
+      shippingCity: dto.shippingCity,
+      shippingProvinceCode: dto.shippingProvinceCode,
+      shippingZip: dto.shippingZip,
+      shippingCost,
+      shippingProvider: dto.shippingProvider,
+    });
+
+    // Aplicar cupón a la orden si corresponde
+    if (couponValidation) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.coupons.applyToOrder(
+          tx,
+          order.id,
+          couponValidation!.couponId,
+          couponValidation!.discountAmount,
+        );
+      });
+    }
+
+    // 3. Obtener info de los productos para los items de la preferencia
+    const variantIds = dto.orderItems.map((i) => i.variantId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: variantIds } },
+      include: { product: { select: { name: true } } },
+    });
+    const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+    const preferenceItems = dto.orderItems.map((item) => {
+      const variant = variantMap.get(item.variantId);
+      return {
+        id: item.variantId,
+        title: variant
+          ? `${variant.product.name} — ${variant.name}`
+          : 'Producto',
+        quantity: item.quantity,
+        unit_price: variant ? Number(variant.price) : 0,
+        currency_id: 'ARS',
+      };
+    });
+
+    // 4. Crear preferencia MP
+    try {
+      const preference = await this.preferenceClient.create({
+        body: {
+          items: preferenceItems,
+          payer: { email: dto.customerEmail },
+          back_urls: {
+            success: `${frontendUrl}/checkout/success?orderId=${order.id}`,
+            failure: `${frontendUrl}/checkout/failure?orderId=${order.id}`,
+            pending: `${frontendUrl}/checkout/success?orderId=${order.id}&status=pending`,
+          },
+          ...(frontendUrl.startsWith('https')
+            ? { auto_return: 'approved' as const }
+            : {}),
+          external_reference: order.id,
+          notification_url: `${apiUrl}/payments/webhook`,
+          statement_descriptor: 'YERBAXANAES',
+          // binary_mode: false para permitir wallet y cuotas sin tarjeta (pueden quedar in_process)
+          binary_mode: false,
+          expires: true,
+          expiration_date_from: new Date().toISOString(),
+          expiration_date_to: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        },
+        requestOptions: { idempotencyKey: `brick-init-${order.id}` },
+      });
+
+      this.logger.log(
+        `Brick init OK: orden=${order.id} preferenceId=${preference.id} amount=${finalAmount}`,
+      );
+
+      return {
+        preferenceId: preference.id!,
+        orderId: order.id,
+        amount: finalAmount,
+      };
+    } catch (error) {
+      this.logger.error('Error creando preferencia en brick-init', error);
+      await this.cancelPendingOrderWithStockRestore(
+        order.id,
+        'brick_init_preference_error',
+        undefined,
+        'PAYMENT_REJECTED',
+      );
+      throw new InternalServerErrorException(
+        'Error al inicializar el pago con Mercado Pago',
+      );
     }
   }
 
@@ -186,20 +348,78 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
+      const orderItems = dto.orderItems || [];
+      const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
+
+      let finalAmount = dto.transaction_amount;
+      let couponValidation: Awaited<
+        ReturnType<CouponsService['validate']>
+      > | null = null;
+
+      // Si llega contexto de carrito, recalculamos monto en backend.
+      if (orderItems.length > 0) {
+        const itemsSubtotal =
+          await this.calculateOrderItemsSubtotal(orderItems);
+        const grossAmount = itemsSubtotal + shippingCost;
+
+        if (dto.couponCode) {
+          try {
+            couponValidation = await this.coupons.validate(
+              dto.couponCode,
+              grossAmount,
+            );
+          } catch {
+            this.logger.warn(
+              `Cupón ${dto.couponCode} inválido en processCardPayment — ignorado`,
+            );
+          }
+        }
+
+        const discount = couponValidation?.discountAmount ?? 0;
+        finalAmount = Math.max(0, grossAmount - discount);
+
+        if (Math.abs(dto.transaction_amount - finalAmount) > 0.01) {
+          this.logger.warn(
+            `Monto inconsistente en processCardPayment: client=${dto.transaction_amount.toFixed(2)} server=${finalAmount.toFixed(2)}`,
+          );
+          throw new BadRequestException(
+            'El monto del pago cambió. Reintentá para recalcular el total.',
+          );
+        }
+      }
+
       // 1. Crear la Order en nuestra base de datos en estado PENDING y descontar stock
       const order = await this.createPendingOrder({
         customerEmail: dto.payer.email,
         customerName: dto.customerName,
         customerPhone: dto.customerPhone,
-        orderItems: dto.orderItems || [],
-        totalAmount: dto.transaction_amount,
+        orderItems,
+        totalAmount: finalAmount,
+        deliveryType: dto.deliveryType,
+        shippingAddress: dto.shippingAddress,
+        shippingCity: dto.shippingCity,
+        shippingProvinceCode: dto.shippingProvinceCode,
+        shippingZip: dto.shippingZip,
+        shippingCost,
+        shippingProvider: dto.shippingProvider,
       });
+
+      if (couponValidation) {
+        await this.prisma.$transaction(async (tx) => {
+          await this.coupons.applyToOrder(
+            tx,
+            order.id,
+            couponValidation!.couponId,
+            couponValidation!.discountAmount,
+          );
+        });
+      }
 
       this.logger.log(`Orden local creada: ${order.id}`);
 
       // 2. Construir el payload exacto para la API de MP
       // IMPORTANTE: En API v1/orders, total_amount y amount DEBEN ser strings con formato "00.00"
-      const amountStr = dto.transaction_amount.toFixed(2);
+      const amountStr = finalAmount.toFixed(2);
 
       const mpPayload = {
         type: 'online',
@@ -261,6 +481,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         await this.cancelPendingOrderWithStockRestore(
           order.id,
           'direct_payment_error',
+          undefined,
+          'PAYMENT_REJECTED',
         );
 
         throw new BadRequestException({
@@ -282,14 +504,20 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
       // Si se acreditó inmediatamente, actualizamos la orden
       if (mpStatus === 'processed' && paymentStatusDetail === 'accredited') {
+        const cardMpPaymentId = data.transactions.payments[0].id;
         await this.prisma.order.update({
           where: { id: order.id },
           data: {
-            status: OrderStatus.PAID,
             paymentProvider: PaymentProvider.MERCADOPAGO,
-            mpPaymentId: data.transactions.payments[0].id,
-            mpStatus: paymentStatusDetail,
+            mpPaymentId: cardMpPaymentId,
           },
+        });
+        await this.paymentsSync.updateOrderStatusWithAudit({
+          orderId: order.id,
+          newStatus: OrderStatus.PAID,
+          source: 'CARD_PAYMENT_API',
+          mpPaymentId: cardMpPaymentId,
+          mpRawStatus: paymentStatusDetail,
         });
 
         return {
@@ -339,6 +567,540 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  // -------------------------------------------------------
+  // PAYMENT BRICK (Unificado: tarjetas + ticket + billetera)
+  // -------------------------------------------------------
+  async processBrickPayment(dto: CreateBrickPaymentDto): Promise<{
+    orderId: string;
+    status: string;
+    detail?: string;
+    ticketUrl?: string;
+    mpPaymentId?: string;
+  }> {
+    this.logger.log(
+      `Iniciando Payment Brick para ${dto.formData?.payer?.email ?? 'wallet_purchase'} — método: ${dto.selectedPaymentMethod}`,
+    );
+
+    const supportedMethods = new Set([
+      'credit_card',
+      'debit_card',
+      'prepaid_card',
+      'ticket',
+      'account_money',
+      'wallet_purchase',
+      'bank_transfer',
+      'atm',
+    ]);
+
+    if (!supportedMethods.has(dto.selectedPaymentMethod)) {
+      throw new BadRequestException(
+        `Método de pago no soportado: ${dto.selectedPaymentMethod}`,
+      );
+    }
+
+    // wallet_purchase no envía formData — la validación se omite para ese flujo
+    if (dto.selectedPaymentMethod !== 'wallet_purchase') {
+      this.validateBrickFormDataByMethod(dto);
+    }
+
+    const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
+    if (!accessToken) {
+      throw new InternalServerErrorException('Falta MP_ACCESS_TOKEN');
+    }
+
+    // 1. Calcular monto real en backend (nunca confiar en transaction_amount del cliente)
+    const itemsSubtotal = await this.calculateOrderItemsSubtotal(
+      dto.orderItems,
+    );
+    const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
+    const grossAmount = itemsSubtotal + shippingCost;
+
+    let couponValidation: Awaited<
+      ReturnType<CouponsService['validate']>
+    > | null = null;
+
+    if (dto.couponCode) {
+      try {
+        couponValidation = await this.coupons.validate(
+          dto.couponCode,
+          grossAmount,
+        );
+      } catch {
+        this.logger.warn(
+          `Cupón ${dto.couponCode} inválido en brick — ignorado`,
+        );
+      }
+    }
+
+    const couponDiscount = couponValidation?.discountAmount ?? 0;
+    const finalAmount = Math.max(0, grossAmount - couponDiscount);
+
+    // Validar monto solo si el Brick envía formData (wallet_purchase no lo hace)
+    const clientAmount = dto.formData
+      ? Number(dto.formData.transaction_amount)
+      : null;
+    if (clientAmount !== null && Math.abs(clientAmount - finalAmount) > 0.01) {
+      this.logger.warn(
+        `Monto inconsistente en Brick: client=${clientAmount.toFixed(2)} server=${finalAmount.toFixed(2)}`,
+      );
+      throw new BadRequestException(
+        'El monto del pago cambió. Reintentá para recalcular el total.',
+      );
+    }
+
+    const amountStr = finalAmount.toFixed(2);
+
+    // 2. Obtener o crear orden PENDING
+    // Si el frontend ya llamó a brick-init (con preferenceId), reutilizamos esa orden.
+    // Si no, creamos una nueva (backward compat con métodos sin preferenceId).
+    let order: { id: string; total: number | Prisma.Decimal; status: string };
+
+    if (dto.existingOrderId) {
+      // Reutilizar orden pre-creada por brick-init
+      const existing = await this.prisma.order.findUnique({
+        where: { id: dto.existingOrderId },
+        select: { id: true, total: true, status: true, deletedAt: true },
+      });
+
+      if (
+        !existing ||
+        existing.deletedAt ||
+        existing.status !== OrderStatus.PENDING
+      ) {
+        this.logger.warn(
+          `brick-init order ${dto.existingOrderId} no disponible — creando nueva orden`,
+        );
+        // Fallback: crear nueva orden si la pre-creada ya no está disponible
+        order = await this.createPendingOrder({
+          customerEmail: dto.formData?.payer?.email ?? '',
+          customerName: dto.customerName,
+          customerPhone: dto.customerPhone,
+          orderItems: dto.orderItems,
+          totalAmount: finalAmount,
+          deliveryType: dto.deliveryType,
+          shippingAddress: dto.shippingAddress,
+          shippingCity: dto.shippingCity,
+          shippingProvinceCode: dto.shippingProvinceCode,
+          shippingZip: dto.shippingZip,
+          shippingCost,
+          shippingProvider: dto.shippingProvider,
+        });
+      } else {
+        // Actualizar total si el monto cambió (ej: cupón aplicado después de brick-init)
+        if (Math.abs(Number(existing.total) - finalAmount) > 0.01) {
+          await this.prisma.order.update({
+            where: { id: existing.id },
+            data: { total: finalAmount },
+          });
+        }
+        // Aplicar cupón si viene en el submit y no fue aplicado en brick-init
+        if (couponValidation) {
+          try {
+            await this.prisma.$transaction(async (tx) => {
+              await this.coupons.applyToOrder(
+                tx,
+                existing.id,
+                couponValidation!.couponId,
+                couponValidation!.discountAmount,
+              );
+            });
+          } catch {
+            // El cupón ya puede estar aplicado desde brick-init — ignorar si falla
+          }
+        }
+        order = existing;
+        this.logger.log(
+          `Reutilizando orden brick-init: ${order.id} — método: ${dto.selectedPaymentMethod}`,
+        );
+      }
+    } else {
+      // Crear orden nueva (flujo sin brick-init / backward compat)
+      order = await this.createPendingOrder({
+        customerEmail: dto.formData?.payer?.email ?? '',
+        customerName: dto.customerName,
+        customerPhone: dto.customerPhone,
+        orderItems: dto.orderItems,
+        totalAmount: finalAmount,
+        deliveryType: dto.deliveryType,
+        shippingAddress: dto.shippingAddress,
+        shippingCity: dto.shippingCity,
+        shippingProvinceCode: dto.shippingProvinceCode,
+        shippingZip: dto.shippingZip,
+        shippingCost,
+        shippingProvider: dto.shippingProvider,
+      });
+
+      // Aplicar cupón a la orden si corresponde
+      if (couponValidation) {
+        await this.prisma.$transaction(async (tx) => {
+          await this.coupons.applyToOrder(
+            tx,
+            order.id,
+            couponValidation!.couponId,
+            couponValidation!.discountAmount,
+          );
+        });
+      }
+
+      this.logger.log(
+        `Orden local creada: ${order.id} — método: ${dto.selectedPaymentMethod}`,
+      );
+    }
+
+    try {
+      // 3. Dispatch según el método de pago del brick
+      if (
+        dto.selectedPaymentMethod === 'credit_card' ||
+        dto.selectedPaymentMethod === 'debit_card' ||
+        dto.selectedPaymentMethod === 'prepaid_card'
+      ) {
+        return await this._processBrickCard(
+          dto,
+          order.id,
+          amountStr,
+          accessToken,
+        );
+      }
+
+      if (dto.selectedPaymentMethod === 'ticket') {
+        return await this._processBrickTicket(
+          dto,
+          order.id,
+          amountStr,
+          accessToken,
+        );
+      }
+
+      if (dto.selectedPaymentMethod === 'account_money') {
+        return await this._processBrickAccountMoney(
+          dto,
+          order.id,
+          amountStr,
+          accessToken,
+        );
+      }
+
+      if (dto.selectedPaymentMethod === 'wallet_purchase') {
+        // El pago fue procesado por MP internamente (wallet_purchase flow).
+        // La orden queda PENDING hasta que el webhook de MP confirme.
+        this.logger.log(
+          `Wallet purchase iniciado para orden ${order.id} — esperando webhook`,
+        );
+        return {
+          orderId: order.id,
+          status: 'pending' as const,
+          detail: 'wallet_purchase_pending',
+          mpPaymentId: undefined,
+        };
+      }
+
+      // Método desconocido: dejamos la orden PENDING para reconciliación
+      this.logger.warn(
+        `selectedPaymentMethod desconocido: ${dto.selectedPaymentMethod}`,
+      );
+      return { orderId: order.id, status: 'pending' };
+    } catch (error) {
+      // Si algo falla después de crear la orden, revertimos
+      await this.cancelPendingOrderWithStockRestore(
+        order.id,
+        'brick_payment_error',
+        undefined,
+        'PAYMENT_REJECTED',
+      );
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Error interno al procesar pago');
+    }
+  }
+
+  private async _processBrickCard(
+    dto: CreateBrickPaymentDto,
+    orderId: string,
+    amountStr: string,
+    accessToken: string,
+  ) {
+    // formData siempre está presente para credit_card / debit_card (validado antes de llamar)
+    const formData = dto.formData!;
+
+    // Usamos /v1/payments (Payments API clásica) en lugar de /v1/orders porque:
+    // la Orders API no acepta credenciales de test ("TEST-...").
+    const mpPayload: Record<string, unknown> = {
+      transaction_amount: parseFloat(amountStr),
+      token: formData.token,
+      payment_method_id: formData.payment_method_id,
+      installments: formData.installments || 1,
+      external_reference: orderId,
+      description: 'Compra en YerbaXanaes',
+      statement_descriptor: 'YERBAXANAES',
+      binary_mode: true,
+      payer: {
+        email: formData.payer.email,
+        ...(formData.payer.identification
+          ? { identification: formData.payer.identification }
+          : {}),
+      },
+    };
+
+    if (formData.issuer_id && String(formData.issuer_id) !== '0') {
+      mpPayload.issuer_id = parseInt(String(formData.issuer_id), 10);
+    }
+
+    // Forwarding de campos opcionales para enrutamiento de débito y anti-fraude
+    if (formData.payment_method_option_id) {
+      mpPayload.payment_method_option_id = formData.payment_method_option_id;
+    }
+    if (formData.processing_mode) {
+      mpPayload.processing_mode = formData.processing_mode;
+    }
+    if (formData.additional_info) {
+      mpPayload.additional_info = formData.additional_info;
+    }
+
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          orderId,
+          amountStr,
+          paymentMethodId: formData.payment_method_id,
+        }),
+      )
+      .digest('hex');
+
+    const response = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify(mpPayload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      this.logger.error('Error MP /v1/payments (brick card)', data);
+      await this.cancelPendingOrderWithStockRestore(
+        orderId,
+        'brick_card_rejected',
+        undefined,
+        'PAYMENT_REJECTED',
+      );
+      throw new BadRequestException({
+        message: 'Error de MercadoPago al procesar la tarjeta',
+        cause: data.cause || data,
+      });
+    }
+
+    const mpStatus: string = data.status;
+    const paymentDetail: string = data.status_detail;
+    const cardMpPaymentId: string = String(data.id);
+
+    if (mpStatus === 'approved') {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { mpPaymentId: cardMpPaymentId },
+      });
+      await this.paymentsSync.updateOrderStatusWithAudit({
+        orderId,
+        newStatus: OrderStatus.PAID,
+        source: 'CARD_PAYMENT_API',
+        mpPaymentId: cardMpPaymentId,
+        mpRawStatus: paymentDetail,
+      });
+      return {
+        orderId,
+        status: 'approved',
+        detail: paymentDetail,
+        mpPaymentId: cardMpPaymentId,
+      };
+    }
+
+    if (mpStatus === 'rejected') {
+      await this.cancelPendingOrderWithStockRestore(
+        orderId,
+        `brick_card_rejected_${paymentDetail}`,
+        cardMpPaymentId,
+        'PAYMENT_REJECTED',
+      );
+      throw new BadRequestException({
+        message: 'Pago rechazado. Revisá los datos de tu tarjeta.',
+        detail: paymentDetail,
+      });
+    }
+
+    // in_process / pending (ej. revisión antifraude)
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { mpPaymentId: cardMpPaymentId },
+    });
+    return {
+      orderId,
+      status: mpStatus ?? 'pending',
+      detail: paymentDetail,
+      mpPaymentId: cardMpPaymentId,
+    };
+  }
+
+  private async _processBrickTicket(
+    dto: CreateBrickPaymentDto,
+    orderId: string,
+    amountStr: string,
+    accessToken: string,
+  ) {
+    // formData siempre está presente para ticket (validado antes de llamar)
+    const formData = dto.formData!;
+
+    const ticketExpiration = new Date(
+      Date.now() + 3 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const mpPayload: Record<string, unknown> = {
+      payment_method_id: formData.payment_method_id,
+      transaction_amount: parseFloat(amountStr),
+      description: 'Compra en YerbaXanaes',
+      statement_descriptor: 'YERBAXANAES',
+      date_of_expiration: ticketExpiration,
+      external_reference: orderId,
+      payer: {
+        email: formData.payer.email,
+        ...(formData.payer.identification
+          ? { identification: formData.payer.identification }
+          : {}),
+      },
+    };
+
+    // Forwarding de additional_info para anti-fraude (incluido por el Brick con enableReviewStep)
+    if (formData.additional_info) {
+      mpPayload.additional_info = formData.additional_info;
+    }
+
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          orderId,
+          amountStr,
+          method: formData.payment_method_id,
+        }),
+      )
+      .digest('hex');
+
+    const response = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify(mpPayload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      this.logger.error('Error MP /v1/payments (ticket)', data);
+      throw new BadRequestException({
+        message: 'Error al generar el comprobante de pago',
+        cause: data.cause || data,
+      });
+    }
+
+    // Ticket queda PENDING — el webhook confirmará cuando el usuario pague en Rapipago
+    const ticketUrl = data.transaction_details?.external_resource_url;
+    const mpPaymentId = String(data.id);
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { mpPaymentId },
+    });
+
+    this.logger.log(`Ticket generado para orden ${orderId}: ${ticketUrl}`);
+    return { orderId, status: 'pending', ticketUrl, mpPaymentId };
+  }
+
+  private async _processBrickAccountMoney(
+    dto: CreateBrickPaymentDto,
+    orderId: string,
+    amountStr: string,
+    accessToken: string,
+  ) {
+    // formData siempre está presente para account_money (validado antes de llamar)
+    const formData = dto.formData!;
+
+    const mpPayload = {
+      payment_method_id: 'account_money',
+      transaction_amount: parseFloat(amountStr),
+      description: 'Compra en YerbaXanaes',
+      external_reference: orderId,
+      payer: { email: formData.payer.email },
+    };
+
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({ orderId, amountStr, method: 'account_money' }))
+      .digest('hex');
+
+    const response = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify(mpPayload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      this.logger.error('Error MP /v1/payments (account_money)', data);
+      await this.cancelPendingOrderWithStockRestore(
+        orderId,
+        'brick_wallet_rejected',
+        undefined,
+        'PAYMENT_REJECTED',
+      );
+      throw new BadRequestException({
+        message: 'Error al procesar el pago con billetera',
+        cause: data.cause || data,
+      });
+    }
+
+    const mpPaymentId = String(data.id);
+
+    if (data.status === 'approved') {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { mpPaymentId },
+      });
+      await this.paymentsSync.updateOrderStatusWithAudit({
+        orderId,
+        newStatus: OrderStatus.PAID,
+        source: 'CARD_PAYMENT_API',
+        mpPaymentId,
+        mpRawStatus: data.status_detail,
+      });
+      return {
+        orderId,
+        status: 'approved',
+        detail: data.status_detail,
+        mpPaymentId,
+      };
+    }
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { mpPaymentId },
+    });
+    return {
+      orderId,
+      status: data.status ?? 'pending',
+      detail: data.status_detail,
+      mpPaymentId,
+    };
+  }
+
   async cleanupExpiredPendingOrders(ttlMinuteOverride?: number): Promise<{
     data: CleanupMetrics;
     message: string;
@@ -374,6 +1136,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const wasCancelled = await this.cancelPendingOrderWithStockRestore(
           order.id,
           'expired_pending_timeout',
+          undefined,
+          'CLEANUP_TIMEOUT',
         );
         if (wasCancelled) {
           cancelled += 1;
@@ -447,37 +1211,142 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     // Rechazar si no viene firma
     if (!signature) {
       this.logger.warn('Webhook sin firma — rechazando');
-      return { status: 'ignored_no_signature' };
+      throw new BadRequestException('Missing webhook signature');
     }
 
     // 1. Validar HMAC según doc
-    if (webhookSecret && signature) {
-      const parts = signature.split(',');
-      let ts: string | undefined;
-      let hash: string | undefined;
+    const parts = signature.split(',');
+    let ts: string | undefined;
+    let hash: string | undefined;
 
-      for (const part of parts) {
-        const [key, value] = part.split('=');
-        if (key?.trim() === 'ts') ts = value?.trim();
-        else if (key?.trim() === 'v1') hash = value?.trim();
-      }
+    for (const part of parts) {
+      const [key, value] = part.split('=');
+      if (key?.trim() === 'ts') ts = value?.trim();
+      else if (key?.trim() === 'v1') hash = value?.trim();
+    }
 
-      // Asegurar que el dataIdUrl esté en minúsculas (requisito de la doc)
-      const dataIdLower = dataIdUrl?.toLowerCase() || '';
+    if (!ts || !hash || !requestId || !dataIdUrl) {
+      this.logger.warn('Webhook con metadatos de firma incompletos');
+      throw new BadRequestException('Invalid webhook signature metadata');
+    }
 
-      const manifest = `id:${dataIdLower};request-id:${requestId};ts:${ts};`;
-      const hmac = crypto
-        .createHmac('sha256', webhookSecret)
-        .update(manifest)
-        .digest('hex');
+    const tsNum = Number(ts);
+    if (!Number.isFinite(tsNum)) {
+      throw new BadRequestException('Invalid webhook signature timestamp');
+    }
 
-      if (hmac !== hash) {
-        this.logger.warn('Firma HMAC inválida - ignorando webhook');
-        return { status: 'ignored_invalid_signature' };
+    // Ventana anti-replay: 5 minutos
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowSec - tsNum) > 5 * 60) {
+      this.logger.warn('Webhook rechazado por timestamp fuera de ventana');
+      throw new BadRequestException('Expired webhook signature');
+    }
+
+    // Asegurar que el dataIdUrl esté en minúsculas (requisito de la doc)
+    const dataIdLower = dataIdUrl.toLowerCase();
+
+    const manifest = `id:${dataIdLower};request-id:${requestId};ts:${ts};`;
+    const hmac = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(manifest)
+      .digest('hex');
+
+    // Comparación en tiempo constante para evitar leaks
+    if (
+      hmac.length !== hash.length ||
+      !crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash))
+    ) {
+      this.logger.warn('Firma HMAC inválida - rechazando webhook');
+      throw new BadRequestException('Invalid webhook signature');
+    }
+
+    // 2a. Tópico "payment" — Payments API (/v1/payments)
+    //     Usado por: Payment Brick con tarjeta, billetera MP, tickets (Rapipago/Pago Fácil)
+    if (typeUrl === 'payment' && dataIdUrl) {
+      try {
+        const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
+        const response = await fetch(
+          `https://api.mercadopago.com/v1/payments/${dataIdUrl}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+
+        if (!response.ok) {
+          this.logger.error(`No se pudo fetchear el payment MP ${dataIdUrl}`);
+          return { status: 'ok' };
+        }
+
+        const mpPayment = await response.json();
+        const extRef: string | undefined = mpPayment.external_reference;
+
+        if (!extRef) return { status: 'ok' };
+
+        const existing = await this.prisma.order.findUnique({
+          where: { id: extRef },
+        });
+
+        if (!existing) {
+          this.logger.warn(`Order local ${extRef} no encontrada`);
+          return { status: 'ok' };
+        }
+
+        const isTerminal =
+          existing.status === OrderStatus.PAID ||
+          existing.status === OrderStatus.CANCELLED;
+
+        if (isTerminal) {
+          this.logger.log(`Order ${extRef} ya terminal (${existing.status})`);
+          return { status: 'ok' };
+        }
+
+        const newStatus = this.paymentsSync.mapMercadoPagoStatus(
+          mpPayment.status,
+          mpPayment.status_detail,
+        );
+
+        if (!newStatus) {
+          this.logger.warn(
+            `Webhook payment: estado MP desconocido '${mpPayment.status}' para orden ${extRef} — ignorado`,
+          );
+          return { status: 'ok' };
+        }
+
+        const mpPaymentId = String(mpPayment.id);
+
+        if (
+          (newStatus === OrderStatus.CANCELLED ||
+            newStatus === OrderStatus.REFUNDED) &&
+          existing.status === OrderStatus.PENDING
+        ) {
+          // Rechazo / cancelación desde PENDING: restaurar stock + auditoría
+          await this.cancelPendingOrderWithStockRestore(
+            extRef,
+            `webhook_payment_${mpPayment.status}`,
+            mpPaymentId,
+            'WEBHOOK_MERCADOPAGO',
+          );
+        } else {
+          await this.paymentsSync.updateOrderStatusWithAudit({
+            orderId: extRef,
+            newStatus,
+            source: 'WEBHOOK_MERCADOPAGO',
+            mpPaymentId,
+            mpRawStatus: mpPayment.status_detail,
+          });
+        }
+
+        this.logger.log(
+          `Webhook payment procesado: Order ${extRef} → ${newStatus} (MP status: ${mpPayment.status})`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error procesando webhook payment ${dataIdUrl}`,
+          error,
+        );
       }
     }
 
-    // 2. Procesar tópico "order" (ya no "payment")
+    // 2b. Tópico "order" — Orders API (/v1/orders)
+    //     Usado por: Checkout Pro con preferenceId (wallet_purchase)
     if (typeUrl === 'order' && dataIdUrl) {
       try {
         const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
@@ -517,34 +1386,43 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           return { status: 'ok' };
         }
 
-        // Determinar status (ejemplo simplificado)
-        let newStatus: OrderStatus | undefined;
-        const mpStatus = mpOrder.status;
+        // Mapear estado MP → nuestro OrderStatus
+        const webhookMpPaymentId = mpOrder.transactions?.payments?.[0]?.id;
+        const newStatus = this.paymentsSync.mapMercadoPagoStatus(
+          mpOrder.status,
+          mpOrder.status_detail,
+        );
 
-        if (mpStatus === 'processed') newStatus = OrderStatus.PAID;
-        else if (['rejected', 'cancelled', 'refunded'].includes(mpStatus)) {
-          newStatus = OrderStatus.CANCELLED;
+        if (!newStatus) {
+          this.logger.warn(
+            `Webhook: estado MP desconocido '${mpOrder.status}' para orden ${extRef} — ignorado`,
+          );
+          return { status: 'ok' };
         }
 
-        if (newStatus) {
-          if (newStatus === OrderStatus.CANCELLED) {
-            await this.cancelPendingOrderWithStockRestore(
-              extRef,
-              'mp_order_cancelled',
-              mpOrder.transactions?.payments?.[0]?.id,
-            );
-          } else {
-            await this.prisma.order.update({
-              where: { id: extRef },
-              data: {
-                status: newStatus,
-                mpPaymentId: mpOrder.transactions?.payments?.[0]?.id,
-                mpStatus: mpOrder.status_detail,
-              },
-            });
-          }
-          this.logger.log(`Order ${extRef} actualizada a ${newStatus}`);
+        if (
+          (newStatus === OrderStatus.CANCELLED ||
+            newStatus === OrderStatus.REFUNDED) &&
+          existing.status === OrderStatus.PENDING
+        ) {
+          // Cancelación desde PENDING: requiere restaurar stock + auditoría
+          await this.cancelPendingOrderWithStockRestore(
+            extRef,
+            `webhook_${mpOrder.status}`,
+            webhookMpPaymentId,
+            'WEBHOOK_MERCADOPAGO',
+          );
+        } else {
+          // Cualquier otra transición: auditoría completa con protección de manual override
+          await this.paymentsSync.updateOrderStatusWithAudit({
+            orderId: extRef,
+            newStatus,
+            source: 'WEBHOOK_MERCADOPAGO',
+            mpPaymentId: webhookMpPaymentId,
+            mpRawStatus: mpOrder.status_detail,
+          });
         }
+        this.logger.log(`Webhook procesado: Order ${extRef} → ${newStatus}`);
       } catch (error) {
         this.logger.error(`Error procesando webhook order ${dataIdUrl}`, error);
       }
@@ -560,6 +1438,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     orderId: string,
     reason: string,
     mpPaymentId?: string,
+    auditSource?:
+      | 'WEBHOOK_MERCADOPAGO'
+      | 'CLEANUP_TIMEOUT'
+      | 'PAYMENT_REJECTED',
   ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -578,6 +1460,14 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         return false;
       }
 
+      // Respetar manual override: si backoffice ya cambió esta orden, no tocarla
+      if (auditSource === 'WEBHOOK_MERCADOPAGO' && order.manualOverrideAt) {
+        this.logger.warn(
+          `cancelPendingOrder: webhook ignorado para ${orderId} (tiene manualOverride)`,
+        );
+        return false;
+      }
+
       await this.restoreOrderStockInTransaction(tx, order.items);
 
       await tx.order.update({
@@ -589,6 +1479,20 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           ...(mpPaymentId ? { mpPaymentId } : {}),
         },
       });
+
+      // Auditoría atómica en la misma transacción
+      if (auditSource) {
+        await tx.orderStateChange.create({
+          data: {
+            orderId,
+            fromStatus: order.status,
+            toStatus: OrderStatus.CANCELLED,
+            source: auditSource,
+            mpPaymentId: mpPaymentId ?? null,
+            reason,
+          },
+        });
+      }
 
       return true;
     });
@@ -621,6 +1525,79 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           data: { stock: { increment: item.quantity } },
         });
       }
+    }
+  }
+
+  private async calculateOrderItemsSubtotal(
+    orderItems: { variantId: string; quantity: number }[],
+  ): Promise<number> {
+    if (orderItems.length === 0) {
+      throw new BadRequestException('La orden no tiene items para cobrar');
+    }
+
+    const variantIds = [...new Set(orderItems.map((item) => item.variantId))];
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: variantIds } },
+      select: { id: true, price: true },
+    });
+
+    const priceByVariant = new Map<string, number>();
+    for (const variant of variants) {
+      priceByVariant.set(variant.id, Number(variant.price));
+    }
+
+    let subtotal = 0;
+    for (const item of orderItems) {
+      const unitPrice = priceByVariant.get(item.variantId);
+      if (unitPrice == null) {
+        throw new NotFoundException(`Variante ${item.variantId} no encontrada`);
+      }
+      subtotal += unitPrice * item.quantity;
+    }
+
+    return subtotal;
+  }
+
+  private validateBrickFormDataByMethod(dto: CreateBrickPaymentDto) {
+    const method = dto.selectedPaymentMethod;
+
+    // Este método solo se llama cuando formData no es undefined
+    const formData = dto.formData!;
+    const paymentMethodId = formData.payment_method_id;
+    const token = formData.token?.trim();
+
+    if (!formData.payer?.email) {
+      throw new BadRequestException('El email del pagador es obligatorio');
+    }
+
+    if (
+      (method === 'credit_card' ||
+        method === 'debit_card' ||
+        method === 'prepaid_card') &&
+      !token
+    ) {
+      throw new BadRequestException(
+        'Falta token de tarjeta para procesar el pago',
+      );
+    }
+
+    if (method === 'account_money' && paymentMethodId !== 'account_money') {
+      throw new BadRequestException(
+        `payment_method_id inválido para account_money: ${paymentMethodId}`,
+      );
+    }
+
+    if (method === 'ticket' && paymentMethodId === 'account_money') {
+      throw new BadRequestException('payment_method_id inválido para ticket');
+    }
+
+    if (
+      method !== 'ticket' &&
+      method !== 'account_money' &&
+      formData.installments != null &&
+      formData.installments < 1
+    ) {
+      throw new BadRequestException('La cantidad de cuotas debe ser mayor a 0');
     }
   }
 
@@ -733,5 +1710,259 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         },
       });
     });
+  }
+
+  // -------------------------------------------------------
+  // MODO — Crear intención de pago
+  // -------------------------------------------------------
+  async createModoPayment(dto: CreateModoPaymentDto): Promise<{
+    orderId: string;
+    checkoutId: string;
+    deeplink: string;
+    qrCode: string; // base64 PNG
+    expiresAt: string; // ISO string
+  }> {
+    this.logger.log(
+      `Iniciando pago MODO para ${dto.customerEmail} — cuotas: ${dto.installments ?? 1}`,
+    );
+
+    const modoBaseUrl =
+      this.config.get<string>('MODO_BASE_URL') || 'https://api.modo.com.ar';
+    const modoClientId = this.config.get<string>('MODO_CLIENT_ID');
+    const modoClientSecret = this.config.get<string>('MODO_CLIENT_SECRET');
+
+    if (!modoClientId || !modoClientSecret) {
+      throw new InternalServerErrorException(
+        'Faltan credenciales de MODO (MODO_CLIENT_ID / MODO_CLIENT_SECRET)',
+      );
+    }
+
+    // 1. Validar cupón
+    let couponValidation: Awaited<
+      ReturnType<CouponsService['validate']>
+    > | null = null;
+    if (dto.couponCode) {
+      try {
+        // Estimamos el total para validar el cupón (se recalcula después)
+        const estimatedTotal = 0; // Se pasará 0 — la validación usa la orden real
+        couponValidation = await this.coupons.validate(
+          dto.couponCode,
+          estimatedTotal,
+        );
+      } catch {
+        this.logger.warn(`Cupón ${dto.couponCode} inválido en MODO — ignorado`);
+      }
+    }
+
+    // 2. Crear orden PENDING y descontar stock
+    const order = await this.createPendingOrder({
+      customerEmail: dto.customerEmail,
+      customerName: dto.customerName,
+      customerPhone: dto.customerPhone,
+      orderItems: dto.orderItems,
+      totalAmount: 0, // se actualiza abajo con el total real
+      deliveryType: dto.deliveryType,
+      shippingAddress: dto.shippingAddress,
+      shippingCity: dto.shippingCity,
+      shippingProvinceCode: dto.shippingProvinceCode,
+      shippingZip: dto.shippingZip,
+      shippingCost: dto.shippingCost,
+      shippingProvider: dto.shippingProvider,
+    });
+
+    // Obtener el total real de la orden (calculado por createPendingOrder)
+    const createdOrder = await this.prisma.order.findUnique({
+      where: { id: order.id },
+    });
+    const totalAmount = Number(createdOrder!.total);
+
+    // Aplicar cupón si corresponde
+    if (couponValidation) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.coupons.applyToOrder(
+          tx,
+          order.id,
+          couponValidation!.couponId,
+          couponValidation!.discountAmount,
+        );
+      });
+    }
+
+    // 3. Autenticarse con MODO (OAuth2 client_credentials)
+    const tokenResponse = await fetch(`${modoBaseUrl}/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'client_credentials',
+        client_id: modoClientId,
+        client_secret: modoClientSecret,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const err = await tokenResponse.json().catch(() => ({}));
+      this.logger.error('Error autenticando con MODO', err);
+      await this.cancelPendingOrderWithStockRestore(
+        order.id,
+        'modo_auth_failed',
+      );
+      throw new InternalServerErrorException('Error al conectar con MODO');
+    }
+
+    const { access_token } = (await tokenResponse.json()) as {
+      access_token: string;
+    };
+
+    // 4. Crear checkout en MODO
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({ orderId: order.id, totalAmount }))
+      .digest('hex');
+
+    const modoPayload = {
+      amount: Math.round(totalAmount * 100), // MODO usa centavos
+      currency: 'ARS',
+      external_reference: order.id,
+      description: 'Compra en YerbaXanaes',
+      installments: dto.installments ?? 1,
+      callback_url: `${this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/checkout/success?orderId=${order.id}`,
+      webhook_url: `${this.config.get<string>('API_URL') || 'http://localhost:3001'}/payments/modo-webhook`,
+    };
+
+    const checkoutResponse = await fetch(`${modoBaseUrl}/checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${access_token}`,
+        'X-Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify(modoPayload),
+    });
+
+    if (!checkoutResponse.ok) {
+      const err = await checkoutResponse.json().catch(() => ({}));
+      this.logger.error('Error creando checkout MODO', err);
+      await this.cancelPendingOrderWithStockRestore(
+        order.id,
+        'modo_checkout_failed',
+      );
+      throw new BadRequestException('Error al iniciar el pago con MODO');
+    }
+
+    const modoData = (await checkoutResponse.json()) as {
+      checkout_id: string;
+      deeplink: string;
+      qr_code: string; // base64 PNG
+      expires_at: string;
+    };
+
+    // 5. Guardar modoCheckoutId en la orden y actualizar paymentProvider
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        modoCheckoutId: modoData.checkout_id,
+        paymentProvider: 'MODO',
+      },
+    });
+
+    this.logger.log(
+      `MODO checkout creado: ${modoData.checkout_id} para orden ${order.id}`,
+    );
+
+    return {
+      orderId: order.id,
+      checkoutId: modoData.checkout_id,
+      deeplink: modoData.deeplink,
+      qrCode: modoData.qr_code,
+      expiresAt: modoData.expires_at,
+    };
+  }
+
+  // -------------------------------------------------------
+  // MODO — Webhook de notificación de pago
+  // -------------------------------------------------------
+  async handleModoWebhook(
+    payload: Record<string, unknown>,
+    signature: string | undefined,
+  ): Promise<{ status: string }> {
+    const modoWebhookSecret = this.config.get<string>('MODO_WEBHOOK_SECRET');
+
+    // Verificar firma del webhook
+    if (modoWebhookSecret && signature) {
+      const expectedSig = crypto
+        .createHmac('sha256', modoWebhookSecret)
+        .update(JSON.stringify(payload))
+        .digest('hex');
+
+      if (signature !== expectedSig) {
+        this.logger.warn('MODO webhook: firma inválida');
+        return { status: 'invalid_signature' };
+      }
+    } else if (modoWebhookSecret && !signature) {
+      this.logger.warn('MODO webhook recibido sin firma — ignorado');
+      return { status: 'missing_signature' };
+    }
+
+    const externalRef = payload.external_reference as string | undefined;
+    const modoStatus = (payload.status as string | undefined)?.toLowerCase();
+    const checkoutId = payload.checkout_id as string | undefined;
+
+    if (!externalRef || !modoStatus) {
+      this.logger.warn('MODO webhook: payload incompleto', payload);
+      return { status: 'ignored' };
+    }
+
+    const orderId = externalRef;
+    this.logger.log(`MODO webhook: orden ${orderId} → ${modoStatus}`);
+
+    // Mapear estado MODO → OrderStatus
+    const newStatus = this._mapModoStatus(modoStatus);
+
+    if (!newStatus) {
+      this.logger.log(
+        `MODO webhook: estado desconocido "${modoStatus}" — ignorado`,
+      );
+      return { status: 'ignored' };
+    }
+
+    // Actualizar estado con auditoría (reutiliza PaymentsSyncService)
+    await this.paymentsSync.updateOrderStatusWithAudit({
+      orderId,
+      newStatus,
+      source: 'WEBHOOK_MODO',
+      mpPaymentId: checkoutId,
+      mpRawStatus: modoStatus,
+    });
+
+    // Si fue cancelado/rechazado → restaurar stock
+    if (newStatus === OrderStatus.CANCELLED) {
+      await this.cancelPendingOrderWithStockRestore(
+        orderId,
+        `modo_${modoStatus}`,
+        checkoutId,
+        'WEBHOOK_MERCADOPAGO', // reutiliza fuente de cancelación con protección de override
+      );
+    }
+
+    return { status: 'processed' };
+  }
+
+  private _mapModoStatus(modoStatus: string): OrderStatus | null {
+    switch (modoStatus) {
+      case 'approved':
+      case 'accredited':
+      case 'paid':
+        return OrderStatus.PAID;
+      case 'rejected':
+      case 'cancelled':
+      case 'expired':
+        return OrderStatus.CANCELLED;
+      case 'pending':
+      case 'in_process':
+      case 'processing':
+        return null; // La orden ya está PENDING, no hay que cambiar nada
+      default:
+        return null;
+    }
   }
 }

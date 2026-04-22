@@ -32,7 +32,7 @@ async function bootstrap() {
   const normalizeOrigin = (origin: string): string =>
     origin
       .trim()
-      .replace(/^\"+|\"+$/g, '')
+      .replace(/^"+|"+$/g, '')
       .replace(/\/$/, '');
 
   const defaultOrigins = [
@@ -97,4 +97,4 @@ async function bootstrap() {
   logger.log(`📄 Swagger UI disponible en http://localhost:${port}/api/docs`);
   logger.log(`🔑 Auth: Better Auth corre en http://localhost:3002 (Next.js)`);
 }
-bootstrap();
+void bootstrap();

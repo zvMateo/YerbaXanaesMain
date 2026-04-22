@@ -3,14 +3,14 @@ import { DiscountType } from '@prisma/client';
 
 export class CreateCouponDto {
   @IsString()
-  code: string;
+  code!: string;
 
   @IsEnum(DiscountType)
-  discountType: DiscountType;
+  discountType!: DiscountType;
 
   @IsNumber()
   @Min(0)
-  discountValue: number;
+  discountValue!: number;
 
   @IsNumber()
   @IsOptional()

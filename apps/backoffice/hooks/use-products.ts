@@ -33,6 +33,9 @@ export interface ProductVariant {
   stock: number; // Virtual stock calculated by backend
   isVirtualStock?: boolean;
   ingredients?: Ingredient[];
+  _count?: {
+    orderItems: number;
+  };
 }
 
 export interface Product {
@@ -132,6 +135,21 @@ async function deleteProduct(id: string): Promise<void> {
   if (!response.ok) throw new Error("Error al eliminar producto");
 }
 
+async function toggleProductStatus({
+  id,
+  isActive,
+}: {
+  id: string;
+  isActive: boolean;
+}): Promise<Product> {
+  const response = await fetchWithAuth(`${API_URL}/catalog/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ isActive }),
+  });
+  if (!response.ok) throw new Error("Error al cambiar el estado del producto");
+  return response.json();
+}
+
 // ============================================
 // REACT QUERY KEYS
 // ============================================
@@ -209,6 +227,35 @@ export function useDeleteProduct() {
     },
     onError: (error) => {
       toast.error("Error al eliminar", {
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+      });
+    },
+  });
+}
+
+export function useToggleProductStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: toggleProductStatus,
+    onSuccess: (updatedProduct) => {
+      // Optimistic cache update
+      queryClient.setQueryData(
+        productKeys.lists(),
+        (old: Product[] | undefined) => {
+          if (!old) return old;
+          return old.map((p) =>
+            p.id === updatedProduct.id ? updatedProduct : p,
+          );
+        },
+      );
+      toast.success(
+        updatedProduct.isActive ? "Producto activado" : "Producto desactivado",
+      );
+    },
+    onError: (error) => {
+      toast.error("Error al cambiar estado", {
         description:
           error instanceof Error ? error.message : "Error desconocido",
       });

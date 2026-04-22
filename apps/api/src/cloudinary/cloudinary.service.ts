@@ -4,8 +4,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
-import { Readable } from 'stream';
+import { v2 as cloudinary } from 'cloudinary';
 
 @Injectable()
 export class CloudinaryService {
@@ -35,74 +34,49 @@ export class CloudinaryService {
     originalname: string,
     folder = 'yerbaxanaes/products',
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      // 1. Resolver el MimeType real
-      let mime = mimetype;
-      if (mime === 'application/octet-stream' || !mime) {
-        const isHeic = originalname?.toLowerCase().match(/\.(heic|heif)$/);
-        if (isHeic) {
-          mime = 'image/heic';
-        } else {
-          mime = 'image/jpeg'; // Fallback seguro
-        }
+    // 1. Resolver el MimeType real
+    let mime = mimetype;
+    if (mime === 'application/octet-stream' || !mime) {
+      const isHeic = originalname?.toLowerCase().match(/\.(heic|heif)$/);
+      if (isHeic) {
+        mime = 'image/heic';
+      } else {
+        mime = 'image/jpeg'; // Fallback seguro
       }
+    }
 
-      // 2. Convertir el buffer a Base64 Data URI
-      const b64 = buffer.toString('base64');
-      const dataURI = `data:${mime};base64,${b64}`;
+    // 2. Convertir el buffer a Base64 Data URI
+    const b64 = buffer.toString('base64');
+    const dataURI = `data:${mime};base64,${b64}`;
 
-      // 3. Subir como string a Cloudinary
-      // De esta forma Cloudinary recibe el MimeType exacto, clave para que los HEIC no fallen
-      cloudinary.uploader.upload(
-        dataURI,
-        {
-          folder,
-          format: 'webp', // Siempre convertimos a WebP optimizado
-          quality: 'auto',
-          width: 800,
-          crop: 'limit',
-        },
-        (error, result) => {
-          if (error) {
-            this.logger.error('Error uploading to Cloudinary', error);
-            console.error('Cloudinary Error Raw:', error);
-            return reject(
-              new Error(
-                error instanceof Error
-                  ? error.message
-                  : 'Unknown Cloudinary error',
-              ),
-            );
-          }
-          if (!result) {
-            return reject(new Error('No result from Cloudinary'));
-          }
-          resolve(result.secure_url);
-        },
-      );
-    });
+    // 3. Subir como string a Cloudinary
+    // De esta forma Cloudinary recibe el MimeType exacto, clave para que los HEIC no fallen
+    try {
+      const result = await cloudinary.uploader.upload(dataURI, {
+        folder,
+        format: 'webp', // Siempre convertimos a WebP optimizado
+        quality: 'auto',
+        width: 800,
+        crop: 'limit',
+      });
+
+      return result.secure_url;
+    } catch (error) {
+      this.logger.error('Error uploading to Cloudinary', error);
+      throw new InternalServerErrorException('Error uploading image');
+    }
   }
 
   async deleteImage(publicId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      cloudinary.uploader.destroy(publicId, (error, result) => {
-        if (error) {
-          this.logger.error('Error deleting from Cloudinary', error);
-          return reject(
-            new Error(
-              error instanceof Error
-                ? error.message
-                : 'Unknown Cloudinary error',
-            ),
-          );
-        }
-        this.logger.log(
-          `Cloudinary deletion result for ${publicId}: ${result?.result}`,
-        );
-        resolve();
-      });
-    });
+    try {
+      const result = await cloudinary.uploader.destroy(publicId);
+      this.logger.log(
+        `Cloudinary deletion result for ${publicId}: ${result?.result}`,
+      );
+    } catch (error) {
+      this.logger.error('Error deleting from Cloudinary', error);
+      throw new InternalServerErrorException('Error deleting image');
+    }
   }
 
   extractPublicId(url: string): string {

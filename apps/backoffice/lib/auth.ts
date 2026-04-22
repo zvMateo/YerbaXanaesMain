@@ -7,8 +7,15 @@ const prisma = new PrismaClient();
 
 // Determinar si estamos en producción para activar seguridad extra
 const isProduction = process.env.NODE_ENV === "production";
+const authBaseUrl =
+  process.env.BETTER_AUTH_BASE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  "http://localhost:3002";
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 export const auth = betterAuth({
+  baseURL: authBaseUrl,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -17,12 +24,15 @@ export const auth = betterAuth({
     // No requerimos verificación de email para el backoffice
     // (la clienta se registra con Google o con email ya verificado)
   },
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    },
-  },
+  socialProviders:
+    googleClientId && googleClientSecret
+      ? {
+          google: {
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+          },
+        }
+      : {},
   user: {
     additionalFields: {
       role: {

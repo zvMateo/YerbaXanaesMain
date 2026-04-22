@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import Image from "next/image";
 import Link from "next/link";
 import { useCartStore } from "@/stores/cart-store";
+import { BrandBrick } from "@/components/checkout/brand-brick";
 
 interface ProductDetailProps {
   product: Product;
@@ -605,6 +606,9 @@ export function ProductDetail({ product }: ProductDetailProps) {
 
         {/* Add to Cart - Systems-Oriented */}
         <AddToCartSection product={product} variant={selectedVariant} />
+
+        {/* Brand Brick - Medios de pago aceptados */}
+        <BrandBrick variant="full" />
 
         {/* Tabs - Agents-Ready */}
         <ProductTabs product={product} />

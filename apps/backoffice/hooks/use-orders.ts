@@ -65,6 +65,19 @@ export interface Order {
   trackingNumber?: string;
   correoShippingId?: string;
   correoImportedAt?: string;
+  // Override manual desde backoffice
+  manualOverrideAt?: string;
+  manualOverrideReason?: string;
+}
+
+export interface StateChangeEntry {
+  id: string;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus;
+  source: string;
+  reason?: string | null;
+  changedByEmail?: string | null;
+  createdAt: string;
 }
 
 export interface OrderDetails extends Order {
@@ -398,5 +411,81 @@ export function useImportShipping() {
         description: error.message,
       });
     },
+  });
+}
+
+// ============================================================
+// HOOK: Override manual de estado (con auditoría)
+// ============================================================
+
+async function overrideOrderStatusApi(params: {
+  orderId: string;
+  status: OrderStatus;
+  reason: string;
+}): Promise<{ data: { updated: boolean; orderId: string; newStatus: string } }> {
+  const response = await fetchWithAuth(
+    `${API_URL}/payments/orders/${params.orderId}/override-status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status: params.status, reason: params.reason }),
+    },
+  );
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || "Error al hacer override",
+    );
+  }
+  return response.json();
+}
+
+export function useOverrideOrderStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: overrideOrderStatusApi,
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: orderKeys.detail(variables.orderId),
+      });
+      if (result.data.updated) {
+        toast.success("Override aplicado", {
+          description: `Orden marcada como ${variables.status}. El webhook de MP no revertirá este cambio.`,
+        });
+      } else {
+        toast.info("Sin cambios", {
+          description:
+            "La orden ya tenía ese estado o tiene un override más reciente.",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Error al hacer override", { description: error.message });
+    },
+  });
+}
+
+// ============================================================
+// HOOK: Historial de cambios de estado
+// ============================================================
+
+async function fetchOrderStateHistory(
+  orderId: string,
+): Promise<StateChangeEntry[]> {
+  const response = await fetchWithAuth(
+    `${API_URL}/payments/orders/${orderId}/state-history`,
+  );
+  if (!response.ok) throw new Error("Error al cargar historial");
+  const data = await response.json();
+  return data.data ?? data;
+}
+
+export function useOrderStateHistory(orderId: string | null) {
+  return useQuery({
+    queryKey: ["order-state-history", orderId],
+    queryFn: () => fetchOrderStateHistory(orderId!),
+    enabled: !!orderId,
+    staleTime: 0,
   });
 }

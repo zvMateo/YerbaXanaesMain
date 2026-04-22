@@ -202,3 +202,17 @@ export interface CreateCouponInput {
   maxUses?: number;
   expiresAt?: string;
 }
+
+export interface ApiEnvelope<T> {
+  data: T;
+  meta?: Record<string, unknown>;
+  message?: string;
+}
+
+export interface BrickPaymentResult {
+  orderId: string;
+  status: string;
+  detail?: string;
+  ticketUrl?: string;
+  mpPaymentId?: string;
+}

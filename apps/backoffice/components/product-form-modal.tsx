@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plus, Trash2, Package, Scale, Loader2, Check } from "lucide-react";
+import { X, Plus, Trash2, Package, Scale, Loader2, Check, Lock, ShoppingCart } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   useCreateProduct,
@@ -66,6 +66,8 @@ export function ProductFormModal({
   ]);
 
   const [images, setImages] = useState<string[]>([]);
+  // Índices de variantes que tienen órdenes asociadas (no se pueden eliminar)
+  const [lockedVariantIndices, setLockedVariantIndices] = useState<Set<number>>(new Set());
 
   // Filtrar solo insumos a granel (GRAMS)
   const bulkItems = inventory.filter((item) => item.unit === "GRAMS");
@@ -85,15 +87,21 @@ export function ProductFormModal({
       setProductType(hasIngredients ? "bulk" : "packaged");
       setImages(activeProduct.images || []);
 
-      setVariants(
-        activeProduct.variants.map((v: ProductVariant) => ({
-          name: v.name,
-          price: Number(v.price),
-          stock: v.stock || 0,
-          inventoryItemId: v.ingredients?.[0]?.inventoryItemId || "",
-          quantityRequired: v.ingredients?.[0]?.quantityRequired || 0,
-        })),
-      );
+      const mappedVariants = activeProduct.variants.map((v: ProductVariant) => ({
+        name: v.name,
+        price: Number(v.price),
+        stock: v.stock || 0,
+        inventoryItemId: v.ingredients?.[0]?.inventoryItemId || "",
+        quantityRequired: v.ingredients?.[0]?.quantityRequired || 0,
+      }));
+      setVariants(mappedVariants);
+
+      // Detectar variantes bloqueadas (tienen órdenes)
+      const locked = new Set<number>();
+      activeProduct.variants.forEach((v: ProductVariant, idx: number) => {
+        if ((v._count?.orderItems ?? 0) > 0) locked.add(idx);
+      });
+      setLockedVariantIndices(locked);
     } else {
       setName("");
       setDescription("");
@@ -111,6 +119,7 @@ export function ProductFormModal({
           quantityRequired: 0,
         },
       ]);
+      setLockedVariantIndices(new Set());
       setCreatedProduct(null);
     }
   }, [activeProduct, open]);
@@ -194,8 +203,18 @@ export function ProductFormModal({
       },
     ]);
 
-  const removeVariant = (idx: number) =>
+  const removeVariant = (idx: number) => {
+    if (lockedVariantIndices.has(idx)) return; // No se puede eliminar
     setVariants(variants.filter((_, i) => i !== idx));
+    // Re-mapear índices de bloqueados
+    const newLocked = new Set<number>();
+    lockedVariantIndices.forEach((lockedIdx) => {
+      if (lockedIdx < idx) newLocked.add(lockedIdx);
+      else if (lockedIdx > idx) newLocked.add(lockedIdx - 1);
+      // lockedIdx === idx: eliminado, no lo agregamos
+    });
+    setLockedVariantIndices(newLocked);
+  };
 
   const updateVariant = (
     idx: number,
@@ -401,13 +420,27 @@ export function ProductFormModal({
                       const selectedItem = inventory.find(
                         (i) => i.id === variant.inventoryItemId,
                       );
+                      const isLocked = lockedVariantIndices.has(idx);
 
                       return (
                         <div
                           key={idx}
-                          className="p-4 bg-stone-50 rounded-xl space-y-3 border border-stone-200/60 relative group"
+                          className={`p-4 rounded-xl space-y-3 border relative group ${
+                            isLocked
+                              ? "bg-blue-50 border-blue-200"
+                              : "bg-stone-50 border-stone-200/60"
+                          }`}
                         >
-                          {variants.length > 1 && (
+                          {/* Badge de bloqueado */}
+                          {isLocked && (
+                            <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-600 rounded-md text-xs font-medium">
+                              <ShoppingCart className="h-3 w-3" />
+                              Con órdenes
+                            </div>
+                          )}
+
+                          {/* Botón de eliminar (solo si no está bloqueada) */}
+                          {variants.length > 1 && !isLocked && (
                             <button
                               type="button"
                               onClick={() => removeVariant(idx)}
@@ -417,8 +450,18 @@ export function ProductFormModal({
                             </button>
                           )}
 
+                          {/* Ícono de lock para variantes bloqueadas */}
+                          {isLocked && variants.length > 1 && (
+                            <div
+                              className="absolute top-2 left-2 p-1.5 text-blue-400 rounded-lg"
+                              title="No se puede eliminar: tiene órdenes asociadas"
+                            >
+                              <Lock className="h-3.5 w-3.5" />
+                            </div>
+                          )}
+
                           {/* Nombre y Precio */}
-                          <div className="grid grid-cols-2 gap-3 pr-8">
+                          <div className={`grid grid-cols-2 gap-3 ${isLocked ? "pr-28" : "pr-8"}`}>
                             <div>
                               <label className="text-xs text-stone-500 mb-1 block">
                                 Nombre *

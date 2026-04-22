@@ -14,6 +14,7 @@ import {
 import { useCartStore } from "@/stores/cart-store";
 import Link from "next/link";
 import Image from "next/image";
+import { BrandBrick } from "@/components/checkout/brand-brick";
 
 // Human-Core: Item del carrito con micro-interacciones
 interface CartItemProps {
@@ -374,6 +375,9 @@ export function CartDrawer() {
                     ${total.toLocaleString()}
                   </span>
                 </div>
+
+                {/* Brand Brick compacto */}
+                <BrandBrick variant="compact" />
 
                 <p className="text-xs text-stone-500">
                   Envío y descuentos calculados en el checkout

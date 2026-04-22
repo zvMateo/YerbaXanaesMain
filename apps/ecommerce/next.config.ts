@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    // Permite SVG en placehold.co (imágenes de seed/dev)
+    dangerouslyAllowSVG: true,
+    contentDispositionType: "attachment",
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
       // Localhost (desarrollo)
       {
@@ -43,6 +47,7 @@ const nextConfig: NextConfig = {
         hostname: "placehold.co",
         port: "",
         pathname: "/**",
+        // SVG habilitado para placeholders de desarrollo
       },
       {
         protocol: "https",

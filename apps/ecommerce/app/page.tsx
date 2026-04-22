@@ -92,6 +92,14 @@ function getCategoryIcon(slug: string): React.ElementType {
   return key ? CATEGORY_ICON_MAP[key] : Package;
 }
 
+function isKnownBrokenImage(url: string): boolean {
+  return url.includes("photo-1596449080386-9762d0c76e7f");
+}
+
+function isUnsplashImage(url: string): boolean {
+  return url.includes("images.unsplash.com");
+}
+
 // --- Featured Products ---
 function FeaturedProducts({ products }: { products: Product[] }) {
   return (
@@ -124,6 +132,9 @@ function FeaturedProducts({ products }: { products: Product[] }) {
             const firstVariant = product.variants?.[0];
             const price = firstVariant ? Number(firstVariant.price) : 0;
             const isPriority = index < 2;
+            const imageUrl = product.images[0];
+            const shouldRenderImage =
+              Boolean(imageUrl) && !isKnownBrokenImage(imageUrl);
 
             return (
               <Link
@@ -132,17 +143,18 @@ function FeaturedProducts({ products }: { products: Product[] }) {
                 className="group bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl hover:border-yerba-200 transition-all duration-300 cursor-pointer"
               >
                 <div className="aspect-square bg-stone-100 relative overflow-hidden">
-                  {product.images[0] ? (
+                  {shouldRenderImage ? (
                     <Image
-                      src={product.images[0]}
+                      src={imageUrl}
                       alt={`${product.name} — YerbaXanaes`}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
                       priority={isPriority}
+                      unoptimized={isUnsplashImage(imageUrl)}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-yerba-50 to-earth-50">
+                    <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-yerba-50 to-earth-50">
                       <Leaf className="h-16 w-16 text-yerba-300" />
                     </div>
                   )}
@@ -319,7 +331,7 @@ function Testimonials() {
                 &ldquo;{t.text}&rdquo;
               </p>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-yerba-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-yerba-100 flex items-center justify-center shrink-0">
                   <span className="text-yerba-700 font-bold text-sm">
                     {t.initials}
                   </span>

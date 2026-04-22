@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { CheckoutSuccessCleanup } from "@/components/checkout/checkout-success-cleanup";
+import { StatusScreenBrick } from "@/components/checkout/status-screen-lazy";
 
 interface SuccessPageProps {
   searchParams: Promise<{
@@ -20,6 +21,8 @@ interface SuccessPageProps {
     status?: string;
     payment_id?: string; // param que agrega MP al redirigir
     merchant_order_id?: string; // param que agrega MP al redirigir
+    mpPaymentId?: string; // ID del pago en MP (para StatusScreen Brick)
+    ticketUrl?: string; // URL del comprobante para pagos offline
   }>;
 }
 
@@ -33,7 +36,7 @@ export default async function CheckoutSuccessPage({
   searchParams,
 }: SuccessPageProps) {
   const params = await searchParams;
-  const { orderId, paymentId, status, payment_id } = params;
+  const { orderId, paymentId, status, payment_id, mpPaymentId, ticketUrl } = params;
 
   // Normalizar: MP puede volver con ?payment_id=xxx o ?paymentId=xxx
   const resolvedPaymentId = paymentId || payment_id;
@@ -85,8 +88,35 @@ export default async function CheckoutSuccessPage({
 
   // ── Estado: Pedido Pendiente ──────────────────────────────────────────────
   if (isPending) {
+    // Si tenemos mpPaymentId mostramos el Status Screen Brick de MP
+    if (mpPaymentId) {
+      return (
+        <PageShell>
+          {/* La orden ya existe (brick-init la creó) → limpiar carrito siempre que haya orderId */}
+          <CheckoutSuccessCleanup shouldClearCart={Boolean(orderId)} />
+          <div className="space-y-4">
+            <StatusScreenBrick mpPaymentId={mpPaymentId} />
+            {ticketUrl && (
+              <a
+                href={ticketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full bg-amber-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-amber-600 transition-colors"
+              >
+                Ver comprobante de pago
+                <ArrowRight className="w-5 h-5" />
+              </a>
+            )}
+            <ActionButtons />
+          </div>
+        </PageShell>
+      );
+    }
+
     return (
       <PageShell>
+        {/* La orden ya existe (brick-init la creó) → limpiar carrito si tenemos orderId */}
+        <CheckoutSuccessCleanup shouldClearCart={Boolean(orderId)} />
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
           <div className="mb-6">
             <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
@@ -167,6 +197,18 @@ export default async function CheckoutSuccessPage({
 
   // ── Estado: Pago Exitoso (solo confirmado por backend) ────────────────────
   if (isSuccess) {
+    if (mpPaymentId) {
+      return (
+        <PageShell>
+          <CheckoutSuccessCleanup shouldClearCart={true} />
+          <div className="space-y-4">
+            <StatusScreenBrick mpPaymentId={mpPaymentId} />
+            <ActionButtons />
+          </div>
+        </PageShell>
+      );
+    }
+
     return (
       <PageShell>
         <CheckoutSuccessCleanup shouldClearCart={true} />
@@ -217,6 +259,7 @@ export default async function CheckoutSuccessPage({
   // ── Estado conservador por defecto: pendiente de verificación ─────────────
   return (
     <PageShell>
+      <CheckoutSuccessCleanup shouldClearCart={Boolean(orderId)} />
       <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
         <div className="mb-6">
           <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto">

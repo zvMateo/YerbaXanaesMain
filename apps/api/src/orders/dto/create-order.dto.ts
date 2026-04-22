@@ -18,11 +18,11 @@ import {
 // ---------------------------------------------------------
 
 enum SalesChannel {
-  ONLINE    = 'ONLINE',
-  STORE     = 'STORE',
+  ONLINE = 'ONLINE',
+  STORE = 'STORE',
   INSTAGRAM = 'INSTAGRAM',
-  WHATSAPP  = 'WHATSAPP',
-  FAIR      = 'FAIR',
+  WHATSAPP = 'WHATSAPP',
+  FAIR = 'FAIR',
 }
 
 enum PaymentMethod {

@@ -216,6 +216,7 @@ enum OrderStatus {
 
 enum PaymentProvider {
   MERCADOPAGO
+  MODO
   CASH
   TRANSFER
 }
@@ -226,6 +227,21 @@ enum SalesChannel {
   INSTAGRAM
   WHATSAPP
   FAIR
+}
+
+// Quién/cómo cambió el estado de la orden
+enum StateChangeSource {
+  WEBHOOK_MERCADOPAGO  // Webhook de MP (fuente de verdad para MP)
+  WEBHOOK_MODO         // Webhook de MODO
+  CHECKOUT_REDIRECT    // Redirección post-checkout
+  CARD_PAYMENT_API     // Respuesta directa de Card API
+  MODO_PAYMENT_API     // Respuesta directa de MODO API
+  CHECKOUT_VALIDATION  // Validación de stock pre-checkout
+  CLEANUP_TIMEOUT      // Timeout automático (PENDING vencido)
+  MANUAL_OVERRIDE      // Cambio manual desde backoffice
+  PAYMENT_REJECTED     // Rechazo inmediato de tarjeta
+  RECONCILIATION       // Sincronización automática con MP
+  SYSTEM_ERROR         // Error del sistema
 }
 
 model Order {
@@ -244,11 +260,12 @@ model Order {
   channel         SalesChannel?   @default(ONLINE)
   notes           String?         // Notas internas (ej: "@usuario_ig", "Feria Palermo stand 12")
 
-  // Datos de Pago (Mercado Pago)
+  // Datos de Pago
   paymentProvider PaymentProvider @default(MERCADOPAGO)
   mpPaymentId     String?         // ID de pago de MP
   mpStatus        String?         // Estado crudo de MP
   mpCardToken     String?         // Opcional: debugging seguro
+  modoCheckoutId  String?         // ID del checkout MODO
 
   // Datos de Entrega
   deliveryType         String?    // "shipping" | "pickup"
@@ -264,6 +281,10 @@ model Order {
   correoShippingId     String?    // ID del envío en el sistema de MiCorreo
   correoImportedAt     DateTime?  // Fecha en que se importó el envío a MiCorreo
 
+  // Control de estado manual (no se revertido por webhook si está marcado)
+  manualOverrideAt DateTime?      // Marca cuándo se hizo override manual (backoffice)
+  manualOverrideReason String?    // Por qué se hizo override
+
   // Auditoría y Soft Delete
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -272,6 +293,7 @@ model Order {
   // Relaciones
   items           OrderItem[]
   discount        OrderDiscount?
+  stateChanges    OrderStateChange[]
 
   @@index([customerEmail])
   @@index([mpPaymentId])
@@ -292,6 +314,43 @@ model OrderItem {
   price           Decimal         @db.Decimal(10, 2) // Precio Snapshot
 
   @@index([orderId])
+}
+
+// ---------------------------------------------------------
+// AUDITORÍA DE CAMBIOS DE ESTADO
+// ---------------------------------------------------------
+
+model OrderStateChange {
+  id              String            @id @default(uuid())
+  orderId         String
+  order           Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Estados anterior y actual
+  fromStatus      OrderStatus
+  toStatus        OrderStatus
+
+  // Origen del cambio (webhook, manual, cleanup, etc.)
+  source          StateChangeSource
+
+  // Contexto: si viene de webhook, guardamos los datos relevantes
+  mpOrderId       String?           // ID del order de MP
+  mpPaymentId     String?           // ID del payment de MP
+  mpRawStatus     String?           // Status crudo de MP
+  
+  // Razón del cambio (para referencias cruzadas)
+  reason          String?           // "webhook_processed", "manual_override", "expired_timeout", etc.
+
+  // Auditoría: quién cambió (si fue manual)
+  changedBy       String?           // User ID si fue manual
+  changedByEmail  String?           // Email si fue manual
+  notes           String?           // Notas adicionales
+
+  createdAt       DateTime          @default(now())
+
+  @@index([orderId])
+  @@index([source])
+  @@index([createdAt])
+  @@index([mpPaymentId])
 }
 
 // ---------------------------------------------------------

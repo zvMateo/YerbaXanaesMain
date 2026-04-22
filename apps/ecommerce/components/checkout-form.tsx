@@ -12,12 +12,34 @@ import { useCartStore } from "@/stores/cart-store";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertTriangle, Tag, Check, X } from "lucide-react";
+import dynamic from "next/dynamic";
 
 import { useFormContext } from "react-hook-form";
 import { PersonalInfoStep } from "./checkout-steps/personal-info-step";
 import { DeliveryStep } from "./checkout-steps/delivery-step";
 import { PaymentStep } from "./checkout-steps/payment-step";
 import { OrderSummary } from "./checkout-steps/order-summary";
+
+const PaymentBrick = dynamic(
+  () =>
+    import("@/components/checkout/payment-brick").then(
+      (mod) => mod.PaymentBrick,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 w-full bg-stone-100 animate-pulse rounded-xl flex items-center justify-center text-stone-400">
+        Cargando formulario de pago...
+      </div>
+    ),
+  },
+);
+
+const ModoBrick = dynamic(
+  () =>
+    import("@/components/checkout/modo-brick").then((mod) => mod.ModoBrick),
+  { ssr: false, loading: () => null },
+);
 
 function CouponInput({ total }: { total: number }) {
   const { setValue, watch } = useFormContext<CheckoutFormData>();
@@ -136,6 +158,13 @@ export function CheckoutForm() {
   const [stockErrors, setStockErrors] = useState<
     Array<{ product: string; message: string }>
   >([]);
+  const [modoData, setModoData] = useState<{
+    orderId: string;
+    checkoutId: string;
+    qrCode: string;
+    deeplink: string;
+    expiresAt: string;
+  } | null>(null);
 
   const { items, clearCart } = useCartStore();
   const router = useRouter();
@@ -260,13 +289,74 @@ export function CheckoutForm() {
       }
       return true;
     } catch {
-      // Permitir continuar si falla la validación
-      return true;
+      toast.error("No pudimos validar stock", {
+        description:
+          "Intentá de nuevo en unos segundos. No continuamos para evitar sobreventa.",
+      });
+      return false;
     } finally {
       setIsValidatingStock(false);
     }
   };
 
+  // Submit para MODO: crea la intención de pago y muestra el QR
+  const onSubmitModo = async (data: CheckoutFormData) => {
+    const stockValid = await validateStockBeforeSubmit();
+    if (!stockValid) return;
+
+    setIsSubmitting(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+    try {
+      const response = await fetch(`${apiUrl}/payments/modo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: data.customerName,
+          customerEmail: data.customerEmail,
+          customerPhone: data.customerPhone,
+          deliveryType: data.deliveryType,
+          shippingAddress: data.address,
+          shippingCity: data.city,
+          shippingProvinceCode: data.shippingProvinceCode,
+          shippingZip: data.zipCode,
+          shippingCost: data.shippingCost ?? 0,
+          shippingProvider: data.shippingProvider,
+          couponCode: data.couponCode || undefined,
+          installments: data.modoInstallments ?? 1,
+          orderItems: items.map((item) => ({
+            variantId: item.variantId,
+            quantity: item.quantity,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(
+          (err as { message?: string }).message || "Error al iniciar pago MODO",
+        );
+      }
+
+      const result = (await response.json()) as {
+        orderId: string;
+        checkoutId: string;
+        qrCode: string;
+        deeplink: string;
+        expiresAt: string;
+      };
+
+      setModoData(result);
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : "Error al conectar con MODO";
+      toast.error("Error al iniciar pago MODO", { description: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Submit solo para transferencia (el brick de MP maneja su propio submit)
   const onSubmit = async (data: CheckoutFormData) => {
     const stockValid = await validateStockBeforeSubmit();
     if (!stockValid) return;
@@ -275,47 +365,6 @@ export function CheckoutForm() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
     try {
-      if (data.paymentMethod === "mercadopago") {
-        // Redirigir al Checkout Pro (Billetera)
-        const preferenceResponse = await fetch(`${apiUrl}/payments/checkout`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            payerEmail: data.customerEmail,
-            customerName: data.customerName,
-            customerPhone: data.customerPhone,
-            items: items.map((item) => ({
-              id: item.variantId,
-              title: item.productName || "Producto",
-              quantity: item.quantity,
-              unit_price: Number(item.price),
-              currency_id: "ARS",
-            })),
-            orderItems: items.map((item) => ({
-              variantId: item.variantId,
-              quantity: item.quantity,
-            })),
-            // Datos de envío para que se persistan con la orden
-            deliveryType: data.deliveryType,
-            shippingAddress: data.address,
-            shippingCity: data.city,
-            shippingProvinceCode: data.shippingProvinceCode,
-            shippingZip: data.zipCode,
-            shippingCost: data.shippingCost ?? 0,
-            shippingProvider: data.shippingProvider,
-            couponCode: data.couponCode || undefined,
-          }),
-        });
-
-        if (!preferenceResponse.ok)
-          throw new Error("Error creando preferencia");
-        const preference = await preferenceResponse.json();
-
-        window.location.href = preference.initPoint;
-        return;
-      }
-
-      // Efectivo / Transferencia -> crear order directamente
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -327,8 +376,7 @@ export function CheckoutForm() {
           customerEmail: data.customerEmail,
           customerPhone: data.customerPhone,
           channel: "ONLINE",
-          paymentMethod: data.paymentMethod.toUpperCase(),
-          // Datos de envío
+          paymentMethod: "TRANSFER",
           deliveryType: data.deliveryType,
           shippingAddress: data.address,
           shippingCity: data.city,
@@ -387,6 +435,10 @@ export function CheckoutForm() {
   }
 
   const selectedPaymentMethod = watch("paymentMethod");
+  const shippingCost = watch("shippingCost") ?? 0;
+  const couponDiscount = watch("couponDiscount") ?? 0;
+  // Monto final para el Payment Brick: items + envío - descuento
+  const brickAmount = Math.max(0, total + shippingCost - couponDiscount);
 
   return (
     <FormProvider {...methods}>
@@ -437,26 +489,49 @@ export function CheckoutForm() {
             >
               {currentStep === 0 && <PersonalInfoStep />}
               {currentStep === 1 && <DeliveryStep />}
-              {currentStep === 2 && (
-                <PaymentStep
-                  total={total}
-                  onPaymentSuccess={(result) => {
-                    clearStoredData();
-                    clearCart();
-                    const r = result as { orderId?: string };
-                    router.push(`/checkout/success?orderId=${r.orderId ?? ""}`);
-                  }}
-                  onPaymentError={(err) =>
-                    toast.error("Error en el pago", {
-                      description: err.message,
-                    })
-                  }
-                />
-              )}
+              {currentStep === 2 && <PaymentStep />}
               {currentStep === 3 && (
                 <>
                   <CouponInput total={total} />
                   <OrderSummary items={items} total={total} />
+
+                  {/* Payment Brick: Mercado Pago */}
+                  {selectedPaymentMethod === "mercadopago" && (
+                    <div className="mt-6">
+                      <h3 className="text-base font-semibold text-stone-900 mb-3">
+                        Completá tu pago
+                      </h3>
+                      <PaymentBrick
+                        amount={brickAmount}
+                        onGoToDelivery={() => setCurrentStep(1)}
+                        onSuccess={({ orderId }) => {
+                          clearStoredData();
+                          clearCart();
+                          router.push(
+                            `/checkout/success?orderId=${orderId}`,
+                          );
+                        }}
+                        onError={(err) =>
+                          toast.error("Error en el pago", {
+                            description: err.message,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {/* MODO: QR + deeplink */}
+                  {selectedPaymentMethod === "modo" && modoData && (
+                    <div className="mt-6">
+                      <ModoBrick
+                        orderId={modoData.orderId}
+                        checkoutId={modoData.checkoutId}
+                        qrCode={modoData.qrCode}
+                        deeplink={modoData.deeplink}
+                        expiresAt={modoData.expiresAt}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </motion.div>
@@ -480,11 +555,15 @@ export function CheckoutForm() {
                 Continuar
               </button>
             ) : (
-              // Ocultamos el botón "Confirmar" SI estamos en tarjeta de crédito,
-              // ya que el CardPayment Brick tiene su propio botón "Pagar".
-              selectedPaymentMethod !== "credit_card" && (
+              // Botones de confirmación: transfer y modo (MP tiene su propio botón en el brick)
+              (selectedPaymentMethod === "transfer" ||
+                (selectedPaymentMethod === "modo" && !modoData)) && (
                 <button
-                  onClick={hookFormHandleSubmit(onSubmit)}
+                  onClick={hookFormHandleSubmit(
+                    selectedPaymentMethod === "modo"
+                      ? onSubmitModo
+                      : onSubmit,
+                  )}
                   disabled={isSubmitting || isValidatingStock}
                   className="px-8 py-3 bg-yerba-600 text-white rounded-full hover:bg-yerba-700 disabled:opacity-50 flex items-center gap-2"
                 >
@@ -493,6 +572,8 @@ export function CheckoutForm() {
                       <Loader2 className="animate-spin w-5 h-5" />
                       Procesando...
                     </>
+                  ) : selectedPaymentMethod === "modo" ? (
+                    "Generar código QR"
                   ) : (
                     "Confirmar Pedido"
                   )}
