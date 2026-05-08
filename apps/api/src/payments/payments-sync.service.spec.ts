@@ -292,10 +292,9 @@ describe('PaymentsSyncService - Unit Tests', () => {
 
     it('aborta y retorna 0s si MP_ACCESS_TOKEN no está configurado', async () => {
       // Reemplazar el ConfigService para este test
-      const configGet = jest.spyOn(
-        (service as any).config,
-        'get',
-      ).mockReturnValue(undefined);
+      const configGet = jest
+        .spyOn((service as any).config, 'get')
+        .mockReturnValue(undefined);
 
       const result = await service.reconcileOrdersWithMercadoPago();
 
@@ -474,9 +473,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
         return Promise.reject(new Error('Timeout'));
       });
 
-      jest
-        .spyOn(service, 'updateOrderStatusWithAudit')
-        .mockResolvedValue(true);
+      jest.spyOn(service, 'updateOrderStatusWithAudit').mockResolvedValue(true);
 
       const result = await service.reconcileOrdersWithMercadoPago();
 

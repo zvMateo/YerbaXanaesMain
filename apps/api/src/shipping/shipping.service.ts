@@ -4,6 +4,7 @@ import {
   OnModuleInit,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,7 +29,7 @@ export interface ShippingRate {
 
 export interface ShippingRatesResponse {
   rates: ShippingRate[];
-  source: 'correo_argentino' | 'flat_rate'; // Si usó la API real o el fallback
+  source: 'correo_argentino';
   packageWeightGrams: number;
 }
 
@@ -49,16 +50,103 @@ const DEFAULT_DIMENSIONS = {
 // CP de origen por defecto si no está configurado en env
 const DEFAULT_POSTAL_CODE_ORIGIN = '1000';
 
+// URLs de la API MiCorreo según ambiente
+const MICORREO_BASE_URLS = {
+  TEST: 'https://apitest.correoargentino.com.ar/micorreo/v1',
+  PROD: 'https://api.correoargentino.com.ar/micorreo/v1',
+} as const;
+
 @Injectable()
 export class ShippingService implements OnModuleInit {
   private readonly logger = new Logger(ShippingService.name);
   private correoApi: CorreoArgentinoApi | null = null;
   private isInitialized = false;
 
+  // Token JWT de MiCorreo (obtenido via HTTP Basic Auth)
+  private miCorreoToken: string | null = null;
+  private miCorreoTokenExpires: Date | null = null;
+
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
+
+  // ============================================================
+  // HELPER: Obtener token JWT de MiCorreo (con cache)
+  // ============================================================
+
+  private async getMiCorreoToken(): Promise<string> {
+    // Devolver token en cache si aún es válido (con margen de 60s)
+    if (
+      this.miCorreoToken &&
+      this.miCorreoTokenExpires &&
+      Date.now() < this.miCorreoTokenExpires.getTime() - 60_000
+    ) {
+      return this.miCorreoToken;
+    }
+
+    const userToken = this.config.get<string>('CA_USER_TOKEN');
+    const passwordToken = this.config.get<string>('CA_PASSWORD_TOKEN');
+    const envStr = this.config.get<string>('CA_ENVIRONMENT') || 'PROD';
+    const baseUrl = MICORREO_BASE_URLS[envStr === 'TEST' ? 'TEST' : 'PROD'];
+
+    if (!userToken || !passwordToken) {
+      throw new BadRequestException('Credenciales MiCorreo no configuradas');
+    }
+
+    // HTTP Basic Auth: user:password en base64
+    const credentials = Buffer.from(`${userToken}:${passwordToken}`).toString(
+      'base64',
+    );
+
+    const response = await fetch(`${baseUrl}/token`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      this.logger.error(`Error obteniendo token MiCorreo: ${body}`);
+      throw new ServiceUnavailableException(
+        'No se pudo autenticar con MiCorreo. Verificá las credenciales.',
+      );
+    }
+
+    const data = (await response.json()) as { token: string; expires: string };
+    this.miCorreoToken = data.token;
+    // Parsear expires "2022-04-26 21:16:20" → Date
+    this.miCorreoTokenExpires = new Date(data.expires.replace(' ', 'T'));
+
+    this.logger.log('Token MiCorreo obtenido/renovado');
+    return this.miCorreoToken;
+  }
+
+  /**
+   * Helper para hacer requests autenticadas a la API MiCorreo.
+   * Obtiene/renueva el JWT automáticamente.
+   */
+  private async miCorreoFetch(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<Record<string, unknown>> {
+    const envStr = this.config.get<string>('CA_ENVIRONMENT') || 'PROD';
+    const baseUrl = MICORREO_BASE_URLS[envStr === 'TEST' ? 'TEST' : 'PROD'];
+    const token = await this.getMiCorreoToken();
+
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string>),
+      },
+    });
+
+    return { ok: response.ok, status: response.status, data: await response.json() };
+  }
 
   async onModuleInit() {
     await this.initializeCorreoApi();
@@ -135,9 +223,11 @@ export class ShippingService implements OnModuleInit {
       this.config.get<string>('CA_POSTAL_CODE_ORIGIN') ||
       DEFAULT_POSTAL_CODE_ORIGIN;
 
-    // 2. Si no hay API inicializada → tarifa plana
+    // 2. Si no hay API inicializada → no autocotizamos
     if (!this.isInitialized || !this.correoApi) {
-      return this.buildFlatRateResponse(packageWeightGrams);
+      throw new ServiceUnavailableException(
+        'No pudimos cotizar automáticamente el envío con Correo Argentino. Coordiná la cotización manual por WhatsApp.',
+      );
     }
 
     try {
@@ -171,13 +261,15 @@ export class ShippingService implements OnModuleInit {
       return { rates, source: 'correo_argentino', packageWeightGrams };
     } catch (error) {
       this.logger.error('Error cotizando con Correo Argentino', error);
-      // Fallback a tarifa plana si la API falla
-      return this.buildFlatRateResponse(packageWeightGrams);
+      throw new ServiceUnavailableException(
+        'No pudimos cotizar automáticamente el envío con Correo Argentino. Coordiná la cotización manual por WhatsApp.',
+      );
     }
   }
 
   // ============================================================
   // IMPORTAR ENVÍO A MICORREO (Admin — ejecuta el admin desde backoffice)
+  // Usa HTTP directo a la API porque la librería no soporta shipping/import
   // ============================================================
 
   async importShipping(orderId: string): Promise<{ trackingNumber: string }> {
@@ -198,13 +290,13 @@ export class ShippingService implements OnModuleInit {
 
     if (!order.shippingAddress || !order.shippingZip) {
       throw new BadRequestException(
-        'La orden no tiene dirección de envío. No se puede importar a Correo Argentino.',
+        'La orden no tiene dirección de envío. No se puede importar a MiCorreo.',
       );
     }
 
     if (order.correoShippingId) {
       throw new BadRequestException(
-        `Esta orden ya fue importada a Correo Argentino con ID: ${order.correoShippingId}`,
+        `Esta orden ya fue importada a MiCorreo con ID: ${order.correoShippingId}`,
       );
     }
 
@@ -216,74 +308,116 @@ export class ShippingService implements OnModuleInit {
       })),
     );
 
+    const customerId = this.correoApi.getVarCustomerId();
+
+    // Parsear dirección: "Calle 1234, Ciudad" → streetName, streetNumber
+    const addressParts = (order.shippingAddress || '').split(',');
+    const streetName = addressParts[0]?.trim() || 'Sin dirección';
+    const streetNumber = addressParts[1]?.trim() || 's/n';
+
     try {
-      // @ts-expect-error — shipping/import está pendiente en la librería (🟨)
-      const result = await this.correoApi.importShipping({
-        customerId: this.correoApi.getVarCustomerId(),
-        extOrderId: order.id,
-        orderNumber: order.id.slice(0, 8).toUpperCase(),
-        recipient: {
-          name: order.customerName || order.customerEmail || 'Cliente',
-          email: order.customerEmail || '',
-          phone: order.customerPhone || '',
-          cellPhone: order.customerPhone || '',
-        },
-        shipping: {
-          deliveryType: 'D' as DeliveredType,
-          productType: 'CP',
-          address: {
-            streetName:
-              order.shippingAddress.split(',')[0] || order.shippingAddress,
-            streetNumber: order.shippingAddress.split(',')[1]?.trim() || 's/n',
-            floor: '',
-            apartment: '',
-            city: order.shippingCity || '',
-            provinceCode: order.shippingProvinceCode || 'B',
-            postalCode: order.shippingZip || '',
+      const result = await this.miCorreoFetch('/shipping/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId,
+          extOrderId: order.id,
+          orderNumber: order.id.slice(0, 8).toUpperCase(),
+          sender: {
+            name: null,
+            phone: null,
+            cellPhone: null,
+            email: null,
+            originAddress: {
+              streetName: null,
+              streetNumber: null,
+              floor: null,
+              apartment: null,
+              city: null,
+              provinceCode: null,
+              postalCode: null,
+            },
           },
-          weight: packageWeightGrams,
-          declaredValue: Number(order.total),
-          height: DEFAULT_DIMENSIONS.height,
-          length: DEFAULT_DIMENSIONS.length,
-          width: DEFAULT_DIMENSIONS.width,
-        },
+          recipient: {
+            name: order.customerName || order.customerEmail || 'Cliente',
+            phone: order.customerPhone || '',
+            cellPhone: order.customerPhone || '',
+            email: order.customerEmail || '',
+          },
+          shipping: {
+            deliveryType: 'D', // Siempre domicilio por ahora
+            productType: 'CP',
+            agency: null,
+            address: {
+              streetName,
+              streetNumber,
+              floor: '',
+              apartment: '',
+              city: order.shippingCity || '',
+              provinceCode: order.shippingProvinceCode || 'B',
+              postalCode: order.shippingZip || '',
+            },
+            weight: packageWeightGrams,
+            declaredValue: Number(order.total),
+            height: DEFAULT_DIMENSIONS.height,
+            length: DEFAULT_DIMENSIONS.length,
+            width: DEFAULT_DIMENSIONS.width,
+          },
+        }),
       });
 
-      // Actualizar la orden con el tracking
-      const trackingNumber =
-        (result as { trackingNumber?: string })?.trackingNumber ||
-        `CA-${order.id.slice(0, 8).toUpperCase()}`;
+      // La respuesta es { createdAt: "2022-06-07T16:15:04.996-03:00" }
+      // No devuelve tracking number directo — el trackingNumber nuestro es el extOrderId
+      if (!result['ok']) {
+        const errData = result['data'] as { message?: string; code?: string };
+        throw new Error(
+          `MiCorreo error ${errData?.code ?? result['status']}: ${errData?.message ?? 'Unknown'}`,
+        );
+      }
+
+      // Guardar extOrderId (order.id) como tracking number visible
+      const trackingNumber = order.id.slice(0, 12).toUpperCase();
 
       await this.prisma.order.update({
         where: { id: orderId },
         data: {
+          // Guardar el ID de MiCorreo como correoShippingId (podría ser el extOrderId)
           correoShippingId: trackingNumber,
           trackingNumber,
           correoImportedAt: new Date(),
         },
       });
 
+      this.logger.log(
+        `Envío importado a MiCorreo: order=${orderId} tracking=${trackingNumber}`,
+      );
+
       return { trackingNumber };
     } catch (error) {
-      // Si shipping/import no está implementado aún en la lib, creamos un tracking provisional
-      this.logger.warn(
-        'shipping/import pendiente en la librería — guardando tracking provisional',
-        error,
+      this.logger.error('No se pudo importar el envío a MiCorreo', error);
+
+      // Detectar error específico para dar mensaje más útil
+      const message =
+        error instanceof Error ? error.message : 'Error desconocido';
+      if (message.includes('ya fue importada')) {
+        throw new BadRequestException(
+          'Esta orden ya fue importada a MiCorreo anteriormente.',
+        );
+      }
+      if (message.includes('sucursal')) {
+        throw new BadRequestException(
+          'Verificá el código de sucursal. El envío no pudo ser importado.',
+        );
+      }
+
+      throw new ServiceUnavailableException(
+        'No se pudo crear el envío en Correo Argentino. Intentá nuevamente o coordiná manualmente.',
       );
-      const trackingNumber = `CA-PROV-${order.id.slice(0, 8).toUpperCase()}`;
-      await this.prisma.order.update({
-        where: { id: orderId },
-        data: {
-          correoImportedAt: new Date(),
-          trackingNumber,
-        },
-      });
-      return { trackingNumber };
     }
   }
 
   // ============================================================
-  // TRACKING
+  // TRACKING — Consulta el estado de un envío importado
+  // Usa HTTP directo a /shipping/tracking/{shippingId}
   // ============================================================
 
   async getTracking(orderId: string) {
@@ -299,32 +433,63 @@ export class ShippingService implements OnModuleInit {
       );
     }
 
+    const trackingUrl = `https://www.correoargentino.com.ar/formularios/oas?id=${order.trackingNumber}`;
+
+    // Sin credenciales: devolver solo el link público
     if (!this.isInitialized || !this.correoApi) {
       return {
         trackingNumber: order.trackingNumber,
         events: [],
-        message:
-          'Correo Argentino no configurado. Usá el tracking en correoargentino.com.ar',
-        trackingUrl: `https://www.correoargentino.com.ar/formularios/oas?id=${order.trackingNumber}`,
+        message: 'Consultá el seguimiento en el link oficial',
+        trackingUrl,
       };
     }
 
+    // Usar el shippingId real (correoShippingId si existe, sino el trackingNumber)
+    const shippingId = order.correoShippingId || order.trackingNumber;
+
     try {
-      // @ts-expect-error — shipping/tracking puede no estar en todos los entornos
-      const tracking = await this.correoApi.getTracking({
-        shippingId: order.correoShippingId || order.trackingNumber,
-      });
+      const result = await this.miCorreoFetch(
+        `/shipping/tracking?shippingId=${encodeURIComponent(shippingId)}`,
+        { method: 'GET' },
+      );
+
+      const data = result['data'] as Record<string, unknown>;
+
+      // La API devuelve un array de eventos o { error, code }
+      if (Array.isArray(data)) {
+        return {
+          trackingNumber: order.trackingNumber,
+          events: (data as Array<{ event: string; date: string; branch: string; status: string }>),
+          trackingUrl,
+        };
+      }
+
+      // Error struktur dari API
+      if (data['error'] || data['code']) {
+        this.logger.warn(
+          `Tracking MiCorreo error: ${JSON.stringify(data)}`,
+        );
+        return {
+          trackingNumber: order.trackingNumber,
+          events: [],
+          message: (data['error'] as string) || (data['message'] as string) || 'No se pudo obtener tracking',
+          trackingUrl,
+        };
+      }
 
       return {
-        ...tracking,
-        trackingUrl: `https://www.correoargentino.com.ar/formularios/oas?id=${order.trackingNumber}`,
+        trackingNumber: order.trackingNumber,
+        events: [],
+        trackingUrl,
       };
     } catch (error) {
       this.logger.error('Error obteniendo tracking', error);
       return {
         trackingNumber: order.trackingNumber,
         events: [],
-        trackingUrl: `https://www.correoargentino.com.ar/formularios/oas?id=${order.trackingNumber}`,
+        message: 'Error consultando tracking. Usá el link oficial.',
+        trackingUrl,
       };
     }
   }
@@ -352,32 +517,6 @@ export class ShippingService implements OnModuleInit {
 
     // Mínimo 1g para la API
     return Math.max(totalWeight, 1);
-  }
-
-  private buildFlatRateResponse(
-    packageWeightGrams: number,
-  ): ShippingRatesResponse {
-    // Tarifa escalonada simple por peso
-    let price: number;
-    if (packageWeightGrams <= 1000) price = 1200;
-    else if (packageWeightGrams <= 2000) price = 1800;
-    else if (packageWeightGrams <= 5000) price = 2500;
-    else price = 3500;
-
-    return {
-      rates: [
-        {
-          deliveredType: 'D',
-          productName: 'Envío estándar',
-          price,
-          deliveryTimeMin: '3',
-          deliveryTimeMax: '7',
-          label: `Envío a domicilio — $${price.toLocaleString('es-AR')} (3 a 7 días hábiles)`,
-        },
-      ],
-      source: 'flat_rate',
-      packageWeightGrams,
-    };
   }
 
   private buildRateLabel(rate: {

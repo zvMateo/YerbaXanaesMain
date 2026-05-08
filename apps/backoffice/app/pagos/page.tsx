@@ -1,6 +1,5 @@
 import { Metadata } from "next";
 import { Sidebar, QuickActions } from "@/components/sidebar";
-import { PaymentLinksManager } from "@/components/payment-links-manager";
 
 export const metadata: Metadata = {
   title: "Links de Pago | Admin YerbaXanaes",
@@ -29,7 +28,17 @@ export default function PaymentLinksPage() {
         </div>
 
         <div className="p-6 lg:p-8 max-w-5xl mx-auto">
-          <PaymentLinksManager />
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+            <h2 className="text-lg font-semibold">Módulo pausado</h2>
+            <p className="mt-2 text-sm leading-6">
+              La pantalla de links de pago queda desactivada temporalmente
+              porque el API todavía no expone los endpoints de
+              <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">
+                /payment-links
+              </code>
+              . Esto evita mostrar una funcionalidad rota en el backoffice.
+            </p>
+          </div>
         </div>
       </main>
 

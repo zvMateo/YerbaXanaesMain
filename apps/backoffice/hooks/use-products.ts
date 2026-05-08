@@ -93,7 +93,7 @@ const API_URL = (
 ).replace(/\/+$/, "");
 
 async function fetchProducts(): Promise<Product[]> {
-  const response = await fetchWithAuth(`${API_URL}/catalog`);
+  const response = await fetchWithAuth(`${API_URL}/catalog/admin`);
   if (!response.ok) throw new Error("Error al cargar productos");
   return response.json();
 }

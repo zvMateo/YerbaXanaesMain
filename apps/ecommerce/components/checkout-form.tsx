@@ -35,12 +35,6 @@ const PaymentBrick = dynamic(
   },
 );
 
-const ModoBrick = dynamic(
-  () =>
-    import("@/components/checkout/modo-brick").then((mod) => mod.ModoBrick),
-  { ssr: false, loading: () => null },
-);
-
 function CouponInput({ total }: { total: number }) {
   const { setValue, watch } = useFormContext<CheckoutFormData>();
   const [code, setCode] = useState("");
@@ -153,19 +147,10 @@ const CHECKOUT_STEP_KEY = "yerbaxanaes-checkout-step";
 
 export function CheckoutForm() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidatingStock, setIsValidatingStock] = useState(false);
   const [stockErrors, setStockErrors] = useState<
     Array<{ product: string; message: string }>
   >([]);
-  const [modoData, setModoData] = useState<{
-    orderId: string;
-    checkoutId: string;
-    qrCode: string;
-    deeplink: string;
-    expiresAt: string;
-  } | null>(null);
-
   // Hoist brick state so PaymentBrick doesn't re-init on every remount (step nav)
   const [brickOrderId, setBrickOrderId] = useState<string | null>(null);
   const [brickPreferenceId, setBrickPreferenceId] = useState<string | null>(
@@ -196,14 +181,22 @@ export function CheckoutForm() {
     },
   });
 
-  const { trigger, watch, reset, handleSubmit: hookFormHandleSubmit } = methods;
+  const {
+    trigger,
+    watch,
+    reset,
+    getValues,
+  } = methods;
 
   // Restaurar datos del localStorage
   useEffect(() => {
     try {
       const savedData = localStorage.getItem(CHECKOUT_STORAGE_KEY);
       const savedStep = localStorage.getItem(CHECKOUT_STEP_KEY);
-      if (savedData) reset(JSON.parse(savedData));
+      if (savedData) {
+        const parsed = JSON.parse(savedData) as Partial<CheckoutFormData>;
+        reset({ ...parsed, paymentMethod: "mercadopago" });
+      }
       if (savedStep) {
         const step = parseInt(savedStep, 10);
         if (step >= 0 && step < steps.length) setCurrentStep(step);
@@ -248,9 +241,27 @@ export function CheckoutForm() {
           "city",
           "zipCode",
         ]);
+        if (isStepValid) {
+          const deliveryData = getValues();
+          const hasSelectedShippingRate =
+            deliveryData.deliveryType !== "shipping" ||
+            ((deliveryData.shippingCost ?? 0) > 0 &&
+              deliveryData.shippingProvider === "correo_argentino");
+
+          if (!hasSelectedShippingRate) {
+            toast.error("Falta cotizar el envío", {
+              description:
+                "Ingresá un código postal válido y seleccioná una opción de envío antes de continuar.",
+            });
+            return;
+          }
+        }
         break;
       case 2:
         isStepValid = await trigger(["paymentMethod"]);
+        if (isStepValid) {
+          isStepValid = await validateStockBeforeSubmit();
+        }
         break;
       case 3:
         isStepValid = true;
@@ -301,123 +312,6 @@ export function CheckoutForm() {
       return false;
     } finally {
       setIsValidatingStock(false);
-    }
-  };
-
-  // Submit para MODO: crea la intención de pago y muestra el QR
-  const onSubmitModo = async (data: CheckoutFormData) => {
-    const stockValid = await validateStockBeforeSubmit();
-    if (!stockValid) return;
-
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`${API_URL}/payments/modo`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: data.customerName,
-          customerEmail: data.customerEmail,
-          customerPhone: data.customerPhone,
-          deliveryType: data.deliveryType,
-          shippingAddress: data.address,
-          shippingCity: data.city,
-          shippingProvinceCode: data.shippingProvinceCode,
-          shippingZip: data.zipCode,
-          shippingCost: data.shippingCost ?? 0,
-          shippingProvider: data.shippingProvider,
-          couponCode: data.couponCode || undefined,
-          installments: data.modoInstallments ?? 1,
-          orderItems: items.map((item) => ({
-            variantId: item.variantId,
-            quantity: item.quantity,
-          })),
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(
-          (err as { message?: string }).message || "Error al iniciar pago MODO",
-        );
-      }
-
-      const result = (await response.json()) as {
-        orderId: string;
-        checkoutId: string;
-        qrCode: string;
-        deeplink: string;
-        expiresAt: string;
-      };
-
-      setModoData(result);
-    } catch (error: unknown) {
-      const msg =
-        error instanceof Error ? error.message : "Error al conectar con MODO";
-      toast.error("Error al iniciar pago MODO", { description: msg });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Submit solo para transferencia (el brick de MP maneja su propio submit)
-  const onSubmit = async (data: CheckoutFormData) => {
-    const stockValid = await validateStockBeforeSubmit();
-    if (!stockValid) return;
-
-    setIsSubmitting(true);
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-      const response = await fetch(`${API_URL}/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: data.customerName,
-          customerEmail: data.customerEmail,
-          customerPhone: data.customerPhone,
-          channel: "ONLINE",
-          paymentMethod: "TRANSFER",
-          deliveryType: data.deliveryType,
-          shippingAddress: data.address,
-          shippingCity: data.city,
-          shippingProvinceCode: data.shippingProvinceCode,
-          shippingZip: data.zipCode,
-          shippingCost: data.shippingCost ?? 0,
-          shippingProvider: data.shippingProvider,
-          couponCode: data.couponCode || undefined,
-          items: items.map((item) => ({
-            variantId: item.variantId,
-            quantity: item.quantity,
-          })),
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          (errorData as { message?: string }).message || "Error al crear orden",
-        );
-      }
-
-      const order = await response.json();
-      clearStoredData();
-      clearCart();
-      toast.success("¡Orden creada!", {
-        description: "Nos pondremos en contacto para coordinar el pago",
-      });
-      router.push(`/checkout/success?orderId=${(order as { id: string }).id}`);
-    } catch (error: unknown) {
-      const msg =
-        error instanceof Error ? error.message : "Error al procesar la orden";
-      toast.error("Error al procesar", { description: msg });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -529,18 +423,6 @@ export function CheckoutForm() {
                     </div>
                   )}
 
-                  {/* MODO: QR + deeplink */}
-                  {selectedPaymentMethod === "modo" && modoData && (
-                    <div className="mt-6">
-                      <ModoBrick
-                        orderId={modoData.orderId}
-                        checkoutId={modoData.checkoutId}
-                        qrCode={modoData.qrCode}
-                        deeplink={modoData.deeplink}
-                        expiresAt={modoData.expiresAt}
-                      />
-                    </div>
-                  )}
                 </>
               )}
             </motion.div>
@@ -550,7 +432,7 @@ export function CheckoutForm() {
           <div className="flex justify-between mt-8 pt-6 border-t border-stone-200">
             <button
               onClick={handleBack}
-              disabled={currentStep === 0 || isSubmitting}
+              disabled={currentStep === 0 || isValidatingStock}
               className="px-6 py-3 text-stone-600 disabled:opacity-50"
             >
               {currentStep === 0 ? "Cancelar" : "Volver"}
@@ -559,36 +441,19 @@ export function CheckoutForm() {
             {currentStep < steps.length - 1 ? (
               <button
                 onClick={handleNext}
-                className="px-8 py-3 bg-yerba-600 text-white rounded-full hover:bg-yerba-700"
+                disabled={isValidatingStock}
+                className="px-8 py-3 bg-yerba-600 text-white rounded-full hover:bg-yerba-700 disabled:opacity-50 flex items-center gap-2"
               >
-                Continuar
+                {isValidatingStock ? (
+                  <>
+                    <Loader2 className="animate-spin w-5 h-5" />
+                    Validando...
+                  </>
+                ) : (
+                  "Continuar"
+                )}
               </button>
-            ) : (
-              // Botones de confirmación: transfer y modo (MP tiene su propio botón en el brick)
-              (selectedPaymentMethod === "transfer" ||
-                (selectedPaymentMethod === "modo" && !modoData)) && (
-                <button
-                  onClick={hookFormHandleSubmit(
-                    selectedPaymentMethod === "modo"
-                      ? onSubmitModo
-                      : onSubmit,
-                  )}
-                  disabled={isSubmitting || isValidatingStock}
-                  className="px-8 py-3 bg-yerba-600 text-white rounded-full hover:bg-yerba-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="animate-spin w-5 h-5" />
-                      Procesando...
-                    </>
-                  ) : selectedPaymentMethod === "modo" ? (
-                    "Generar código QR"
-                  ) : (
-                    "Confirmar Pedido"
-                  )}
-                </button>
-              )
-            )}
+            ) : null}
           </div>
         </div>
 

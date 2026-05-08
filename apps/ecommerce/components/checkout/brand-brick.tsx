@@ -1,7 +1,6 @@
 "use client";
 
 import { MercadoPagoLogo } from "@/components/checkout/mercado-pago-logo";
-import { ModoLogo as ModoWordmark } from "@/components/checkout/modo-logo";
 
 /**
  * Brand Brick — muestra los medios de pago aceptados con la marca Mercado Pago.
@@ -24,10 +23,8 @@ export function BrandBrick({ variant = "full" }: BrandBrickProps) {
             variant="horizontal"
             className="h-6 w-auto max-w-24 object-contain"
           />
-          <span className="text-stone-300">·</span>
-          <ModoWordmark className="h-6 w-auto max-w-24 object-contain" />
         </span>
-        <span>cuotas sin interés</span>
+        <span>tarjeta, billetera o efectivo</span>
       </div>
     );
   }
@@ -51,47 +48,10 @@ export function BrandBrick({ variant = "full" }: BrandBrickProps) {
         </div>
       </div>
 
-      <div className="border-t border-stone-200" />
-
-      {/* MODO */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <ModoLogo />
-          <span className="text-sm text-stone-600 font-medium">
-            MODO · Cuotas sin interés
-          </span>
-          <span className="text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">
-            Ahora 3/6/12/18
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <PaymentBadge label="Banco Nación" icon="🏛️" />
-          <PaymentBadge label="BBVA" icon="🏦" />
-          <PaymentBadge label="Santander" icon="🏦" />
-          <PaymentBadge label="Galicia" icon="🏦" />
-          <PaymentBadge label="+ más bancos" icon="🏦" />
-        </div>
-      </div>
-
       <p className="text-xs text-stone-400">
         Pago seguro y encriptado · Sin salir del sitio
       </p>
     </div>
-  );
-}
-
-function ModoLogo() {
-  return <ModoWordmark className="h-6 w-auto" />;
-}
-
-function MpLogo() {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <MercadoPagoLogo variant="horizontal" className="h-6 w-auto" />
-      <span className="font-semibold text-[#009ee3] text-sm tracking-tight">
-        Mercado Pago
-      </span>
-    </span>
   );
 }
 

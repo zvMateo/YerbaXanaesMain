@@ -6,7 +6,6 @@ import { CartItem } from "@/stores/cart-store";
 import { Package, Truck, CreditCard, Banknote, Landmark } from "lucide-react";
 import Image from "next/image";
 import { MercadoPagoLogo } from "@/components/checkout/mercado-pago-logo";
-import { ModoLogo } from "@/components/checkout/modo-logo";
 
 interface OrderSummaryProps {
   items: CartItem[];
@@ -18,7 +17,6 @@ const paymentMethodLabels: Record<
   { label: string; icon: typeof CreditCard }
 > = {
   mercadopago: { label: "Mercado Pago", icon: CreditCard },
-  modo: { label: "MODO", icon: CreditCard },
   cash: { label: "Efectivo", icon: Banknote },
   transfer: { label: "Transferencia Bancaria", icon: Landmark },
 };
@@ -46,7 +44,6 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
   const PaymentIcon =
     paymentMethodLabels[formData.paymentMethod]?.icon || CreditCard;
   const isMercadoPago = formData.paymentMethod === "mercadopago";
-  const isModo = formData.paymentMethod === "modo";
 
   return (
     <div className="space-y-6">
@@ -152,8 +149,7 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
               <div className="flex justify-between">
                 <span className="text-stone-500">Dirección</span>
                 <span className="font-medium text-stone-900 text-right">
-                  {process.env.NEXT_PUBLIC_STORE_ADDRESS ||
-                    "Consultá la dirección por WhatsApp"}
+                  {formData.address}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -197,8 +193,6 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
               variant="horizontal"
               className="h-7 w-auto max-w-25 object-contain"
             />
-          ) : isModo ? (
-            <ModoLogo className="h-7 w-auto max-w-25 object-contain" />
           ) : (
             <PaymentIcon className="h-5 w-5 text-yerba-600" />
           )}

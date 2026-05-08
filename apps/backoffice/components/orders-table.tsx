@@ -109,6 +109,24 @@ const statusConfig: Record<
     color: "text-blue-700",
     bg: "bg-blue-100",
   },
+  PROCESSING: {
+    label: "Preparando",
+    icon: Package,
+    color: "text-indigo-700",
+    bg: "bg-indigo-100",
+  },
+  SHIPPED: {
+    label: "Enviado",
+    icon: Truck,
+    color: "text-cyan-700",
+    bg: "bg-cyan-100",
+  },
+  DELIVERED: {
+    label: "Entregado",
+    icon: CheckCircle,
+    color: "text-green-700",
+    bg: "bg-green-100",
+  },
   REJECTED: {
     label: "Rechazado",
     icon: XCircle,
@@ -148,6 +166,9 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 const OVERRIDEABLE_STATUSES: OrderStatus[] = [
   "PENDING",
   "PAID",
+  "PROCESSING",
+  "SHIPPED",
+  "DELIVERED",
   "REJECTED",
   "CANCELLED",
   "REFUNDED",
@@ -385,8 +406,23 @@ function OrderActions({
       { label: "Cancelar", nextStatus: "CANCELLED", variant: "danger" },
     ],
     PAID: [
+      { label: "Preparar", nextStatus: "PROCESSING", variant: "primary" },
       { label: "Reembolsar", nextStatus: "REFUNDED", variant: "secondary" },
       { label: "Cancelar", nextStatus: "CANCELLED", variant: "danger" },
+    ],
+    PROCESSING: [
+      { label: "Marcar enviado", nextStatus: "SHIPPED", variant: "primary" },
+      { label: "Cancelar", nextStatus: "CANCELLED", variant: "danger" },
+    ],
+    SHIPPED: [
+      {
+        label: "Marcar entregado",
+        nextStatus: "DELIVERED",
+        variant: "primary",
+      },
+    ],
+    DELIVERED: [
+      { label: "Reembolsar", nextStatus: "REFUNDED", variant: "secondary" },
     ],
     REJECTED: [
       { label: "Cancelar", nextStatus: "CANCELLED", variant: "danger" },
@@ -428,7 +464,9 @@ function OrderActions({
       </div>
 
       {/* Botón importar a Correo Argentino (solo si es envío y no fue importado) */}
-      {isShippingOrder && status === "PAID" && !hasTracking && (
+      {isShippingOrder &&
+        (status === "PAID" || status === "PROCESSING") &&
+        !hasTracking && (
         <button
           onClick={() => importShipping.mutate(orderId)}
           disabled={importShipping.isPending}
@@ -795,6 +833,9 @@ export function OrdersTable() {
               <option value="all">Todos los estados</option>
               <option value="PENDING">Pendientes</option>
               <option value="PAID">Pagados</option>
+              <option value="PROCESSING">Preparando</option>
+              <option value="SHIPPED">Enviados</option>
+              <option value="DELIVERED">Entregados</option>
               <option value="REJECTED">Rechazados</option>
               <option value="CANCELLED">Cancelados</option>
               <option value="REFUNDED">Reembolsados</option>

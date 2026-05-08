@@ -509,7 +509,9 @@ export function ProductsManager() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
               className={`bg-white rounded-2xl border transition-all ${
-                product.isActive ? "border-stone-200" : "border-stone-200 opacity-60"
+                product.isActive
+                  ? "border-stone-200"
+                  : "border-stone-200 opacity-60"
               }`}
             >
               {/* Header del producto */}
@@ -667,15 +669,17 @@ export function ProductsManager() {
                                   {variant.name}
                                 </p>
                                 {variantHasOrders && (
-                                  <ShoppingCart
-                                    className="h-3 w-3 text-blue-500 flex-shrink-0"
-                                    title="Tiene órdenes asociadas"
-                                  />
+                                  <span title="Tiene órdenes asociadas">
+                                    <ShoppingCart className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                                  </span>
                                 )}
                               </div>
                               <div className="flex items-center justify-between mt-2">
                                 <span className="text-sm font-semibold">
-                                  ${Number(variant.price).toLocaleString("es-AR")}
+                                  $
+                                  {Number(variant.price).toLocaleString(
+                                    "es-AR",
+                                  )}
                                 </span>
                                 <span
                                   className={`text-xs ${

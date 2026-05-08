@@ -23,16 +23,11 @@ async function main() {
     `📦 Item: ${variant.product.name} - ${variant.name} ($${variant.price})`,
   );
 
-  // 2. Crear Checkout (Simulando POST /payments/checkout)
-  // Necesitamos llamar a la API real, pero como requiere auth (token),
-  // vamos a "hacer trampa" e invocar el servicio directamente si estuviéramos en Nest,
-  // pero como es script externo, mejor hacemos un fetch con un token de admin mockeado o
-  // creamos la preferencia manualmente usando el script para ver si devuelve el link.
-
-  // Para simplificar y probar AHORA, vamos a imprimir los datos que deberías enviar a Postman.
+  // 2. Inicializar Payment Brick (POST /payments/brick-init)
+  // Para simplificar y probar manualmente, imprimimos el payload para Postman.
 
   const payload = {
-    items: [
+    orderItems: [
       {
         variantId: variant.id,
         quantity: 1,
@@ -40,11 +35,13 @@ async function main() {
     ],
     customerEmail: user.email,
     customerName: user.name,
-    userId: user.id,
+    deliveryType: 'pickup',
+    shippingCost: 0,
+    shippingProvider: 'pickup',
   };
 
   console.log(
-    '\n🚀 SEND THIS TO POSTMAN (POST http://localhost:3001/payments/checkout):',
+    '\n🚀 SEND THIS TO POSTMAN (POST http://localhost:3001/payments/brick-init):',
   );
   console.log(JSON.stringify(payload, null, 2));
   console.log('\nHeaders:');

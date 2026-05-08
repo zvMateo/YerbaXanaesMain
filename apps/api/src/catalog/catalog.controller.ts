@@ -10,12 +10,14 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IsBoolean } from 'class-validator';
 import { CatalogService } from './catalog.service';
 import { CreateCatalogDto } from './dto/create-catalog.dto';
 import { UpdateCatalogDto } from './dto/update-catalog.dto';
+import { CatalogQueryDto } from './dto/catalog-query.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
@@ -36,8 +38,15 @@ export class CatalogController {
 
   // GET público — lo consume el ecommerce sin autenticación
   @Get()
-  findAll() {
-    return this.catalogService.findAll();
+  findAll(@Query() query: CatalogQueryDto) {
+    return this.catalogService.findAll(query);
+  }
+
+  // GET admin — backoffice necesita ver también productos inactivos
+  @Get('admin')
+  @UseGuards(AuthGuard, AdminGuard)
+  findAllForAdmin(@Query() query: CatalogQueryDto) {
+    return this.catalogService.findAll({ ...query, includeInactive: true });
   }
 
   @Get(':id')
@@ -60,10 +69,7 @@ export class CatalogController {
 
   @Patch(':id/status')
   @UseGuards(AuthGuard, AdminGuard)
-  updateStatus(
-    @Param('id') id: string,
-    @Body() dto: UpdateProductStatusDto,
-  ) {
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateProductStatusDto) {
     return this.catalogService.toggleStatus(id, dto.isActive);
   }
 

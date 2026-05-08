@@ -12,6 +12,9 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth";
 export type OrderStatus =
   | "PENDING"
   | "PAID"
+  | "PROCESSING"
+  | "SHIPPED"
+  | "DELIVERED"
   | "REJECTED"
   | "CANCELLED"
   | "REFUNDED";
@@ -304,7 +307,15 @@ export function useOrderStats() {
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total), 0);
     const pendingOrders = orders.filter((o) => o.status === "PENDING").length;
-    const completedOrders = orders.filter((o) => o.status === "PAID").length;
+    const paidStatuses: OrderStatus[] = [
+      "PAID",
+      "PROCESSING",
+      "SHIPPED",
+      "DELIVERED",
+    ];
+    const completedOrders = orders.filter((o) =>
+      paidStatuses.includes(o.status),
+    ).length;
 
     const statusCounts = orders.reduce(
       (acc, order) => {

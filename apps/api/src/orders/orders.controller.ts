@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -20,12 +21,14 @@ export class OrdersController {
 
   // POST público — lo usa el ecommerce para crear órdenes (CASH/TRANSFER)
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   create(@Body() createOrderDto: CreateOrderDto) {
     return this.ordersService.create(createOrderDto);
   }
 
   // POST público — validación de stock antes del checkout
   @Post('validate')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   validateStock(
     @Body() data: { items: { variantId: string; quantity: number }[] },
   ) {

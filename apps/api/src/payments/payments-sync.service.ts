@@ -53,7 +53,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
    *
    * MP puede devolver:
    * - approved       → PAID  (Payments API /v1/payments — tarjeta, billetera, ticket confirmado)
-   * - processed      → PAID  (Orders API /v1/orders — Checkout Pro)
+   * - processed      → PAID  (Orders API /v1/orders — wallet/preference del Brick)
    * - pending        → PENDING (offline payment, ancora no confirmado)
    * - in_process     → PENDING (en procesamiento, no completado)
    * - authorized     → PENDING (tarjeta autorizada, no capturada)
@@ -72,7 +72,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
     switch (status) {
       // ✅ COMPLETADO
       // 'approved'  → Payments API (/v1/payments) — tarjetas, billetera MP, tickets confirmados
-      // 'processed' → Orders API  (/v1/orders)  — Checkout Pro con preferenceId
+      // 'processed' → Orders API  (/v1/orders)  — wallet/preference del Brick
       case 'approved':
       case 'processed':
         return OrderStatus.PAID;
@@ -126,7 +126,6 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
     newStatus: OrderStatus;
     source:
       | 'WEBHOOK_MERCADOPAGO'
-      | 'WEBHOOK_MODO'
       | 'CARD_PAYMENT_API'
       | 'MANUAL_OVERRIDE'
       | 'CLEANUP_TIMEOUT'
@@ -174,8 +173,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
 
       // 4. MANUAL OVERRIDE PROTECTION: Si webhook intenta revertir override manual, IGNORAR
       if (
-        (params.source === 'WEBHOOK_MERCADOPAGO' ||
-          params.source === 'WEBHOOK_MODO') &&
+        params.source === 'WEBHOOK_MERCADOPAGO' &&
         order.manualOverrideAt !== null
       ) {
         this.logger.warn(

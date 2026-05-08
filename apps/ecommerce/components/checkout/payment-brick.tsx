@@ -16,9 +16,7 @@ type BrickSelectedPaymentMethod =
   | "prepaid_card"
   | "ticket"
   | "account_money"
-  | "wallet_purchase"
-  | "bank_transfer"
-  | "atm";
+  | "wallet_purchase";
 
 interface PaymentBrickProps {
   /** Monto final (items + envío - descuento cupón) */

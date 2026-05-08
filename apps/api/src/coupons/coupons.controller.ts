@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CouponsService } from './coupons.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -37,6 +38,7 @@ export class CouponsController {
   // POST /coupons/validate — validar cupón (público, desde checkout)
   @Post('validate')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // previene enumeración de códigos
   validate(@Body() body: ValidateCouponDto) {
     return this.couponsService.validate(body.code, body.orderAmount);
   }

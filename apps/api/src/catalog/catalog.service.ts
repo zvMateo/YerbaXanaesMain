@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { CreateCatalogDto } from './dto/create-catalog.dto';
 import { UpdateCatalogDto } from './dto/update-catalog.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { CatalogQueryDto } from './dto/catalog-query.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
@@ -39,6 +40,10 @@ type VariantWithComputedStock = Omit<VariantWithRelations, 'stock'> & {
 
 type ProductWithComputedStock = Omit<ProductWithRelations, 'variants'> & {
   variants: VariantWithComputedStock[];
+};
+
+type CatalogFilters = CatalogQueryDto & {
+  includeInactive?: boolean;
 };
 
 @Injectable()
@@ -164,19 +169,28 @@ export class CatalogService {
     return this.mapProductWithStock(newProduct);
   }
 
-  async findAll() {
+  async findAll(filters: CatalogFilters = {}) {
+    const where = this.buildProductWhere(filters);
+    const orderBy = this.buildProductOrderBy(filters);
+
     const products = await this.prisma.product.findMany({
+      where,
       include: productInclude,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     });
 
-    // Mapear cada producto para calcular el stock virtual
-    return products.map((product) => this.mapProductWithStock(product));
+    const mapped = products.map((product) => this.mapProductWithStock(product));
+    const visibleByStock = filters.inStock
+      ? mapped.filter((product) => this.productHasAvailableStock(product))
+      : mapped;
+
+    return this.sortProducts(visibleByStock, filters);
   }
 
   async findOne(idOrSlug: string) {
     const product = await this.prisma.product.findFirst({
       where: {
+        isActive: true,
         OR: [{ id: idOrSlug }, { slug: idOrSlug }],
       },
       include: productInclude,
@@ -186,6 +200,83 @@ export class CatalogService {
       throw new NotFoundException(`Product '${idOrSlug}' not found`);
 
     return this.mapProductWithStock(product);
+  }
+
+  private buildProductWhere(filters: CatalogFilters): Prisma.ProductWhereInput {
+    const where: Prisma.ProductWhereInput = {};
+
+    if (!filters.includeInactive) {
+      where.isActive = true;
+    }
+
+    const category = filters.category?.trim();
+    if (category) {
+      where.category = {
+        OR: [{ id: category }, { slug: category }],
+      };
+    }
+
+    const search = filters.search?.trim();
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { category: { name: { contains: search, mode: 'insensitive' } } },
+        {
+          variants: {
+            some: { name: { contains: search, mode: 'insensitive' } },
+          },
+        },
+      ];
+    }
+
+    const priceFilter: Prisma.DecimalFilter<'ProductVariant'> = {};
+    if (filters.minPrice !== undefined) priceFilter.gte = filters.minPrice;
+    if (filters.maxPrice !== undefined) priceFilter.lte = filters.maxPrice;
+    if (Object.keys(priceFilter).length > 0) {
+      where.variants = { some: { price: priceFilter } };
+    }
+
+    return where;
+  }
+
+  private buildProductOrderBy(
+    filters: CatalogFilters,
+  ): Prisma.ProductOrderByWithRelationInput {
+    const order = filters.order ?? 'desc';
+
+    if (filters.sortBy === 'name') {
+      return { name: order };
+    }
+
+    return { createdAt: order };
+  }
+
+  private sortProducts(
+    products: ProductWithComputedStock[],
+    filters: CatalogFilters,
+  ): ProductWithComputedStock[] {
+    if (filters.sortBy !== 'price-asc' && filters.sortBy !== 'price-desc') {
+      return products;
+    }
+
+    const direction = filters.sortBy === 'price-asc' ? 1 : -1;
+    return [...products].sort((a, b) => {
+      const aPrice = this.getLowestVariantPrice(a);
+      const bPrice = this.getLowestVariantPrice(b);
+      return (aPrice - bPrice) * direction;
+    });
+  }
+
+  private getLowestVariantPrice(product: ProductWithComputedStock): number {
+    if (product.variants.length === 0) return Number.POSITIVE_INFINITY;
+    return Math.min(
+      ...product.variants.map((variant) => Number(variant.price)),
+    );
+  }
+
+  private productHasAvailableStock(product: ProductWithComputedStock): boolean {
+    return product.variants.some((variant) => variant.stock > 0);
   }
 
   async update(id: string, updateCatalogDto: UpdateCatalogDto) {

@@ -6,7 +6,8 @@ import { PaymentsService } from './payments.service';
 import { PaymentsSyncService } from './payments-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
-import { OrderStatus } from '@prisma/client';
+import { ShippingService } from '../shipping/shipping.service';
+import { OrderStatus, Prisma } from '@prisma/client';
 
 /**
  * TESTS DE INTEGRACIÓN: Payments Service - Stock Recovery & Race Conditions
@@ -30,6 +31,9 @@ describe('PaymentsService - Integration Tests', () => {
           provide: PrismaService,
           useValue: {
             $transaction: jest.fn(),
+            webhookLog: {
+              create: jest.fn(),
+            },
             order: {
               findMany: jest.fn(),
               findUnique: jest.fn(),
@@ -79,6 +83,12 @@ describe('PaymentsService - Integration Tests', () => {
             reconcileOrdersWithMercadoPago: jest.fn(),
             manuallyOverrideOrderStatus: jest.fn(),
             getOrderStateHistory: jest.fn(),
+          },
+        },
+        {
+          provide: ShippingService,
+          useValue: {
+            getRates: jest.fn(),
           },
         },
       ],
@@ -213,22 +223,26 @@ describe('PaymentsService - Integration Tests', () => {
         }),
       });
 
-      jest
-        .spyOn(prismaService.order, 'findUnique')
-        .mockResolvedValueOnce({
-          id: 'order-dup-1',
-          status: OrderStatus.PENDING,
-          deletedAt: null,
-        } as any)
-        .mockResolvedValueOnce({
-          id: 'order-dup-1',
-          status: OrderStatus.PAID,
-          deletedAt: null,
-        } as any);
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-dup-1',
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      } as any);
 
       jest
         .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
         .mockReturnValue(OrderStatus.PAID);
+
+      // Simular la deduplicación: primer webhookLog.create succeeds,
+      // segundo lanza PrismaClientKnownRequestError (unique constraint violation)
+      (prismaService.webhookLog.create as jest.Mock)
+        .mockResolvedValueOnce({ id: 'log-1' })
+        .mockRejectedValueOnce(
+          Object.assign(new Error('Unique constraint'), {
+            code: 'P2002',
+            name: 'PrismaClientKnownRequestError',
+          }),
+        );
 
       await service.handleWebhook({
         body: {},

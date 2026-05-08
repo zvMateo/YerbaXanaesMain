@@ -378,7 +378,7 @@ function CategoriesSection({ categories }: { categories: Category[] }) {
             return (
               <Link
                 key={category.id}
-                href={`/productos?categoria=${category.slug}`}
+                href={`/productos?category=${category.slug}`}
                 className="group relative overflow-hidden rounded-2xl bg-stone-50 border border-stone-200 aspect-square flex flex-col items-center justify-center hover:bg-yerba-50 hover:border-yerba-200 transition-all duration-300 cursor-pointer p-6 text-center"
               >
                 <div className="w-16 h-16 rounded-xl bg-white shadow-sm flex items-center justify-center mb-4 group-hover:bg-yerba-100 transition-colors">

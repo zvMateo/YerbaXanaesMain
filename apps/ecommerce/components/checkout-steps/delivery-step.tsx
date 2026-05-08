@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect, useCallback } from "react";
@@ -32,9 +33,14 @@ interface ShippingRate {
 
 interface ShippingRatesResponse {
   rates: ShippingRate[];
-  source: "correo_argentino" | "flat_rate";
+  source: "correo_argentino";
   packageWeightGrams: number;
 }
+
+const MANUAL_SHIPPING_WHATSAPP_URL =
+  process.env.NEXT_PUBLIC_SHIPPING_WHATSAPP_URL ||
+  process.env.NEXT_PUBLIC_WHATSAPP_URL ||
+  "https://wa.me/541100000000?text=Hola%2C%20necesito%20cotizar%20el%20env%C3%ADo%20de%20mi%20pedido%20de%20YerbaXanaes";
 
 // Códigos de provincia de Correo Argentino para mapear desde nombre de ciudad
 const PROVINCE_HINTS: Record<string, string> = {
@@ -101,9 +107,24 @@ export function DeliveryStep() {
   const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesError, setRatesError] = useState<string | null>(null);
-  const [ratesSource, setRatesSource] = useState<
-    "correo_argentino" | "flat_rate" | null
-  >(null);
+  const [ratesSource, setRatesSource] = useState<"correo_argentino" | null>(
+    null,
+  );
+
+  const handleSelectRate = useCallback(
+    (
+      rate: ShippingRate,
+      source: ShippingRatesResponse["source"],
+    ) => {
+      setSelectedRate(rate);
+      setValue("shippingCost", rate.price);
+      setValue("shippingProvider", source);
+      // Inferir código de provincia desde la ciudad
+      const provinceCode = inferProvinceCode(city || "");
+      setValue("shippingProvinceCode", provinceCode);
+    },
+    [city, setValue],
+  );
 
   // ── Cotizar envío cuando el CP tiene 4+ dígitos ───────────────
   const fetchRates = useCallback(
@@ -137,43 +158,50 @@ export function DeliveryStep() {
         setRates(data.rates);
         setRatesSource(data.source);
 
-        // Seleccionar la primera opción automáticamente
-        if (data.rates.length > 0 && !selectedRate) {
-          handleSelectRate(data.rates[0]);
+        // Seleccionar la primera opción automáticamente para evitar costos stale al cambiar CP
+        if (data.rates.length > 0) {
+          handleSelectRate(data.rates[0], data.source);
+        } else {
+          setSelectedRate(null);
+          setValue("shippingCost", 0);
+          setValue("shippingProvider", "manual_quote_required");
+          setRatesError(
+            "No pudimos cotizar automáticamente el envío. Coordiná la cotización manual por WhatsApp.",
+          );
         }
       } catch {
         setRatesError(
-          "No se pudo cotizar el envío. Se usará una tarifa estimada.",
+          "No pudimos cotizar automáticamente el envío. Coordiná la cotización manual por WhatsApp.",
         );
-        // Fallback visual
-        const fallbackRate: ShippingRate = {
-          deliveredType: "D",
-          productName: "Envío estándar",
-          price: 1500,
-          deliveryTimeMin: "3",
-          deliveryTimeMax: "7",
-          label: "Envío a domicilio — $1.500 (3 a 7 días hábiles)",
-        };
-        setRates([fallbackRate]);
-        setRatesSource("flat_rate");
-        handleSelectRate(fallbackRate);
+        setRates([]);
+        setRatesSource(null);
+        setSelectedRate(null);
+        setValue("shippingCost", 0);
+        setValue("shippingProvider", "manual_quote_required");
       } finally {
         setRatesLoading(false);
       }
     },
-    [deliveryType, items],
+    [deliveryType, handleSelectRate, items, setValue],
   );
 
   // Debounce de 800ms para no llamar la API en cada keystroke
   useEffect(() => {
     if (deliveryType !== "shipping") return;
+    setRates([]);
+    setSelectedRate(null);
+    setRatesSource(null);
+    setRatesError(null);
+    setValue("shippingCost", 0);
+    setValue("shippingProvider", "manual_quote_required");
+
     const timer = setTimeout(() => {
       if (zipCode && zipCode.length >= 4) {
         fetchRates(zipCode);
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [zipCode, deliveryType, fetchRates]);
+  }, [zipCode, deliveryType, fetchRates, setValue]);
 
   // Limpiar cotización si cambia a retiro
   useEffect(() => {
@@ -184,15 +212,6 @@ export function DeliveryStep() {
       setValue("shippingProvider", "pickup");
     }
   }, [deliveryType, setValue]);
-
-  const handleSelectRate = (rate: ShippingRate) => {
-    setSelectedRate(rate);
-    setValue("shippingCost", rate.price);
-    setValue("shippingProvider", ratesSource || "flat_rate");
-    // Inferir código de provincia desde la ciudad
-    const provinceCode = inferProvinceCode(city || "");
-    setValue("shippingProvinceCode", provinceCode);
-  };
 
   return (
     <div className="space-y-6">
@@ -376,10 +395,21 @@ export function DeliveryStep() {
                 </div>
               )}
 
-              {ratesError && !ratesLoading && (
-                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  {ratesError}
+                  {ratesError && !ratesLoading && (
+                <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <p>{ratesError}</p>
+                  </div>
+                  <a
+                    href={MANUAL_SHIPPING_WHATSAPP_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Cotizar envío por WhatsApp
+                  </a>
                 </div>
               )}
 
@@ -401,7 +431,9 @@ export function DeliveryStep() {
                           ? "border-yerba-600 bg-yerba-50"
                           : "border-stone-200 hover:border-yerba-300"
                       }`}
-                      onClick={() => handleSelectRate(rate)}
+                      onClick={() =>
+                        handleSelectRate(rate, ratesSource || "correo_argentino")
+                      }
                     >
                       <div className="flex items-center gap-2">
                         {selectedRate?.deliveredType === rate.deliveredType ? (

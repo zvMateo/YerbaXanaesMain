@@ -1,108 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Sidebar, QuickActions } from "@/components/sidebar";
+import { useState } from "react";
+import { Sidebar } from "@/components/sidebar";
 import {
   Store,
   Truck,
   CreditCard,
   Bell,
   Save,
-  CheckCircle,
   Mail,
   Phone,
   MapPin,
   DollarSign,
   Package,
   Info,
+  Loader2,
 } from "lucide-react";
-import { toast } from "sonner";
+import {
+  useSettings,
+  useUpdateSettings,
+  type StoreSettings,
+  type UpdateSettingsDto,
+} from "@/hooks/use-settings";
 
 // ============================================================
-// TIPOS
+// TIPOS LOCALES
 // ============================================================
-
-interface BusinessSettings {
-  businessName: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-}
-
-interface ShippingSettings {
-  enabled: boolean;
-  flatRate: number;
-  freeShippingThreshold: number;
-  // TODO: Integrar librería de envíos (pendiente)
-  provider: "flat" | "correo_argentino" | "oca" | "andreani";
-}
-
-interface NotificationSettings {
-  newOrderEmail: string;
-  lowStockAlert: boolean;
-  lowStockThreshold: number;
-}
-
-interface PaymentSettings {
-  mercadoPago: boolean;
-  cash: boolean;
-  transfer: boolean;
-}
 
 type SettingsTab = "business" | "shipping" | "payments" | "notifications";
-
-// ============================================================
-// HELPERS — localStorage
-// ============================================================
-
-const STORAGE_PREFIX = "yx-settings";
-
-function loadSettings<T>(key: string, defaults: T): T {
-  if (typeof window === "undefined") return defaults;
-  try {
-    const stored = localStorage.getItem(`${STORAGE_PREFIX}-${key}`);
-    return stored ? JSON.parse(stored) : defaults;
-  } catch {
-    return defaults;
-  }
-}
-
-function saveSettings<T>(key: string, data: T): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(`${STORAGE_PREFIX}-${key}`, JSON.stringify(data));
-}
-
-// ============================================================
-// DEFAULTS
-// ============================================================
-
-const DEFAULT_BUSINESS: BusinessSettings = {
-  businessName: "YerbaXanaes",
-  email: "contacto@yerbaxanaes.com",
-  phone: "",
-  address: "",
-  city: "",
-};
-
-const DEFAULT_SHIPPING: ShippingSettings = {
-  enabled: true,
-  flatRate: 1500,
-  freeShippingThreshold: 15000,
-  provider: "flat",
-};
-
-const DEFAULT_NOTIFICATIONS: NotificationSettings = {
-  newOrderEmail: "",
-  lowStockAlert: true,
-  lowStockThreshold: 10,
-};
-
-const DEFAULT_PAYMENTS: PaymentSettings = {
-  mercadoPago: true,
-  cash: true,
-  transfer: true,
-};
 
 // ============================================================
 // COMPONENTES DE SECCIÓN
@@ -112,11 +37,11 @@ function BusinessSection({
   settings,
   onChange,
 }: {
-  settings: BusinessSettings;
-  onChange: (s: BusinessSettings) => void;
+  settings: StoreSettings;
+  onChange: (patch: UpdateSettingsDto) => void;
 }) {
   const fields: {
-    key: keyof BusinessSettings;
+    key: keyof UpdateSettingsDto;
     label: string;
     icon: React.ReactNode;
     type?: string;
@@ -184,10 +109,10 @@ function BusinessSection({
               </span>
               <input
                 type={field.type || "text"}
-                value={settings[field.key] || ""}
-                onChange={(e) =>
-                  onChange({ ...settings, [field.key]: e.target.value })
+                value={
+                  (settings[field.key as keyof StoreSettings] as string) || ""
                 }
+                onChange={(e) => onChange({ [field.key]: e.target.value })}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 focus:border-yerba-500 focus:ring-2 focus:ring-yerba-100 transition-all focus:outline-none"
                 placeholder={field.placeholder}
               />
@@ -203,8 +128,8 @@ function ShippingSection({
   settings,
   onChange,
 }: {
-  settings: ShippingSettings;
-  onChange: (s: ShippingSettings) => void;
+  settings: StoreSettings;
+  onChange: (patch: UpdateSettingsDto) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -222,7 +147,6 @@ function ShippingSection({
         </div>
       </div>
 
-      {/* Toggle envío */}
       <div className="flex items-center justify-between p-4 bg-stone-50 rounded-xl">
         <div className="flex items-center gap-3">
           <Truck className="h-5 w-5 text-stone-500" />
@@ -238,17 +162,15 @@ function ShippingSection({
         <label className="relative inline-flex items-center cursor-pointer">
           <input
             type="checkbox"
-            checked={settings.enabled}
-            onChange={(e) =>
-              onChange({ ...settings, enabled: e.target.checked })
-            }
+            checked={settings.shippingEnabled}
+            onChange={(e) => onChange({ shippingEnabled: e.target.checked })}
             className="sr-only peer"
           />
           <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yerba-100 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yerba-600"></div>
         </label>
       </div>
 
-      {settings.enabled && (
+      {settings.shippingEnabled && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
@@ -257,9 +179,9 @@ function ShippingSection({
             </label>
             <input
               type="number"
-              value={settings.flatRate}
+              value={settings.shippingFlatRate}
               onChange={(e) =>
-                onChange({ ...settings, flatRate: Number(e.target.value) })
+                onChange({ shippingFlatRate: Number(e.target.value) })
               }
               className="w-full px-4 py-2.5 rounded-xl border border-stone-200 focus:border-yerba-500 focus:ring-2 focus:ring-yerba-100 transition-all focus:outline-none"
             />
@@ -273,10 +195,7 @@ function ShippingSection({
               type="number"
               value={settings.freeShippingThreshold}
               onChange={(e) =>
-                onChange({
-                  ...settings,
-                  freeShippingThreshold: Number(e.target.value),
-                })
+                onChange({ freeShippingThreshold: Number(e.target.value) })
               }
               className="w-full px-4 py-2.5 rounded-xl border border-stone-200 focus:border-yerba-500 focus:ring-2 focus:ring-yerba-100 transition-all focus:outline-none"
             />
@@ -284,7 +203,6 @@ function ShippingSection({
         </div>
       )}
 
-      {/* TODO: Integración con librería de envíos */}
       <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
         <div className="flex items-start gap-3">
           <Info className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
@@ -308,29 +226,29 @@ function PaymentsSection({
   settings,
   onChange,
 }: {
-  settings: PaymentSettings;
-  onChange: (s: PaymentSettings) => void;
+  settings: StoreSettings;
+  onChange: (patch: UpdateSettingsDto) => void;
 }) {
   const methods: {
-    key: keyof PaymentSettings;
+    key: keyof UpdateSettingsDto;
     name: string;
     desc: string;
     color: string;
   }[] = [
     {
-      key: "mercadoPago",
+      key: "paymentMercadoPago",
       name: "MercadoPago",
       desc: "Tarjetas de crédito/débito, dinero en cuenta",
       color: "bg-blue-100 text-blue-600",
     },
     {
-      key: "cash",
+      key: "paymentCash",
       name: "Efectivo",
       desc: "Pago al recibir o retiro en local",
       color: "bg-green-100 text-green-600",
     },
     {
-      key: "transfer",
+      key: "paymentTransfer",
       name: "Transferencia bancaria",
       desc: "CBU / Alias directo al banco",
       color: "bg-purple-100 text-purple-600",
@@ -371,12 +289,8 @@ function PaymentsSection({
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={settings[method.key]}
-                onChange={(e) => {
-                  const updated: PaymentSettings = { ...settings };
-                  updated[method.key] = e.target.checked;
-                  onChange(updated);
-                }}
+                checked={settings[method.key as keyof StoreSettings] as boolean}
+                onChange={(e) => onChange({ [method.key]: e.target.checked })}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yerba-100 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yerba-600"></div>
@@ -392,8 +306,8 @@ function NotificationsSection({
   settings,
   onChange,
 }: {
-  settings: NotificationSettings;
-  onChange: (s: NotificationSettings) => void;
+  settings: StoreSettings;
+  onChange: (patch: UpdateSettingsDto) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -418,16 +332,13 @@ function NotificationsSection({
         </label>
         <input
           type="email"
-          value={settings.newOrderEmail}
-          onChange={(e) =>
-            onChange({ ...settings, newOrderEmail: e.target.value })
-          }
+          value={settings.notificationEmail}
+          onChange={(e) => onChange({ notificationEmail: e.target.value })}
           className="w-full px-4 py-2.5 rounded-xl border border-stone-200 focus:border-yerba-500 focus:ring-2 focus:ring-yerba-100 transition-all focus:outline-none"
           placeholder="tu-email@ejemplo.com"
         />
       </div>
 
-      {/* Alerta de stock bajo */}
       <div className="flex items-center justify-between p-4 bg-stone-50 rounded-xl">
         <div>
           <p className="font-medium text-stone-900">Alerta de stock bajo</p>
@@ -439,9 +350,7 @@ function NotificationsSection({
           <input
             type="checkbox"
             checked={settings.lowStockAlert}
-            onChange={(e) =>
-              onChange({ ...settings, lowStockAlert: e.target.checked })
-            }
+            onChange={(e) => onChange({ lowStockAlert: e.target.checked })}
             className="sr-only peer"
           />
           <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yerba-100 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yerba-600"></div>
@@ -457,10 +366,7 @@ function NotificationsSection({
             type="number"
             value={settings.lowStockThreshold}
             onChange={(e) =>
-              onChange({
-                ...settings,
-                lowStockThreshold: Number(e.target.value),
-              })
+              onChange({ lowStockThreshold: Number(e.target.value) })
             }
             className="w-full px-4 py-2.5 rounded-xl border border-stone-200 focus:border-yerba-500 focus:ring-2 focus:ring-yerba-100 transition-all focus:outline-none"
           />
@@ -476,36 +382,26 @@ function NotificationsSection({
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("business");
-  const [hasChanges, setHasChanges] = useState(false);
+  // Cambios locales aún no guardados
+  const [pending, setPending] = useState<UpdateSettingsDto>({});
 
-  const [business, setBusiness] = useState<BusinessSettings>(() =>
-    loadSettings("business", DEFAULT_BUSINESS),
-  );
-  const [shipping, setShipping] = useState<ShippingSettings>(() =>
-    loadSettings("shipping", DEFAULT_SHIPPING),
-  );
-  const [notifications, setNotifications] = useState<NotificationSettings>(() =>
-    loadSettings("notifications", DEFAULT_NOTIFICATIONS),
-  );
-  const [payments, setPayments] = useState<PaymentSettings>(() =>
-    loadSettings("payments", DEFAULT_PAYMENTS),
-  );
+  const { data: remote, isLoading } = useSettings();
+  const { mutate: save, isPending: isSaving } = useUpdateSettings();
 
-  // Detectar cambios
-  useEffect(() => {
-    // Simple: si algo difiere de lo guardado, hay cambios
-    setHasChanges(true);
-  }, [business, shipping, notifications, payments]);
+  // Merge: datos remotos como base, overrides locales encima
+  const settings: StoreSettings | null = remote
+    ? { ...remote, ...pending }
+    : null;
+
+  const hasPendingChanges = Object.keys(pending).length > 0;
+
+  const handleChange = (patch: UpdateSettingsDto) => {
+    setPending((prev) => ({ ...prev, ...patch }));
+  };
 
   const handleSave = () => {
-    saveSettings("business", business);
-    saveSettings("shipping", shipping);
-    saveSettings("notifications", notifications);
-    saveSettings("payments", payments);
-    setHasChanges(false);
-    toast.success("Configuración guardada", {
-      description: "Los cambios se aplicaron correctamente",
-    });
+    if (!hasPendingChanges) return;
+    save(pending, { onSuccess: () => setPending({}) });
   };
 
   const tabs: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
@@ -561,32 +457,54 @@ export default function ConfiguracionPage() {
 
           {/* Content */}
           <div className="bg-white rounded-2xl border border-stone-200 p-6 mb-8">
-            {activeTab === "business" && (
-              <BusinessSection settings={business} onChange={setBusiness} />
-            )}
-            {activeTab === "shipping" && (
-              <ShippingSection settings={shipping} onChange={setShipping} />
-            )}
-            {activeTab === "payments" && (
-              <PaymentsSection settings={payments} onChange={setPayments} />
-            )}
-            {activeTab === "notifications" && (
-              <NotificationsSection
-                settings={notifications}
-                onChange={setNotifications}
-              />
+            {isLoading || !settings ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+              </div>
+            ) : (
+              <>
+                {activeTab === "business" && (
+                  <BusinessSection
+                    settings={settings}
+                    onChange={handleChange}
+                  />
+                )}
+                {activeTab === "shipping" && (
+                  <ShippingSection
+                    settings={settings}
+                    onChange={handleChange}
+                  />
+                )}
+                {activeTab === "payments" && (
+                  <PaymentsSection
+                    settings={settings}
+                    onChange={handleChange}
+                  />
+                )}
+                {activeTab === "notifications" && (
+                  <NotificationsSection
+                    settings={settings}
+                    onChange={handleChange}
+                  />
+                )}
+              </>
             )}
           </div>
 
-          {/* Save Button */}
-          {hasChanges && (
+          {/* Botón guardar — solo visible cuando hay cambios pendientes */}
+          {hasPendingChanges && (
             <div className="flex justify-end">
               <button
                 onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-3 bg-yerba-600 text-white font-medium rounded-xl hover:bg-yerba-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                disabled={isSaving}
+                className="flex items-center gap-2 px-6 py-3 bg-yerba-600 text-white font-medium rounded-xl hover:bg-yerba-700 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Save className="h-4 w-4" />
-                Guardar cambios
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {isSaving ? "Guardando..." : "Guardar cambios"}
               </button>
             </div>
           )}

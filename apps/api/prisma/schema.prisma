@@ -216,7 +216,6 @@ enum OrderStatus {
 
 enum PaymentProvider {
   MERCADOPAGO
-  MODO
   CASH
   TRANSFER
 }
@@ -232,10 +231,8 @@ enum SalesChannel {
 // Quién/cómo cambió el estado de la orden
 enum StateChangeSource {
   WEBHOOK_MERCADOPAGO  // Webhook de MP (fuente de verdad para MP)
-  WEBHOOK_MODO         // Webhook de MODO
   CHECKOUT_REDIRECT    // Redirección post-checkout
   CARD_PAYMENT_API     // Respuesta directa de Card API
-  MODO_PAYMENT_API     // Respuesta directa de MODO API
   CHECKOUT_VALIDATION  // Validación de stock pre-checkout
   CLEANUP_TIMEOUT      // Timeout automático (PENDING vencido)
   MANUAL_OVERRIDE      // Cambio manual desde backoffice
@@ -265,7 +262,6 @@ model Order {
   mpPaymentId     String?         // ID de pago de MP
   mpStatus        String?         // Estado crudo de MP
   mpCardToken     String?         // Opcional: debugging seguro
-  modoCheckoutId  String?         // ID del checkout MODO
 
   // Datos de Entrega
   deliveryType         String?    // "shipping" | "pickup"
@@ -300,6 +296,8 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([userId])
+  @@index([deletedAt])
+  @@index([status, deletedAt])
 }
 
 model OrderItem {
@@ -403,4 +401,42 @@ model OrderDiscount {
   couponId       String
   coupon         Coupon   @relation(fields: [couponId], references: [id])
   discountAmount Decimal  @db.Decimal(10, 2)
+}
+
+// Configuración global de la tienda — tabla singleton (siempre 1 fila con id='singleton')
+model StoreSettings {
+  id                    String   @id @default("singleton")
+  // Negocio
+  businessName          String   @default("YerbaXanaes")
+  email                 String   @default("")
+  phone                 String   @default("")
+  address               String   @default("")
+  city                  String   @default("")
+  // Envíos
+  shippingEnabled       Boolean  @default(true)
+  shippingFlatRate      Int      @default(1500)
+  freeShippingThreshold Int      @default(15000)
+  // Pagos
+  paymentMercadoPago    Boolean  @default(true)
+  paymentCash           Boolean  @default(true)
+  paymentTransfer       Boolean  @default(true)
+  // Notificaciones
+  notificationEmail     String   @default("")
+  lowStockAlert         Boolean  @default(true)
+  lowStockThreshold     Int      @default(10)
+
+  updatedAt             DateTime @updatedAt
+}
+
+// Tabla de deduplicación para webhooks — evita re-procesar retries duplicados de MP
+model WebhookLog {
+  id          String   @id @default(uuid())
+  requestId   String   // x-request-id del header del webhook
+  dataId      String   // id del payment/merchant_order del payload
+  type        String   // "payment", "merchant_order"
+  processedAt DateTime @default(now())
+
+  @@unique([requestId, type])
+  @@index([dataId, type])
+  @@index([processedAt])
 }

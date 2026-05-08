@@ -75,7 +75,9 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('YerbaXanaes API')
-      .setDescription('API para gestión de Inventario y E-commerce de Yerba Mate')
+      .setDescription(
+        'API para gestión de Inventario y E-commerce de Yerba Mate',
+      )
       .setVersion('1.0')
       .addBearerAuth()
       .addTag('auth', 'Autenticación (manejada por Better Auth en Next.js)')

@@ -24,14 +24,11 @@ import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { PaymentsSyncService } from './payments-sync.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
-import { CreatePreferenceDto } from './dto/create-preference.dto';
 import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
 import { BrickInitDto } from './dto/brick-init.dto';
-import { CreateModoPaymentDto } from './dto/create-modo-payment.dto';
 import { OverrideOrderStatusDto } from './dto/override-order-status.dto';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { AuthGuard } from '../auth/guards/auth.guard';
-import { OrderStatus } from '@prisma/client';
 
 @ApiTags('Payments')
 @Controller('payments')
@@ -42,14 +39,6 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly paymentsSyncService: PaymentsSyncService,
   ) {}
-
-  @Post('checkout')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: 'Crear preferencia (Redirect/Billetera)' })
-  async createCheckoutPreference(@Body() dto: CreatePreferenceDto) {
-    return this.paymentsService.createCheckoutPreference(dto);
-  }
 
   @Post('process')
   @HttpCode(HttpStatus.OK)
@@ -101,30 +90,6 @@ export class PaymentsController {
     };
   }
 
-  @Post('modo')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({
-    summary: 'Crear intención de pago con MODO',
-    description:
-      'Crea una orden PENDING y genera el QR + deeplink de MODO para que el usuario pague desde su app bancaria. Soporta Ahora 3/6/12/18.',
-  })
-  @ApiResponse({ status: 200, description: 'Checkout MODO generado' })
-  async createModoPayment(@Body() dto: CreateModoPaymentDto) {
-    return this.paymentsService.createModoPayment(dto);
-  }
-
-  @Post('modo-webhook')
-  @SkipThrottle()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Webhook de MODO' })
-  async handleModoWebhook(
-    @Body() body: Record<string, unknown>,
-    @Headers('x-modo-signature') signature: string | undefined,
-  ) {
-    return this.paymentsService.handleModoWebhook(body, signature);
-  }
-
   @Get('order-status/:id')
   @ApiOperation({
     summary: 'Consultar estado canónico de orden/pago',
@@ -145,7 +110,7 @@ export class PaymentsController {
   @ApiOperation({
     summary: 'Webhook de Mercado Pago',
     description:
-      'Recibe notificaciones de Mercado Pago. Maneja tópico "payment" (Payments API — Brick: tarjetas, billetera, tickets) y "order" (Orders API — Checkout Pro).',
+      'Recibe notificaciones de Mercado Pago. Maneja tópico "payment" (Payments API — Brick: tarjetas, billetera, tickets) y "order" (wallet/preference del Brick).',
   })
   @ApiResponse({
     status: 200,

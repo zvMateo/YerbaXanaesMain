@@ -96,7 +96,7 @@ export class CreateOrderDto {
 
   @IsString()
   @IsOptional()
-  shippingProvider?: string; // "correo_argentino" | "flat_rate" | "pickup"
+  shippingProvider?: string; // "correo_argentino" | "manual_quote_required" | "pickup"
 
   // Notas internas (para ventas manuales)
   @IsString()

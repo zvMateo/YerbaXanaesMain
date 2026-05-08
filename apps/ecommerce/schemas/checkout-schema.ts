@@ -38,20 +38,20 @@ export const checkoutSchema = z.object({
     .regex(/^\d{4,8}$/, "El código postal debe tener entre 4 y 8 dígitos")
     .optional(),
 
-  // Paso 3: Método de pago
-  paymentMethod: z.enum(["mercadopago", "modo", "transfer"]),
+  // Paso 3: Método de pago — ecommerce usa solo Mercado Pago Payment Brick
+  paymentMethod: z.enum(["mercadopago"]),
 
-  // Cuotas MODO (solo aplica si paymentMethod === "modo")
-  modoInstallments: z.number().int().optional(),
-
-  // Costo de envío calculado (lo setea el delivery-step tras cotizar)
-  shippingCost: z.number(),
-  shippingProvider: z.string(), // "correo_argentino" | "flat_rate" | "pickup"
+// Costo de envío calculado (lo setea el delivery-step tras cotizar)
+  shippingCost: z.number().min(0, "El costo de envío no puede ser negativo"),
+  shippingProvider: z.string(), // "correo_argentino" | "manual_quote_required" | "pickup"
   shippingProvinceCode: z.string(), // Código de provincia Correo Argentino
 
   // Cupón de descuento (opcional)
   couponCode: z.string().optional(),
-  couponDiscount: z.number().optional(), // Monto a descontar del total
+  couponDiscount: z
+    .number()
+    .min(0, "El descuento no puede ser negativo")
+    .optional(), // Monto a descontar del total
 
   // Notas adicionales
   notes: z

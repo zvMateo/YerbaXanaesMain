@@ -6,7 +6,6 @@ import {
   Delete,
   Body,
   Param,
-  Query,
   UseGuards,
   Request,
   HttpCode,
@@ -14,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { RatingsService } from './ratings.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Controller()
 export class RatingsController {
@@ -37,21 +37,20 @@ export class RatingsController {
 
   // GET /products/:id/ratings — ratings aprobados de un producto
   @Get('products/:id/ratings')
-  findByProduct(@Param('id') id: string, @Query('all') all: string) {
-    const onlyApproved = all !== 'true';
-    return this.ratingsService.findByProduct(id, onlyApproved);
+  findByProduct(@Param('id') id: string) {
+    return this.ratingsService.findByProduct(id, true);
   }
 
   // GET /ratings — todas las reseñas (solo admin)
   @Get('ratings')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   findAll() {
     return this.ratingsService.findAll();
   }
 
   // PATCH /ratings/:id/approve — aprobar reseña (solo admin)
   @Patch('ratings/:id/approve')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   @HttpCode(HttpStatus.OK)
   approve(@Param('id') id: string) {
     return this.ratingsService.approve(id);
@@ -59,7 +58,7 @@ export class RatingsController {
 
   // PATCH /ratings/:id/reject — rechazar reseña (solo admin)
   @Patch('ratings/:id/reject')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   @HttpCode(HttpStatus.OK)
   reject(@Param('id') id: string) {
     return this.ratingsService.reject(id);
@@ -67,7 +66,7 @@ export class RatingsController {
 
   // DELETE /ratings/:id — eliminar reseña (solo admin)
   @Delete('ratings/:id')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   remove(@Param('id') id: string) {
     return this.ratingsService.remove(id);
   }

@@ -96,8 +96,8 @@ export class CreateBrickPaymentDto {
   /**
    * Tipo de pago seleccionado por el usuario en el brick.
    * Valores posibles según SDK: 'credit_card', 'debit_card', 'prepaid_card',
-   * 'ticket', 'bank_transfer', 'wallet_purchase', 'atm', 'account_money'
-   * Nota: 'prepaid_card' se emite cuando prepaidCard está habilitado en el Brick.
+   * 'ticket', 'wallet_purchase', 'account_money'
+   * Nota: 'bank_transfer' y 'atm' no tienen handler en backend — eliminados.
    */
   @IsIn([
     'credit_card',
@@ -106,8 +106,6 @@ export class CreateBrickPaymentDto {
     'ticket',
     'account_money',
     'wallet_purchase',
-    'bank_transfer',
-    'atm',
   ])
   selectedPaymentMethod!:
     | 'credit_card'
@@ -115,9 +113,7 @@ export class CreateBrickPaymentDto {
     | 'prepaid_card'
     | 'ticket'
     | 'account_money'
-    | 'wallet_purchase'
-    | 'bank_transfer'
-    | 'atm';
+    | 'wallet_purchase';
 
   /**
    * Para wallet_purchase el SDK devuelve formData: null.

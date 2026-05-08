@@ -11,14 +11,13 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
-import { CreatePreferenceDto } from './dto/create-preference.dto';
 import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
 import { BrickInitDto } from './dto/brick-init.dto';
-import { CreateModoPaymentDto } from './dto/create-modo-payment.dto';
 import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { CouponsService } from '../coupons/coupons.service';
 import { PaymentsSyncService } from './payments-sync.service';
+import { ShippingService } from '../shipping/shipping.service';
 
 /**
  * Métricas devueltas por el cleanup de órdenes PENDING
@@ -44,6 +43,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly coupons: CouponsService,
     private readonly paymentsSync: PaymentsSyncService,
+    private readonly shipping: ShippingService,
   ) {
     const client = new MercadoPagoConfig({
       accessToken: this.config.get<string>('MP_ACCESS_TOKEN')!,
@@ -72,112 +72,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
-    }
-  }
-
-  // -------------------------------------------------------
-  // CHECKOUT PRO (Billetera - Redirect)
-  // -------------------------------------------------------
-  async createCheckoutPreference(dto: CreatePreferenceDto) {
-    const frontendUrl = (
-      this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000'
-    ).replace(/\/$/, '');
-    const apiUrl = (
-      this.config.get<string>('API_URL') || 'http://localhost:3001'
-    ).replace(/\/$/, '');
-
-    const totalAmount = dto.items.reduce(
-      (sum, item) => sum + item.unit_price * item.quantity,
-      0,
-    );
-
-    const shippingCost = Number(dto.shippingCost ?? 0);
-    const subtotalWithShipping = totalAmount + shippingCost;
-
-    let couponValidation: Awaited<
-      ReturnType<CouponsService['validate']>
-    > | null = null;
-
-    if (dto.couponCode) {
-      couponValidation = await this.coupons.validate(
-        dto.couponCode,
-        subtotalWithShipping,
-      );
-    }
-
-    const discount = couponValidation?.discountAmount ?? 0;
-    const finalAmount = Math.max(0, subtotalWithShipping - discount);
-
-    const order = await this.createPendingOrder({
-      customerEmail: dto.payerEmail,
-      customerName: dto.customerName,
-      customerPhone: dto.customerPhone,
-      orderItems: dto.orderItems || [],
-      totalAmount: finalAmount,
-      deliveryType: dto.deliveryType,
-      shippingAddress: dto.shippingAddress,
-      shippingCity: dto.shippingCity,
-      shippingProvinceCode: dto.shippingProvinceCode,
-      shippingZip: dto.shippingZip,
-      shippingCost,
-      shippingProvider: dto.shippingProvider,
-    });
-
-    if (couponValidation) {
-      await this.prisma.$transaction(async (tx) => {
-        await this.coupons.applyToOrder(
-          tx,
-          order.id,
-          couponValidation.couponId,
-          couponValidation.discountAmount,
-        );
-      });
-    }
-
-    const successUrl = `${frontendUrl}/checkout/success?orderId=${order.id}`;
-
-    try {
-      const preference = await this.preferenceClient.create({
-        body: {
-          items: dto.items,
-          payer: { email: dto.payerEmail },
-          back_urls: {
-            success: successUrl,
-            failure: `${frontendUrl}/checkout/failure`,
-            pending: `${frontendUrl}/checkout/pending`,
-          },
-          ...(frontendUrl.startsWith('https')
-            ? { auto_return: 'approved' as const }
-            : {}),
-          external_reference: order.id,
-          notification_url: `${apiUrl}/payments/webhook`,
-          statement_descriptor: 'YERBAXANAES',
-          binary_mode: true,
-          expires: true,
-          expiration_date_from: new Date().toISOString(),
-          expiration_date_to: new Date(
-            Date.now() + 24 * 60 * 60 * 1000,
-          ).toISOString(),
-        },
-        requestOptions: { idempotencyKey: order.id },
-      });
-
-      return {
-        preferenceId: preference.id,
-        initPoint: preference.init_point,
-        sandboxInitPoint: preference.sandbox_init_point,
-        orderId: order.id,
-      };
-    } catch (error) {
-      this.logger.error('Error creando preferencia MP', error);
-      // Rollback de stock si falla MP
-      await this.cancelPendingOrderWithStockRestore(
-        order.id,
-        'preference_creation_error',
-        undefined,
-        'PAYMENT_REJECTED',
-      );
-      throw new InternalServerErrorException('Error creando preferencia MP');
     }
   }
 
@@ -256,8 +150,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         await this.coupons.applyToOrder(
           tx,
           order.id,
-          couponValidation!.couponId,
-          couponValidation!.discountAmount,
+          couponValidation.couponId,
+          couponValidation.discountAmount,
         );
       });
     }
@@ -299,7 +193,9 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
             : {}),
           external_reference: order.id,
           notification_url: `${apiUrl}/payments/webhook`,
-          statement_descriptor: 'YERBAXANAES',
+          statement_descriptor:
+            this.config.get<string>('MP_STATEMENT_DESCRIPTOR') ||
+            'YERBAXANAES',
           // binary_mode: false para permitir wallet y cuotas sin tarjeta (pueden quedar in_process)
           binary_mode: false,
           expires: true,
@@ -409,8 +305,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           await this.coupons.applyToOrder(
             tx,
             order.id,
-            couponValidation!.couponId,
-            couponValidation!.discountAmount,
+            couponValidation.couponId,
+            couponValidation.discountAmount,
           );
         });
       }
@@ -588,8 +484,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       'ticket',
       'account_money',
       'wallet_purchase',
-      'bank_transfer',
-      'atm',
     ]);
 
     if (!supportedMethods.has(dto.selectedPaymentMethod)) {
@@ -686,7 +580,64 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           shippingProvider: dto.shippingProvider,
         });
       } else {
+        /**
+         * RE-COTIZAR ENVÍO EN EL SERVER — Protege contra:
+         * a) CP modificado por el usuario entre delivery-step y brick-init
+         * b) Tarifas de Correo Argentino actualizadas desde la cotización original
+         * Solo aplica para método "correo_argentino". Otros providers se ignoran.
+         */
+        let serverShippingCost = shippingCost;
+
+        if (
+          dto.shippingProvider === 'correo_argentino' &&
+          dto.shippingZip
+        ) {
+          try {
+            const rateResponse = await this.shipping.getRates({
+              items: dto.orderItems,
+              postalCodeDestination: dto.shippingZip,
+            });
+
+            if (rateResponse.rates.length > 0) {
+              const cheapestRate = rateResponse.rates.reduce((a, b) =>
+                a.price <= b.price ? a : b,
+              );
+
+              serverShippingCost = cheapestRate.price;
+
+              if (
+                Math.abs(serverShippingCost - shippingCost) > 0.5
+              ) {
+                this.logger.warn(
+                  `Shipping cost mismatch para orden ${existing.id}: ` +
+                    `client=${shippingCost} server=${serverShippingCost} — actualizando total`,
+                );
+                // Recalcular total con el costo de envío verificado
+                const grossAmount = itemsSubtotal + serverShippingCost;
+                const newFinalAmount = Math.max(
+                  0,
+                  grossAmount - couponDiscount,
+                );
+
+                await this.prisma.order.update({
+                  where: { id: existing.id },
+                  data: { total: newFinalAmount },
+                });
+                this.logger.log(
+                  `Orden ${existing.id} total actualizado a ${newFinalAmount} tras re-cotizar envío`,
+                );
+              }
+            }
+          } catch {
+            // Correo falló — usar el shippingCost del cliente (no blockeamos el pago)
+            this.logger.warn(
+              `No se pudo re-cotizar envío para orden ${existing.id} — usando costo original`,
+            );
+          }
+        }
+
         // Actualizar total si el monto cambió (ej: cupón aplicado después de brick-init)
+        // Nota: si recién recalculamos por diff de shipping, el total ya se actualizó arriba
         if (Math.abs(Number(existing.total) - finalAmount) > 0.01) {
           await this.prisma.order.update({
             where: { id: existing.id },
@@ -700,8 +651,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
               await this.coupons.applyToOrder(
                 tx,
                 existing.id,
-                couponValidation!.couponId,
-                couponValidation!.discountAmount,
+                couponValidation.couponId,
+                couponValidation.discountAmount,
               );
             });
           } catch {
@@ -736,8 +687,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           await this.coupons.applyToOrder(
             tx,
             order.id,
-            couponValidation!.couponId,
-            couponValidation!.discountAmount,
+            couponValidation.couponId,
+            couponValidation.discountAmount,
           );
         });
       }
@@ -1260,7 +1211,20 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Invalid webhook signature');
     }
 
-    // 2a. Tópico "payment" — Payments API (/v1/payments)
+    // 2. Deduplicación: evitar re-procesar retries duplicados del mismo webhook
+    try {
+      await this.prisma.webhookLog.create({
+        data: { requestId, dataId: dataIdUrl, type: typeUrl },
+      });
+    } catch {
+      // @@unique([requestId, type]) lanza error si ya existe → webhook ya procesado
+      this.logger.log(
+        `Webhook duplicado ignorado: requestId=${requestId}, type=${typeUrl}, dataId=${dataIdUrl}`,
+      );
+      return { status: 'already_processed' };
+    }
+
+    // 3a. Tópico "payment" — Payments API (/v1/payments)
     //     Usado por: Payment Brick con tarjeta, billetera MP, tickets (Rapipago/Pago Fácil)
     if (typeUrl === 'payment' && dataIdUrl) {
       try {
@@ -1279,6 +1243,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const extRef: string | undefined = mpPayment.external_reference;
 
         if (!extRef) return { status: 'ok' };
+
+        // Bloquear la fila para evitar race condition con cleanup/webhook concurrente
+        await this.prisma.$queryRaw`
+          SELECT id FROM "Order" WHERE id = ${extRef} FOR UPDATE
+        `;
 
         const existing = await this.prisma.order.findUnique({
           where: { id: extRef },
@@ -1345,8 +1314,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // 2b. Tópico "order" — Orders API (/v1/orders)
-    //     Usado por: Checkout Pro con preferenceId (wallet_purchase)
+    // 3b. Tópico "order" — Orders API (/v1/orders)
+    //     Usado por: wallet/preference del Payment Brick (wallet_purchase)
     if (typeUrl === 'order' && dataIdUrl) {
       try {
         const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
@@ -1367,6 +1336,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const extRef = mpOrder.external_reference;
 
         if (!extRef) return { status: 'ok' };
+
+        // Bloquear la fila para evitar race condition con cleanup/webhook concurrente
+        await this.prisma.$queryRaw`
+          SELECT id FROM "Order" WHERE id = ${extRef} FOR UPDATE
+        `;
 
         const existing = await this.prisma.order.findUnique({
           where: { id: extRef },
@@ -1710,260 +1684,5 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         },
       });
     });
-  }
-
-  // -------------------------------------------------------
-  // MODO — Crear intención de pago
-  // -------------------------------------------------------
-  async createModoPayment(dto: CreateModoPaymentDto): Promise<{
-    orderId: string;
-    checkoutId: string;
-    deeplink: string;
-    qrCode: string; // base64 PNG
-    expiresAt: string; // ISO string
-  }> {
-    this.logger.log(
-      `Iniciando pago MODO para ${dto.customerEmail} — cuotas: ${dto.installments ?? 1}`,
-    );
-
-    const modoBaseUrl =
-      this.config.get<string>('MODO_BASE_URL') || 'https://api.modo.com.ar';
-    const modoClientId = this.config.get<string>('MODO_CLIENT_ID');
-    const modoClientSecret = this.config.get<string>('MODO_CLIENT_SECRET');
-
-    if (!modoClientId || !modoClientSecret) {
-      throw new InternalServerErrorException(
-        'Faltan credenciales de MODO (MODO_CLIENT_ID / MODO_CLIENT_SECRET)',
-      );
-    }
-
-    // 1. Calcular monto real ANTES de validar cupón
-    const itemsSubtotal = await this.calculateOrderItemsSubtotal(dto.orderItems);
-    const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
-    const grossAmount = itemsSubtotal + shippingCost;
-
-    // 2. Validar cupón sobre el monto real
-    let couponValidation: Awaited<
-      ReturnType<CouponsService['validate']>
-    > | null = null;
-    if (dto.couponCode) {
-      try {
-        couponValidation = await this.coupons.validate(
-          dto.couponCode,
-          grossAmount,
-        );
-      } catch {
-        this.logger.warn(`Cupón ${dto.couponCode} inválido en MODO — ignorado`);
-      }
-    }
-
-    const discount = couponValidation?.discountAmount ?? 0;
-    const totalAmount = Math.max(0, grossAmount - discount);
-
-    // 3. Crear orden PENDING con el total correcto y descontar stock
-    const order = await this.createPendingOrder({
-      customerEmail: dto.customerEmail,
-      customerName: dto.customerName,
-      customerPhone: dto.customerPhone,
-      orderItems: dto.orderItems,
-      totalAmount,
-      deliveryType: dto.deliveryType,
-      shippingAddress: dto.shippingAddress,
-      shippingCity: dto.shippingCity,
-      shippingProvinceCode: dto.shippingProvinceCode,
-      shippingZip: dto.shippingZip,
-      shippingCost,
-      shippingProvider: dto.shippingProvider,
-    });
-
-    // Aplicar cupón si corresponde
-    if (couponValidation) {
-      await this.prisma.$transaction(async (tx) => {
-        await this.coupons.applyToOrder(
-          tx,
-          order.id,
-          couponValidation!.couponId,
-          couponValidation!.discountAmount,
-        );
-      });
-    }
-
-    // 3. Autenticarse con MODO (OAuth2 client_credentials)
-    const tokenResponse = await fetch(`${modoBaseUrl}/auth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'client_credentials',
-        client_id: modoClientId,
-        client_secret: modoClientSecret,
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const err = await tokenResponse.json().catch(() => ({}));
-      this.logger.error('Error autenticando con MODO', err);
-      await this.cancelPendingOrderWithStockRestore(
-        order.id,
-        'modo_auth_failed',
-      );
-      throw new InternalServerErrorException('Error al conectar con MODO');
-    }
-
-    const { access_token } = (await tokenResponse.json()) as {
-      access_token: string;
-    };
-
-    // 4. Crear checkout en MODO
-    const idempotencyKey = crypto
-      .createHash('sha256')
-      .update(JSON.stringify({ orderId: order.id, totalAmount }))
-      .digest('hex');
-
-    const modoPayload = {
-      amount: Math.round(totalAmount * 100), // MODO usa centavos
-      currency: 'ARS',
-      external_reference: order.id,
-      description: 'Compra en YerbaXanaes',
-      installments: dto.installments ?? 1,
-      callback_url: `${this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000'}/checkout/success?orderId=${order.id}`,
-      webhook_url: `${this.config.get<string>('API_URL') || 'http://localhost:3001'}/payments/modo-webhook`,
-    };
-
-    const checkoutResponse = await fetch(`${modoBaseUrl}/checkout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${access_token}`,
-        'X-Idempotency-Key': idempotencyKey,
-      },
-      body: JSON.stringify(modoPayload),
-    });
-
-    if (!checkoutResponse.ok) {
-      const err = await checkoutResponse.json().catch(() => ({}));
-      this.logger.error('Error creando checkout MODO', err);
-      await this.cancelPendingOrderWithStockRestore(
-        order.id,
-        'modo_checkout_failed',
-      );
-      throw new BadRequestException('Error al iniciar el pago con MODO');
-    }
-
-    const modoData = (await checkoutResponse.json()) as {
-      checkout_id: string;
-      deeplink: string;
-      qr_code: string; // base64 PNG
-      expires_at: string;
-    };
-
-    // 5. Guardar modoCheckoutId en la orden y actualizar paymentProvider
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: {
-        modoCheckoutId: modoData.checkout_id,
-        paymentProvider: 'MODO',
-      },
-    });
-
-    this.logger.log(
-      `MODO checkout creado: ${modoData.checkout_id} para orden ${order.id}`,
-    );
-
-    return {
-      orderId: order.id,
-      checkoutId: modoData.checkout_id,
-      deeplink: modoData.deeplink,
-      qrCode: modoData.qr_code,
-      expiresAt: modoData.expires_at,
-    };
-  }
-
-  // -------------------------------------------------------
-  // MODO — Webhook de notificación de pago
-  // -------------------------------------------------------
-  async handleModoWebhook(
-    payload: Record<string, unknown>,
-    signature: string | undefined,
-  ): Promise<{ status: string }> {
-    const modoWebhookSecret = this.config.get<string>('MODO_WEBHOOK_SECRET');
-
-    // Verificar firma del webhook
-    if (modoWebhookSecret && signature) {
-      const expectedSig = crypto
-        .createHmac('sha256', modoWebhookSecret)
-        .update(JSON.stringify(payload))
-        .digest('hex');
-
-      if (signature !== expectedSig) {
-        this.logger.warn('MODO webhook: firma inválida');
-        return { status: 'invalid_signature' };
-      }
-    } else if (modoWebhookSecret && !signature) {
-      this.logger.warn('MODO webhook recibido sin firma — ignorado');
-      return { status: 'missing_signature' };
-    }
-
-    const externalRef = payload.external_reference as string | undefined;
-    const modoStatus = (payload.status as string | undefined)?.toLowerCase();
-    const checkoutId = payload.checkout_id as string | undefined;
-
-    if (!externalRef || !modoStatus) {
-      this.logger.warn('MODO webhook: payload incompleto', payload);
-      return { status: 'ignored' };
-    }
-
-    const orderId = externalRef;
-    this.logger.log(`MODO webhook: orden ${orderId} → ${modoStatus}`);
-
-    // Mapear estado MODO → OrderStatus
-    const newStatus = this._mapModoStatus(modoStatus);
-
-    if (!newStatus) {
-      this.logger.log(
-        `MODO webhook: estado desconocido "${modoStatus}" — ignorado`,
-      );
-      return { status: 'ignored' };
-    }
-
-    // Para CANCELLED: delegar TODO a cancelPendingOrderWithStockRestore, que tiene
-    // protección interna contra degradar órdenes ya PAID y maneja la auditoría.
-    // Para cualquier otro estado positivo: solo actualizar con auditoría.
-    if (newStatus === OrderStatus.CANCELLED) {
-      await this.cancelPendingOrderWithStockRestore(
-        orderId,
-        `modo_${modoStatus}`,
-        checkoutId,
-        'WEBHOOK_MODO',
-      );
-    } else {
-      await this.paymentsSync.updateOrderStatusWithAudit({
-        orderId,
-        newStatus,
-        source: 'WEBHOOK_MODO',
-        mpPaymentId: checkoutId,
-        mpRawStatus: modoStatus,
-      });
-    }
-
-    return { status: 'processed' };
-  }
-
-  private _mapModoStatus(modoStatus: string): OrderStatus | null {
-    switch (modoStatus) {
-      case 'approved':
-      case 'accredited':
-      case 'paid':
-        return OrderStatus.PAID;
-      case 'rejected':
-      case 'cancelled':
-      case 'expired':
-        return OrderStatus.CANCELLED;
-      case 'pending':
-      case 'in_process':
-      case 'processing':
-        return null; // La orden ya está PENDING, no hay que cambiar nada
-      default:
-        return null;
-    }
   }
 }

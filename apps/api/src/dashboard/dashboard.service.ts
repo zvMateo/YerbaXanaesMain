@@ -16,6 +16,8 @@ export interface WeeklySale {
   orders: number;
 }
 
+const DAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
 @Injectable()
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
@@ -33,106 +35,77 @@ export class DashboardService {
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Today's stats
-    const todayOrders = await this.prisma.order.findMany({
-      where: {
-        createdAt: {
-          gte: today,
-        },
-      },
-    });
+    // Ejecutar todas las queries independientes en paralelo
+    const [
+      todayOrders,
+      yesterdayOrders,
+      weekOrders,
+      monthOrders,
+      pendingOrders,
+      totalOrders,
+      totalCustomers,
+      newCustomersThisMonth,
+      inventoryItems,
+      weeklySales,
+      salesByCategory,
+      topSellingProducts,
+      hourlySales,
+    ] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { createdAt: { gte: today }, deletedAt: null },
+        select: { total: true },
+      }),
+      this.prisma.order.findMany({
+        where: { createdAt: { gte: yesterday, lt: today }, deletedAt: null },
+        select: { total: true },
+      }),
+      this.prisma.order.findMany({
+        where: { createdAt: { gte: sevenDaysAgo }, deletedAt: null },
+        select: { total: true },
+      }),
+      this.prisma.order.findMany({
+        where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null },
+        select: { total: true },
+      }),
+      this.prisma.order.count({
+        where: { status: OrderStatus.PENDING, deletedAt: null },
+      }),
+      this.prisma.order.count({ where: { deletedAt: null } }),
+      this.prisma.user.count({ where: { role: 'USER' } }),
+      this.prisma.user.count({
+        where: { role: 'USER', createdAt: { gte: thirtyDaysAgo } },
+      }),
+      this.prisma.inventoryItem.findMany({
+        where: { minStockAlert: { not: null } },
+        select: { currentStock: true, minStockAlert: true },
+      }),
+      this.getWeeklySales(),
+      this.getSalesByCategory(),
+      this.getTopSellingProducts(),
+      this.getHourlySalesData(),
+    ]);
+
     const todayRevenue = todayOrders.reduce(
-      (sum, order) => sum + Number(order.total),
+      (sum, o) => sum + Number(o.total),
       0,
     );
-
-    // Yesterday's stats
-    const yesterdayOrders = await this.prisma.order.findMany({
-      where: {
-        createdAt: {
-          gte: yesterday,
-          lt: today,
-        },
-      },
-    });
     const yesterdayRevenue = yesterdayOrders.reduce(
-      (sum, order) => sum + Number(order.total),
+      (sum, o) => sum + Number(o.total),
       0,
     );
-
-    // Weekly stats
-    const weekOrders = await this.prisma.order.findMany({
-      where: {
-        createdAt: {
-          gte: sevenDaysAgo,
-        },
-      },
-    });
-    const weekRevenue = weekOrders.reduce(
-      (sum, order) => sum + Number(order.total),
-      0,
-    );
-
-    // Monthly stats
-    const monthOrders = await this.prisma.order.findMany({
-      where: {
-        createdAt: {
-          gte: thirtyDaysAgo,
-        },
-      },
-    });
+    const weekRevenue = weekOrders.reduce((sum, o) => sum + Number(o.total), 0);
     const monthRevenue = monthOrders.reduce(
-      (sum, order) => sum + Number(order.total),
+      (sum, o) => sum + Number(o.total),
       0,
     );
 
-    // Calculate changes
     const revenueChange =
       yesterdayRevenue > 0
         ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100
         : 0;
 
-    // Pending orders
-    const pendingOrders = await this.prisma.order.count({
-      where: { status: OrderStatus.PENDING },
-    });
-
-    // Total orders
-    const totalOrders = await this.prisma.order.count();
-
-    // Total customers
-    const totalCustomers = await this.prisma.user.count({
-      where: { role: 'USER' },
-    });
-
-    // New customers this month
-    const newCustomersThisMonth = await this.prisma.user.count({
-      where: {
-        role: 'USER',
-        createdAt: {
-          gte: thirtyDaysAgo,
-        },
-      },
-    });
-
-    // Weekly sales data
-    const weeklySales = await this.getWeeklySales();
-
-    // Sales by category
-    const salesByCategory = await this.getSalesByCategory();
-
-    // Top selling products
-    const topSellingProducts = await this.getTopSellingProducts();
-
-    // Low stock products (fetch all with minStockAlert and filter in memory)
-    const inventoryItems = await this.prisma.inventoryItem.findMany({
-      where: {
-        minStockAlert: { not: null },
-      },
-    });
-
     const lowStockProducts = inventoryItems.filter(
-      (item) => item.currentStock <= (item.minStockAlert || 0),
+      (item) => item.currentStock <= (item.minStockAlert ?? 0),
     ).length;
 
     return {
@@ -153,22 +126,25 @@ export class DashboardService {
       topSellingProducts,
       weeklySales,
       salesByCategory,
-      hourlySales: await this.getHourlySalesData(),
+      hourlySales,
     };
   }
 
   async getAlerts() {
     const alerts: Alert[] = [];
 
-    // Low stock alerts
-    const lowStockItems = await this.prisma.inventoryItem.findMany({
-      where: {
-        minStockAlert: { not: null },
-      },
-    });
+    const [lowStockItems, pendingCount] = await Promise.all([
+      this.prisma.inventoryItem.findMany({
+        where: { minStockAlert: { not: null } },
+        select: { currentStock: true, minStockAlert: true },
+      }),
+      this.prisma.order.count({
+        where: { status: OrderStatus.PENDING, deletedAt: null },
+      }),
+    ]);
 
     const criticalStock = lowStockItems.filter(
-      (item) => item.currentStock <= (item.minStockAlert || 0),
+      (item) => item.currentStock <= (item.minStockAlert ?? 0),
     );
 
     if (criticalStock.length > 0) {
@@ -180,11 +156,6 @@ export class DashboardService {
         link: '/productos',
       });
     }
-
-    // Pending orders alert
-    const pendingCount = await this.prisma.order.count({
-      where: { status: OrderStatus.PENDING },
-    });
 
     if (pendingCount > 5) {
       alerts.push({
@@ -199,74 +170,82 @@ export class DashboardService {
     return alerts;
   }
 
-  private async getWeeklySales() {
-    const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    const result: WeeklySale[] = [];
+  private async getWeeklySales(): Promise<WeeklySale[]> {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    // Una sola query en lugar de 7 queries en loop
+    const orders = await this.prisma.order.findMany({
+      where: { createdAt: { gte: sevenDaysAgo }, deletedAt: null },
+      select: { createdAt: true, total: true },
+    });
+
+    // Construir mapa por fecha local (YYYY-MM-DD)
+    const dayMap: Record<
+      string,
+      { revenue: number; orders: number; date: Date }
+    > = {};
 
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
-
-      const nextDay = new Date(date);
-      nextDay.setDate(nextDay.getDate() + 1);
-
-      const orders = await this.prisma.order.findMany({
-        where: {
-          createdAt: {
-            gte: date,
-            lt: nextDay,
-          },
-        },
-      });
-
-      const revenue = orders.reduce(
-        (sum, order) => sum + Number(order.total),
-        0,
-      );
-
-      result.push({
-        day: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
-        revenue,
-        orders: orders.length,
-      });
+      const key = date.toISOString().slice(0, 10);
+      dayMap[key] = { revenue: 0, orders: 0, date };
     }
 
-    return result;
+    for (const order of orders) {
+      const key = order.createdAt.toISOString().slice(0, 10);
+      if (dayMap[key]) {
+        dayMap[key].revenue += Number(order.total);
+        dayMap[key].orders += 1;
+      }
+    }
+
+    return Object.values(dayMap).map(({ revenue, orders: count, date }) => ({
+      day: DAY_LABELS[date.getDay() === 0 ? 6 : date.getDay() - 1],
+      revenue,
+      orders: count,
+    }));
   }
 
   private async getSalesByCategory() {
-    // Get all order items with their product categories
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Filtro de fecha (últimos 30 días) + excluir órdenes eliminadas
     const orderItems = await this.prisma.orderItem.findMany({
+      where: {
+        order: {
+          deletedAt: null,
+          createdAt: { gte: thirtyDaysAgo },
+        },
+      },
       include: {
         variant: {
           include: {
             product: {
-              include: {
-                category: true,
-              },
+              include: { category: true },
             },
           },
         },
       },
     });
 
-    // Group by category
     const categorySales: Record<string, number> = {};
 
-    orderItems.forEach((item) => {
+    for (const item of orderItems) {
       const category = item.variant.product.category.name;
-      if (!categorySales[category]) {
-        categorySales[category] = 0;
-      }
-      categorySales[category] += Number(item.price) * item.quantity;
-    });
+      categorySales[category] =
+        (categorySales[category] ?? 0) + Number(item.price) * item.quantity;
+    }
 
-    // Calculate percentages
     const total = Object.values(categorySales).reduce(
       (sum, val) => sum + val,
       0,
     );
+    if (total === 0) return [];
 
     return Object.entries(categorySales).map(([category, value]) => ({
       category,
@@ -276,45 +255,37 @@ export class DashboardService {
   }
 
   private async getTopSellingProducts() {
+    // take: 200 en lugar de 1000 — suficiente para elegir top 5 con margen
     const orderItems = await this.prisma.orderItem.findMany({
+      where: { order: { deletedAt: null } },
       include: {
         variant: {
-          include: {
-            product: true,
-          },
+          include: { product: true },
         },
       },
-      take: 1000,
+      orderBy: { quantity: 'desc' },
+      take: 200,
     });
 
-    // Group by product
     const productSales: Record<
       string,
       { name: string; sales: number; revenue: number }
     > = {};
 
-    orderItems.forEach((item) => {
+    for (const item of orderItems) {
       const productId = item.variant.product.id;
       const productName = item.variant.product.name;
 
       if (!productSales[productId]) {
-        productSales[productId] = {
-          name: productName,
-          sales: 0,
-          revenue: 0,
-        };
+        productSales[productId] = { name: productName, sales: 0, revenue: 0 };
       }
 
       productSales[productId].sales += item.quantity;
       productSales[productId].revenue += Number(item.price) * item.quantity;
-    });
+    }
 
-    // Sort and get top 5
     return Object.entries(productSales)
-      .map(([id, data]) => ({
-        id,
-        ...data,
-      }))
+      .map(([id, data]) => ({ id, ...data }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
   }
@@ -341,14 +312,12 @@ export class DashboardService {
       select: { createdAt: true },
     });
 
-    // Build a map hour → count
     const hourMap: Record<number, number> = {};
     for (const order of orders) {
       const h = order.createdAt.getHours();
       hourMap[h] = (hourMap[h] || 0) + 1;
     }
 
-    // Return hours 8–22
     return Array.from({ length: 15 }, (_, i) => {
       const h = i + 8;
       return { hour: `${h}hs`, orders: hourMap[h] || 0 };
