@@ -26,6 +26,7 @@ import {
   useUpdateOrderStatus,
   useBulkUpdateOrderStatus,
   useImportShipping,
+  useSetTrackingNumber,
   useOverrideOrderStatus,
   useOrderStateHistory,
   type Order,
@@ -391,7 +392,9 @@ function OrderActions({
 }) {
   const { status, id: orderId } = order;
   const importShipping = useImportShipping();
+  const setTracking = useSetTrackingNumber();
   const [copied, setCopied] = useState(false);
+  const [trackingInput, setTrackingInput] = useState("");
 
   const actions: Record<
     OrderStatus,
@@ -434,6 +437,7 @@ function OrderActions({
   const orderActions = actions[status] || [];
   const isShippingOrder = order.deliveryType === "shipping";
   const hasTracking = !!order.trackingNumber;
+  const isImported = !!order.correoImportedAt;
 
   const handleCopyTracking = () => {
     if (order.trackingNumber) {
@@ -441,6 +445,17 @@ function OrderActions({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleSaveTracking = () => {
+    const trimmed = trackingInput.trim();
+    if (!trimmed) return;
+    setTracking.mutate(
+      { orderId, trackingNumber: trimmed },
+      {
+        onSuccess: () => setTrackingInput(""),
+      },
+    );
   };
 
   return (
@@ -463,30 +478,78 @@ function OrderActions({
         ))}
       </div>
 
-      {/* Botón importar a Correo Argentino (solo si es envío y no fue importado) */}
+      {/* Estado 1: aún no importado → botón "Importar a Correo Argentino" */}
       {isShippingOrder &&
         (status === "PAID" || status === "PROCESSING") &&
-        !hasTracking && (
-        <button
-          onClick={() => importShipping.mutate(orderId)}
-          disabled={importShipping.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors disabled:opacity-50"
-        >
-          {importShipping.isPending ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Importando...
-            </>
-          ) : (
-            <>
-              <Truck className="h-3 w-3" />
-              Importar a Correo Argentino
-            </>
-          )}
-        </button>
+        !isImported && (
+          <button
+            onClick={() => importShipping.mutate(orderId)}
+            disabled={importShipping.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors disabled:opacity-50"
+          >
+            {importShipping.isPending ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Importando...
+              </>
+            ) : (
+              <>
+                <Truck className="h-3 w-3" />
+                Importar a Correo Argentino
+              </>
+            )}
+          </button>
+        )}
+
+      {/* Estado 2: importado pero sin tracking → input para cargarlo manualmente */}
+      {isImported && !hasTracking && (
+        <div className="flex flex-col gap-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-center gap-1.5 text-xs text-amber-800">
+            <Truck className="h-3 w-3" />
+            <span className="font-medium">
+              Cargá el número de seguimiento de MiCorreo
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={trackingInput}
+              onChange={(e) => setTrackingInput(e.target.value)}
+              placeholder="Ej: 000500076393019A3G0C701"
+              className="flex-1 px-2 py-1 text-xs font-mono border border-stone-300 rounded focus:outline-none focus:ring-1 focus:ring-yerba-500"
+              disabled={setTracking.isPending}
+              maxLength={40}
+            />
+            <button
+              onClick={handleSaveTracking}
+              disabled={
+                setTracking.isPending || trackingInput.trim().length < 8
+              }
+              className="px-3 py-1 rounded text-xs font-medium bg-yerba-600 text-white hover:bg-yerba-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {setTracking.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                "Guardar"
+              )}
+            </button>
+          </div>
+          <p className="text-[10px] text-amber-700 leading-snug">
+            Encontrá el número en{" "}
+            <a
+              href="https://www.correoargentino.com.ar/MiCorreo/public/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-amber-900"
+            >
+              MiCorreo
+            </a>{" "}
+            después de imprimir la doblea.
+          </p>
+        </div>
       )}
 
-      {/* Tracking info si ya fue importado */}
+      {/* Estado 3: tracking cargado → mostrar número + acciones */}
       {hasTracking && (
         <div className="flex items-center gap-1.5 px-2 py-1 bg-stone-50 rounded-lg">
           <Truck className="h-3 w-3 text-stone-500" />

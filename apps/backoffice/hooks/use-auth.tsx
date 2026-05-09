@@ -31,12 +31,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Redirect to login if not authenticated (except on login page)
     if (!isPending && !isAuthenticated && pathname !== "/login") {
       router.push("/login");
+      return;
     }
 
-    // Solo admins pueden acceder al backoffice
+    // Solo admins pueden acceder al backoffice.
+    // Si un usuario USER (no admin) llegó hasta acá lo deslogueamos.
+    // Con el allowlist en auth.ts esto no debería pasar en prod, pero es defensivo.
     if (!isPending && isAuthenticated && !isAdmin && pathname !== "/login") {
-      signOut();
-      router.push("/login");
+      void (async () => {
+        await signOut();
+        router.push("/login");
+      })();
     }
   }, [isPending, isAuthenticated, isAdmin, pathname, router]);
 

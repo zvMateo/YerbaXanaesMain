@@ -174,6 +174,75 @@ describe('PaymentsService - Integration Tests', () => {
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
+    it('rechaza processBrickPayment cuando re-cotización detecta shipping cost distinto y cancela la orden', async () => {
+      // Setup: orden brick-init existente con shippingCost=100
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-shipping-mismatch',
+        total: 1000,
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(prismaService.productVariant, 'findMany')
+        .mockResolvedValue([{ id: 'var-1', price: 900 }] as any);
+
+      // Mock: shipping.getRates devuelve un costo significativamente distinto (50 vs 100)
+      const shippingService = (service as any).shipping as {
+        getRates: jest.Mock;
+      };
+      shippingService.getRates.mockResolvedValue({
+        rates: [
+          {
+            deliveredType: 'D',
+            productName: 'Correo Argentino Clasico',
+            price: 50,
+            deliveryTimeMin: '2',
+            deliveryTimeMax: '5',
+            label: 'A domicilio — $50',
+          },
+        ],
+        source: 'correo_argentino',
+        packageWeightGrams: 600,
+      });
+
+      // Spy: verificar que la cancelación se invoca con los args correctos
+      const cancelSpy = jest
+        .spyOn<any, any>(service as any, 'cancelPendingOrderWithStockRestore')
+        .mockResolvedValue(true);
+
+      await expect(
+        service.processBrickPayment({
+          selectedPaymentMethod: 'credit_card',
+          existingOrderId: 'order-shipping-mismatch',
+          formData: {
+            token: 'tok_test',
+            payment_method_id: 'visa',
+            transaction_amount: 1000, // 900 items + 100 shipping (cliente)
+            installments: 1,
+            payer: { email: 'test@yerba.com' },
+          },
+          customerName: 'Test User',
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+          shippingCost: 100,
+          shippingProvider: 'correo_argentino',
+          shippingZip: '5000',
+          deliveryType: 'shipping',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(cancelSpy).toHaveBeenCalledWith(
+        'order-shipping-mismatch',
+        'shipping_cost_changed',
+        undefined,
+        'PAYMENT_REJECTED',
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      // Restaurar spy para no contaminar tests siguientes
+      cancelSpy.mockRestore();
+    });
+
     it('rechaza webhook con timestamp expirado', async () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const expiredTs = String(nowSec - 700);

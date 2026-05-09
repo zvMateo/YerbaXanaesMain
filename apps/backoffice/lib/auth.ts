@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { PrismaClient } from "@prisma/client";
 import { nextCookies } from "better-auth/next-js";
@@ -13,6 +14,22 @@ const authBaseUrl =
   "http://localhost:3002";
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+// Lista de emails autorizados para registrarse como ADMIN.
+// Cualquier otro email que intente loguearse será rechazado.
+// Configurar via env var ADMIN_EMAILS (separados por coma).
+const adminEmails = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
+if (adminEmails.length === 0 && isProduction) {
+  // En producción, sin ADMIN_EMAILS configurado, todos los signups fallan.
+  // Esto es intencional: previene accesos no autorizados.
+  console.warn(
+    "[auth] ADMIN_EMAILS no configurado — todos los registros nuevos serán rechazados.",
+  );
+}
 
 export const auth = betterAuth({
   baseURL: authBaseUrl,
@@ -38,6 +55,56 @@ export const auth = betterAuth({
       role: {
         type: "string",
         defaultValue: "USER",
+      },
+    },
+  },
+  /**
+   * SECURITY: Allowlist de emails para acceso al backoffice.
+   *
+   * Antes: cualquier usuario con cuenta Google podía registrarse y quedaba
+   * persistido en la DB con rol USER. El AuthProvider del cliente lo deslogueaba,
+   * pero el usuario seguía existiendo.
+   *
+   * Ahora: el hook before rechaza el create si el email no está en ADMIN_EMAILS,
+   * y asigna rol ADMIN automáticamente a los emails autorizados.
+   *
+   * Para invitar nuevos admins (Phase 2): agregarlos a ADMIN_EMAILS o
+   * implementar un sistema de invitaciones que pre-cargue Invitations.
+   */
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const userEmail = user.email?.toLowerCase().trim();
+
+          if (!userEmail) {
+            throw new APIError("BAD_REQUEST", {
+              message: "Email requerido para registrarse.",
+            });
+          }
+
+          if (adminEmails.length === 0) {
+            throw new APIError("BAD_REQUEST", {
+              message:
+                "El registro está deshabilitado. El administrador debe configurar ADMIN_EMAILS en el servidor.",
+            });
+          }
+
+          if (!adminEmails.includes(userEmail)) {
+            throw new APIError("FORBIDDEN", {
+              message:
+                "Este email no tiene autorización para acceder al backoffice.",
+            });
+          }
+
+          // Email autorizado → asignar rol ADMIN automáticamente
+          return {
+            data: {
+              ...user,
+              role: "ADMIN",
+            },
+          };
+        },
       },
     },
   },

@@ -11,6 +11,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ShippingService } from './shipping.service';
 import { GetShippingRatesDto } from './dto/get-rates.dto';
+import { SetTrackingNumberDto } from './dto/set-tracking.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
@@ -54,5 +55,27 @@ export class ShippingController {
     @Param('orderId') orderId: string,
   ): Promise<Record<string, any>> {
     return this.shippingService.getTracking(orderId);
+  }
+
+  // -------------------------------------------------------
+  // POST /shipping/orders/:orderId/tracking-number — Solo admin
+  // Carga manual del número de seguimiento real (visible en MiCorreo dashboard)
+  // -------------------------------------------------------
+  @Post('orders/:orderId/tracking-number')
+  @UseGuards(AuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cargar número de seguimiento de Correo Argentino (admin)',
+  })
+  @HttpCode(HttpStatus.OK)
+  async setTrackingNumber(
+    @Param('orderId') orderId: string,
+    @Body() dto: SetTrackingNumberDto,
+  ) {
+    return this.shippingService.setTrackingNumber(
+      orderId,
+      dto.trackingNumber,
+      dto.correoShippingId,
+    );
   }
 }

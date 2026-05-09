@@ -194,8 +194,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           external_reference: order.id,
           notification_url: `${apiUrl}/payments/webhook`,
           statement_descriptor:
-            this.config.get<string>('MP_STATEMENT_DESCRIPTOR') ||
-            'YERBAXANAES',
+            this.config.get<string>('MP_STATEMENT_DESCRIPTOR') || 'YERBAXANAES',
           // binary_mode: false para permitir wallet y cuotas sin tarjeta (pueden quedar in_process)
           binary_mode: false,
           expires: true,
@@ -584,14 +583,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
          * RE-COTIZAR ENVÍO EN EL SERVER — Protege contra:
          * a) CP modificado por el usuario entre delivery-step y brick-init
          * b) Tarifas de Correo Argentino actualizadas desde la cotización original
+         * c) Manipulación del shippingCost en el payload del cliente
          * Solo aplica para método "correo_argentino". Otros providers se ignoran.
          */
         let serverShippingCost = shippingCost;
 
-        if (
-          dto.shippingProvider === 'correo_argentino' &&
-          dto.shippingZip
-        ) {
+        if (dto.shippingProvider === 'correo_argentino' && dto.shippingZip) {
           try {
             const rateResponse = await this.shipping.getRates({
               items: dto.orderItems,
@@ -602,48 +599,36 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
               const cheapestRate = rateResponse.rates.reduce((a, b) =>
                 a.price <= b.price ? a : b,
               );
-
               serverShippingCost = cheapestRate.price;
-
-              if (
-                Math.abs(serverShippingCost - shippingCost) > 0.5
-              ) {
-                this.logger.warn(
-                  `Shipping cost mismatch para orden ${existing.id}: ` +
-                    `client=${shippingCost} server=${serverShippingCost} — actualizando total`,
-                );
-                // Recalcular total con el costo de envío verificado
-                const grossAmount = itemsSubtotal + serverShippingCost;
-                const newFinalAmount = Math.max(
-                  0,
-                  grossAmount - couponDiscount,
-                );
-
-                await this.prisma.order.update({
-                  where: { id: existing.id },
-                  data: { total: newFinalAmount },
-                });
-                this.logger.log(
-                  `Orden ${existing.id} total actualizado a ${newFinalAmount} tras re-cotizar envío`,
-                );
-              }
             }
-          } catch {
+          } catch (error) {
             // Correo falló — usar el shippingCost del cliente (no blockeamos el pago)
             this.logger.warn(
               `No se pudo re-cotizar envío para orden ${existing.id} — usando costo original`,
+              error,
             );
           }
         }
 
-        // Actualizar total si el monto cambió (ej: cupón aplicado después de brick-init)
-        // Nota: si recién recalculamos por diff de shipping, el total ya se actualizó arriba
-        if (Math.abs(Number(existing.total) - finalAmount) > 0.01) {
-          await this.prisma.order.update({
-            where: { id: existing.id },
-            data: { total: finalAmount },
-          });
+        // Si Correo nos da un costo distinto al enviado, rechazar el pago.
+        // El cliente debe volver al paso de envío para re-cotizar y confirmar el nuevo total.
+        // Cancelamos la orden y restauramos stock para no dejarla colgada.
+        if (Math.abs(serverShippingCost - shippingCost) > 0.5) {
+          this.logger.warn(
+            `Shipping cost mismatch en orden ${existing.id}: ` +
+              `client=${shippingCost} server=${serverShippingCost} — rechazando pago`,
+          );
+          await this.cancelPendingOrderWithStockRestore(
+            existing.id,
+            'shipping_cost_changed',
+            undefined,
+            'PAYMENT_REJECTED',
+          );
+          throw new BadRequestException(
+            'El costo de envío cambió desde tu última cotización. Volvé al paso de envío y cotizá nuevamente.',
+          );
         }
+
         // Aplicar cupón si viene en el submit y no fue aplicado en brick-init
         if (couponValidation) {
           try {
@@ -655,10 +640,23 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
                 couponValidation.discountAmount,
               );
             });
-          } catch {
-            // El cupón ya puede estar aplicado desde brick-init — ignorar si falla
+          } catch (error) {
+            // El cupón ya puede estar aplicado desde brick-init — loggear pero no fallar
+            this.logger.warn(
+              `Cupón ya aplicado o falla aplicándolo en orden ${existing.id}`,
+              error,
+            );
           }
         }
+
+        // Actualizar total si cambió (ej: cupón aplicado después de brick-init)
+        if (Math.abs(Number(existing.total) - finalAmount) > 0.01) {
+          await this.prisma.order.update({
+            where: { id: existing.id },
+            data: { total: finalAmount },
+          });
+        }
+
         order = existing;
         this.logger.log(
           `Reutilizando orden brick-init: ${order.id} — método: ${dto.selectedPaymentMethod}`,
@@ -1181,7 +1179,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Invalid webhook signature metadata');
     }
 
-    const tsNum = Number(ts);
+    // Assuramos que ts y hash son string — ya se validó arriba con el throw
+    const tsNum = Number(ts!);
     if (!Number.isFinite(tsNum)) {
       throw new BadRequestException('Invalid webhook signature timestamp');
     }
@@ -1196,7 +1195,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     // Asegurar que el dataIdUrl esté en minúsculas (requisito de la doc)
     const dataIdLower = dataIdUrl.toLowerCase();
 
-    const manifest = `id:${dataIdLower};request-id:${requestId};ts:${ts};`;
+    const manifest = `id:${dataIdLower};request-id:${requestId};ts:${ts!};`;
     const hmac = crypto
       .createHmac('sha256', webhookSecret)
       .update(manifest)
@@ -1204,8 +1203,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
     // Comparación en tiempo constante para evitar leaks
     if (
-      hmac.length !== hash.length ||
-      !crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash))
+      hmac.length !== hash!.length ||
+      !crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash!))
     ) {
       this.logger.warn('Firma HMAC inválida - rechazando webhook');
       throw new BadRequestException('Invalid webhook signature');

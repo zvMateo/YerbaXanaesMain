@@ -390,7 +390,7 @@ export function useCreateOrder() {
 
 async function importShippingToCorreo(
   orderId: string,
-): Promise<{ trackingNumber: string }> {
+): Promise<{ correoImportedAt: string; message: string }> {
   const response = await fetchWithAuth(
     `${API_URL}/shipping/import/${orderId}`,
     { method: "POST" },
@@ -411,14 +411,71 @@ export function useImportShipping() {
   return useMutation({
     mutationFn: (orderId: string) => importShippingToCorreo(orderId),
     onSuccess: (data, orderId) => {
-      toast.success("Envío importado a Correo Argentino", {
-        description: `Número de seguimiento: ${data.trackingNumber}`,
+      toast.success("Envío creado en MiCorreo", {
+        description:
+          data.message ||
+          "Imprimí la doblea desde el dashboard de MiCorreo y cargá el número de seguimiento cuando esté disponible.",
+        duration: 8000,
       });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["orders", orderId] });
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
     },
     onError: (error: Error) => {
       toast.error("Error al importar envío", {
+        description: error.message,
+        duration: 8000,
+      });
+    },
+  });
+}
+
+// ============================================================
+// HOOK: Cargar manualmente el número de seguimiento de Correo
+// El admin lo copia desde el dashboard de MiCorreo después de importar.
+// ============================================================
+
+async function setTrackingNumberApi(params: {
+  orderId: string;
+  trackingNumber: string;
+  correoShippingId?: string;
+}): Promise<{ trackingNumber: string; correoShippingId: string }> {
+  const response = await fetchWithAuth(
+    `${API_URL}/shipping/orders/${params.orderId}/tracking-number`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        trackingNumber: params.trackingNumber,
+        ...(params.correoShippingId
+          ? { correoShippingId: params.correoShippingId }
+          : {}),
+      }),
+    },
+  );
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || "Error al cargar tracking",
+    );
+  }
+  return response.json();
+}
+
+export function useSetTrackingNumber() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: setTrackingNumberApi,
+    onSuccess: (data, variables) => {
+      toast.success("Número de seguimiento cargado", {
+        description: `Tracking: ${data.trackingNumber}`,
+      });
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: orderKeys.detail(variables.orderId),
+      });
+    },
+    onError: (error: Error) => {
+      toast.error("Error al cargar el tracking", {
         description: error.message,
       });
     },

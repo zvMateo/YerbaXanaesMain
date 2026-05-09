@@ -272,7 +272,9 @@ export class ShippingService implements OnModuleInit {
   // Usa HTTP directo a la API porque la librería no soporta shipping/import
   // ============================================================
 
-  async importShipping(orderId: string): Promise<{ trackingNumber: string }> {
+  async importShipping(
+    orderId: string,
+  ): Promise<{ correoImportedAt: Date; message: string }> {
     if (!this.isInitialized || !this.correoApi) {
       throw new BadRequestException(
         'Correo Argentino no está configurado. Configurá las variables CA_* en el entorno.',
@@ -294,9 +296,9 @@ export class ShippingService implements OnModuleInit {
       );
     }
 
-    if (order.correoShippingId) {
+    if (order.correoImportedAt) {
       throw new BadRequestException(
-        `Esta orden ya fue importada a MiCorreo con ID: ${order.correoShippingId}`,
+        `Esta orden ya fue importada a MiCorreo el ${order.correoImportedAt.toISOString()}`,
       );
     }
 
@@ -322,21 +324,9 @@ export class ShippingService implements OnModuleInit {
           customerId,
           extOrderId: order.id,
           orderNumber: order.id.slice(0, 8).toUpperCase(),
-          sender: {
-            name: null,
-            phone: null,
-            cellPhone: null,
-            email: null,
-            originAddress: {
-              streetName: null,
-              streetNumber: null,
-              floor: null,
-              apartment: null,
-              city: null,
-              provinceCode: null,
-              postalCode: null,
-            },
-          },
+          // Sender opcional: si no hay env vars CA_SENDER_*, viaja todo en null
+          // y MiCorreo usa la dirección registrada del customerId como remitente.
+          sender: this.buildSenderPayload(),
           recipient: {
             name: order.customerName || order.customerEmail || 'Cliente',
             phone: order.customerPhone || '',
@@ -365,54 +355,123 @@ export class ShippingService implements OnModuleInit {
         }),
       });
 
-      // La respuesta es { createdAt: "2022-06-07T16:15:04.996-03:00" }
-      // No devuelve tracking number directo — el trackingNumber nuestro es el extOrderId
+      // La respuesta exitosa es { createdAt: "..." } — no devuelve tracking number.
+      // El trackingNumber real lo asigna Correo internamente y aparece en el dashboard
+      // de MiCorreo. La hermana lo va a copiar manualmente desde ahí (ver bug #2).
       if (!result['ok']) {
         const errData = result['data'] as { message?: string; code?: string };
-        throw new Error(
-          `MiCorreo error ${errData?.code ?? result['status']}: ${errData?.message ?? 'Unknown'}`,
-        );
+        const apiMessage = errData?.message ?? 'Unknown';
+        const apiCode = errData?.code ?? result['status'];
+        throw new Error(`MiCorreo error ${apiCode}: ${apiMessage}`);
       }
 
-      // Guardar extOrderId (order.id) como tracking number visible
-      const trackingNumber = order.id.slice(0, 12).toUpperCase();
-
+      // Marcamos la orden como "importada" pero sin trackingNumber real.
+      // El admin cargará el trackingNumber manualmente cuando lo tenga visible
+      // en el dashboard de MiCorreo (ver POST /shipping/orders/:id/tracking-number).
+      const importedAt = new Date();
       await this.prisma.order.update({
         where: { id: orderId },
         data: {
-          // Guardar el ID de MiCorreo como correoShippingId (podría ser el extOrderId)
-          correoShippingId: trackingNumber,
-          trackingNumber,
-          correoImportedAt: new Date(),
+          correoImportedAt: importedAt,
         },
       });
 
       this.logger.log(
-        `Envío importado a MiCorreo: order=${orderId} tracking=${trackingNumber}`,
+        `Envío importado a MiCorreo: order=${orderId} (tracking pendiente de carga manual)`,
       );
 
-      return { trackingNumber };
+      return {
+        correoImportedAt: importedAt,
+        message:
+          'Envío creado en MiCorreo. Imprimí la doblea desde el dashboard y cargá el número de seguimiento cuando lo tengas.',
+      };
     } catch (error) {
       this.logger.error('No se pudo importar el envío a MiCorreo', error);
 
-      // Detectar error específico para dar mensaje más útil
-      const message =
+      // Mapear errores específicos de MiCorreo a mensajes accionables
+      const rawMessage =
         error instanceof Error ? error.message : 'Error desconocido';
-      if (message.includes('ya fue importada')) {
+      const lowercased = rawMessage.toLowerCase();
+
+      if (lowercased.includes('ya fue importada')) {
         throw new BadRequestException(
           'Esta orden ya fue importada a MiCorreo anteriormente.',
         );
       }
-      if (message.includes('sucursal')) {
+      if (
+        lowercased.includes('remitente') ||
+        lowercased.includes('emisor')
+      ) {
+        throw new BadRequestException(
+          'Faltan datos del remitente. Completá la dirección de tu cuenta en el dashboard de MiCorreo o configurá las variables CA_SENDER_* en el .env.',
+        );
+      }
+      if (lowercased.includes('sucursal') || lowercased.includes('agency')) {
         throw new BadRequestException(
           'Verificá el código de sucursal. El envío no pudo ser importado.',
         );
       }
+      if (lowercased.includes('peso')) {
+        throw new BadRequestException(
+          'Peso del envío inválido. Revisá las dimensiones de los productos.',
+        );
+      }
+      if (lowercased.includes('provincia')) {
+        throw new BadRequestException(
+          'Provincia inválida o faltante. Verificá el código de provincia del destino.',
+        );
+      }
+      if (lowercased.includes('codigo postal') || lowercased.includes('cp')) {
+        throw new BadRequestException(
+          'Código postal inválido. Verificá el CP del destino.',
+        );
+      }
 
+      // Fallback: incluir el mensaje real de MiCorreo en la respuesta para el admin
       throw new ServiceUnavailableException(
-        'No se pudo crear el envío en Correo Argentino. Intentá nuevamente o coordiná manualmente.',
+        `No se pudo crear el envío en Correo Argentino: ${rawMessage}. Intentá nuevamente o coordiná manualmente.`,
       );
     }
+  }
+
+  /**
+   * Construye el objeto sender para /shipping/import.
+   * Si las variables CA_SENDER_* están configuradas, las usa; si no, devuelve
+   * todo en null para que MiCorreo use la dirección registrada del customerId.
+   */
+  private buildSenderPayload(): {
+    name: string | null;
+    phone: string | null;
+    cellPhone: string | null;
+    email: string | null;
+    originAddress: {
+      streetName: string | null;
+      streetNumber: string | null;
+      floor: string | null;
+      apartment: string | null;
+      city: string | null;
+      provinceCode: string | null;
+      postalCode: string | null;
+    };
+  } {
+    const get = (key: string) =>
+      this.config.get<string>(key)?.trim() || null;
+
+    return {
+      name: get('CA_SENDER_NAME'),
+      phone: get('CA_SENDER_PHONE'),
+      cellPhone: get('CA_SENDER_CELL_PHONE'),
+      email: get('CA_SENDER_EMAIL'),
+      originAddress: {
+        streetName: get('CA_SENDER_STREET'),
+        streetNumber: get('CA_SENDER_NUMBER'),
+        floor: get('CA_SENDER_FLOOR'),
+        apartment: get('CA_SENDER_APARTMENT'),
+        city: get('CA_SENDER_CITY'),
+        provinceCode: get('CA_SENDER_PROVINCE_CODE'),
+        postalCode: get('CA_SENDER_POSTAL_CODE'),
+      },
+    };
   }
 
   // ============================================================
@@ -492,6 +551,64 @@ export class ShippingService implements OnModuleInit {
         trackingUrl,
       };
     }
+  }
+
+  // ============================================================
+  // CARGA MANUAL DE TRACKING NUMBER (Admin)
+  // El admin lo copia desde el dashboard de MiCorreo y lo pega acá.
+  // ============================================================
+
+  async setTrackingNumber(
+    orderId: string,
+    trackingNumber: string,
+    correoShippingId?: string,
+  ): Promise<{ trackingNumber: string; correoShippingId: string }> {
+    const trimmed = trackingNumber.trim();
+    if (!trimmed) {
+      throw new BadRequestException(
+        'El número de seguimiento no puede estar vacío.',
+      );
+    }
+
+    // Validación básica de formato. Los IDs reales de Correo son alfanuméricos
+    // de longitud variable (~16-25 chars). No restringimos demasiado por si
+    // Correo cambia el formato, pero rechazamos valores claramente inválidos.
+    if (trimmed.length < 8 || trimmed.length > 40) {
+      throw new BadRequestException(
+        'Número de seguimiento inválido. Debe tener entre 8 y 40 caracteres.',
+      );
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, correoImportedAt: true, trackingNumber: true },
+    });
+
+    if (!order) throw new NotFoundException(`Orden #${orderId} no encontrada`);
+
+    if (!order.correoImportedAt) {
+      throw new BadRequestException(
+        'La orden no fue importada a MiCorreo. Importá primero el envío antes de cargar el tracking.',
+      );
+    }
+
+    // Si correoShippingId no se pasa explícitamente, usamos el mismo trackingNumber
+    // (en MiCorreo suelen coincidir — son el mismo identificador para tracking)
+    const shippingId = correoShippingId?.trim() || trimmed;
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        trackingNumber: trimmed,
+        correoShippingId: shippingId,
+      },
+    });
+
+    this.logger.log(
+      `Tracking number cargado manualmente: order=${orderId} tracking=${trimmed}`,
+    );
+
+    return { trackingNumber: trimmed, correoShippingId: shippingId };
   }
 
   // ============================================================
