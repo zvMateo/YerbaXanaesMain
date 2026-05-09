@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [googleError, setGoogleError] = useState("");
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,7 +48,7 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    setError("");
+    setGoogleError("");
 
     try {
       const { error } = await signIn.social({
@@ -56,14 +57,14 @@ export default function LoginPage() {
       });
 
       if (error) {
-        setError(error.message || "Error al iniciar sesión con Google");
+        setGoogleError(error.message || "Error al iniciar sesión con Google");
         toast.error("Error de autenticación", {
           description: error.message || "No se pudo conectar con Google",
         });
       }
       // Si no hay error, Better Auth redirige automáticamente a Google
     } catch {
-      setError("Error al conectar con Google");
+      setGoogleError("Error al conectar con Google");
       toast.error("Error", {
         description: "No se pudo conectar con Google. Intentá de nuevo.",
       });
@@ -135,6 +136,21 @@ export default function LoginPage() {
               </svg>
               Continuar con Google
             </button>
+
+            {/* Google Error */}
+            <AnimatePresence>
+              {googleError && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center gap-2 mb-4 text-red-600 text-sm"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {googleError}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Divider */}
             <div className="relative mb-6">
