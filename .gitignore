@@ -48,3 +48,8 @@ next-env.d.ts
 .idea/
 .vscode/
 .agents
+.claude
+Img-claude/
+
+# CodeGraph index (local, no versionar)
+.codegraph/
