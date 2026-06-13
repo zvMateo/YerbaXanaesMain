@@ -265,12 +265,21 @@ model Order {
 
   // Datos de Entrega
   deliveryType         String?    // "shipping" | "pickup"
-  shippingAddress      String?    // Calle + número + piso/dpto (del cliente)
+  // Dirección estructurada (campos separados para MiCorreo)
+  shippingStreetName   String?    // Calle (sin altura)
+  shippingStreetNumber String?    // Altura / número
+  shippingFloor        String?    // Piso (opcional)
+  shippingApartment    String?    // Departamento (opcional)
   shippingCity         String?    // Ciudad de destino
   shippingProvinceCode String?    // Código de provincia (A, B, C... — Correo Argentino)
   shippingZip          String?    // Código postal de destino
   shippingCost         Decimal?   @db.Decimal(10, 2)  // Costo del envío en ARS
-  shippingProvider     String?    // "correo_argentino" | "flat_rate" | "pickup"
+  shippingProvider     String?    // "correo_argentino" | "manual_quote_required" | "pickup"
+  // Tipo de envío para Correo: D = domicilio, S = sucursal. Null para retiro en local.
+  shippingDeliveryType String?    // "D" | "S"
+  shippingAgencyCode   String?    // Código de sucursal de Correo si deliveryType=S (ej: "B0107")
+  // Campo legacy — mantenido por compatibilidad con órdenes viejas, no se usa en imports nuevos
+  shippingAddress      String?    // DEPRECATED: usar shippingStreetName + shippingStreetNumber
 
   // Tracking de Correo Argentino
   trackingNumber       String?    // Número de seguimiento (Correo Argentino)

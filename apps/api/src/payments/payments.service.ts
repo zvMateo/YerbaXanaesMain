@@ -19,15 +19,24 @@ import { CouponsService } from '../coupons/coupons.service';
 import { PaymentsSyncService } from './payments-sync.service';
 import { ShippingService } from '../shipping/shipping.service';
 
+// MP corta el statement_descriptor a 13 caracteres (límite documentado
+// en Checkout Pro /checkout/preferences). Valores más largos pueden
+// rechazarse o truncarse de forma impredecible según la red de tarjeta.
+const STATEMENT_DESCRIPTOR_MAX_LENGTH = 13;
+const DEFAULT_STATEMENT_DESCRIPTOR = 'YERBAXANAES';
+
 /**
  * Métricas devueltas por el cleanup de órdenes PENDING
  */
 export interface CleanupMetrics {
   checked: number; // Órdenes PENDING encontradas
   cancelled: number; // Órdenes canceladas exitosamente
+  cancelledCart: number; // Carritos abandonados (sin mpPaymentId) cancelados
+  cancelledPayment: number; // Esperando pago (con mpPaymentId) cancelados
   failed: number; // Intentos fallidos
   totalStockRestored: number; // Unidades totales de stock restauradas
-  ttlMinutes: number; // TTL usado en esta ejecución
+  cartAbandonedTtlMinutes: number; // TTL aplicado a carritos abandonados
+  pendingPaymentTtlMinutes: number; // TTL aplicado a órdenes esperando pago
   durationMs: number; // Tiempo total en milisegundos
   timestamp: Date;
 }
@@ -73,6 +82,28 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
+  }
+
+  /**
+   * Descriptor que ve el comprador en el resumen de su tarjeta.
+   * Toma MP_STATEMENT_DESCRIPTOR del env y lo recorta al límite de MP;
+   * si está vacío o solo espacios, cae al default.
+   */
+  private getStatementDescriptor(): string {
+    const raw = (
+      this.config.get<string>('MP_STATEMENT_DESCRIPTOR') ||
+      DEFAULT_STATEMENT_DESCRIPTOR
+    ).trim();
+
+    if (!raw) return DEFAULT_STATEMENT_DESCRIPTOR;
+
+    if (raw.length > STATEMENT_DESCRIPTOR_MAX_LENGTH) {
+      this.logger.warn(
+        `MP_STATEMENT_DESCRIPTOR excede ${STATEMENT_DESCRIPTOR_MAX_LENGTH} caracteres ("${raw}"); se trunca`,
+      );
+    }
+
+    return raw.slice(0, STATEMENT_DESCRIPTOR_MAX_LENGTH);
   }
 
   // -------------------------------------------------------
@@ -136,12 +167,18 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       orderItems: dto.orderItems,
       totalAmount: finalAmount,
       deliveryType: dto.deliveryType,
+      shippingStreetName: dto.shippingStreetName,
+      shippingStreetNumber: dto.shippingStreetNumber,
+      shippingFloor: dto.shippingFloor,
+      shippingApartment: dto.shippingApartment,
       shippingAddress: dto.shippingAddress,
       shippingCity: dto.shippingCity,
       shippingProvinceCode: dto.shippingProvinceCode,
       shippingZip: dto.shippingZip,
       shippingCost,
       shippingProvider: dto.shippingProvider,
+      shippingDeliveryType: dto.shippingDeliveryType,
+      shippingAgencyCode: dto.shippingAgencyCode,
     });
 
     // Aplicar cupón a la orden si corresponde
@@ -193,8 +230,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
             : {}),
           external_reference: order.id,
           notification_url: `${apiUrl}/payments/webhook`,
-          statement_descriptor:
-            this.config.get<string>('MP_STATEMENT_DESCRIPTOR') || 'YERBAXANAES',
+          statement_descriptor: this.getStatementDescriptor(),
           // binary_mode: false para permitir wallet y cuotas sin tarjeta (pueden quedar in_process)
           binary_mode: false,
           expires: true,
@@ -571,12 +607,18 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           orderItems: dto.orderItems,
           totalAmount: finalAmount,
           deliveryType: dto.deliveryType,
+          shippingStreetName: dto.shippingStreetName,
+          shippingStreetNumber: dto.shippingStreetNumber,
+          shippingFloor: dto.shippingFloor,
+          shippingApartment: dto.shippingApartment,
           shippingAddress: dto.shippingAddress,
           shippingCity: dto.shippingCity,
           shippingProvinceCode: dto.shippingProvinceCode,
           shippingZip: dto.shippingZip,
           shippingCost,
           shippingProvider: dto.shippingProvider,
+          shippingDeliveryType: dto.shippingDeliveryType,
+          shippingAgencyCode: dto.shippingAgencyCode,
         });
       } else {
         /**
@@ -671,12 +713,18 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         orderItems: dto.orderItems,
         totalAmount: finalAmount,
         deliveryType: dto.deliveryType,
+        shippingStreetName: dto.shippingStreetName,
+        shippingStreetNumber: dto.shippingStreetNumber,
+        shippingFloor: dto.shippingFloor,
+        shippingApartment: dto.shippingApartment,
         shippingAddress: dto.shippingAddress,
         shippingCity: dto.shippingCity,
         shippingProvinceCode: dto.shippingProvinceCode,
         shippingZip: dto.shippingZip,
         shippingCost,
         shippingProvider: dto.shippingProvider,
+        shippingDeliveryType: dto.shippingDeliveryType,
+        shippingAgencyCode: dto.shippingAgencyCode,
       });
 
       // Aplicar cupón a la orden si corresponde
@@ -779,7 +827,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       installments: formData.installments || 1,
       external_reference: orderId,
       description: 'Compra en YerbaXanaes',
-      statement_descriptor: 'YERBAXANAES',
+      statement_descriptor: this.getStatementDescriptor(),
       binary_mode: true,
       payer: {
         email: formData.payer.email,
@@ -908,7 +956,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       payment_method_id: formData.payment_method_id,
       transaction_amount: parseFloat(amountStr),
       description: 'Compra en YerbaXanaes',
-      statement_descriptor: 'YERBAXANAES',
+      statement_descriptor: this.getStatementDescriptor(),
       date_of_expiration: ticketExpiration,
       external_reference: orderId,
       payer: {
@@ -1056,41 +1104,72 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   }> {
     const startTime = Date.now();
 
-    const ttlMinutes = Math.max(
-      1,
+    // Smart TTL:
+    //  - Carritos abandonados (sin mpPaymentId todavía) → TTL corto (15 min default).
+    //    El cliente cargó el carrito + brick-init pero nunca llegó a ingresar pago.
+    //  - Esperando pago (con mpPaymentId asignado, ej. ticket/wallet) → TTL largo
+    //    (24h default). El usuario tiene cupón Rapipago/Pago Fácil o desvió a MP wallet.
+    //
+    // Fallback retro-compat: si pasan override o existe MP_PENDING_ORDER_TTL_MINUTES,
+    // se usa ese único valor para ambos buckets.
+    const legacyTtl =
       ttlMinuteOverride ??
-        Number(this.config.get('MP_PENDING_ORDER_TTL_MINUTES') ?? 60),
+      (this.config.get('MP_PENDING_ORDER_TTL_MINUTES') != null
+        ? Number(this.config.get('MP_PENDING_ORDER_TTL_MINUTES'))
+        : undefined);
+
+    const cartAbandonedTtl = Math.max(
+      1,
+      legacyTtl ??
+        Number(this.config.get('MP_CART_ABANDONED_TTL_MINUTES') ?? 15),
+    );
+    const pendingPaymentTtl = Math.max(
+      1,
+      legacyTtl ??
+        Number(this.config.get('MP_PENDING_PAYMENT_TTL_MINUTES') ?? 1440),
     );
 
-    const cutoff = new Date(Date.now() - ttlMinutes * 60_000);
+    const now = Date.now();
+    const cartCutoff = new Date(now - cartAbandonedTtl * 60_000);
+    const paymentCutoff = new Date(now - pendingPaymentTtl * 60_000);
 
     const expiredOrders = await this.prisma.order.findMany({
       where: {
         status: OrderStatus.PENDING,
         deletedAt: null,
-        createdAt: { lte: cutoff },
+        OR: [
+          { mpPaymentId: null, createdAt: { lte: cartCutoff } },
+          { mpPaymentId: { not: null }, createdAt: { lte: paymentCutoff } },
+        ],
       },
-      select: { id: true, items: true },
+      select: { id: true, items: true, mpPaymentId: true },
       orderBy: { createdAt: 'asc' },
       take: 200,
     });
 
     let cancelled = 0;
+    let cancelledCart = 0;
+    let cancelledPayment = 0;
     let failed = 0;
     let totalStockRestored = 0;
 
     // Procesar cada orden expirada
     for (const order of expiredOrders) {
+      const isCart = order.mpPaymentId == null;
+      const reason = isCart
+        ? 'expired_cart_abandoned'
+        : 'expired_pending_payment_timeout';
       try {
         const wasCancelled = await this.cancelPendingOrderWithStockRestore(
           order.id,
-          'expired_pending_timeout',
+          reason,
           undefined,
           'CLEANUP_TIMEOUT',
         );
         if (wasCancelled) {
           cancelled += 1;
-          // Contar stock restaurado
+          if (isCart) cancelledCart += 1;
+          else cancelledPayment += 1;
           totalStockRestored += order.items.reduce(
             (sum, item) => sum + item.quantity,
             0,
@@ -1109,9 +1188,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const metrics: CleanupMetrics = {
       checked: expiredOrders.length,
       cancelled,
+      cancelledCart,
+      cancelledPayment,
       failed,
       totalStockRestored,
-      ttlMinutes,
+      cartAbandonedTtlMinutes: cartAbandonedTtl,
+      pendingPaymentTtlMinutes: pendingPaymentTtl,
       durationMs,
       timestamp: new Date(),
     };
@@ -1122,7 +1204,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         {
           event: 'cleanup_pending_orders_executed',
           metrics,
-          summary: `Cleanup completado: encontradas=${expiredOrders.length}, canceladas=${cancelled}, fallidas=${failed}, stock_restaurado=${totalStockRestored}`,
+          summary: `Cleanup completado: encontradas=${expiredOrders.length}, canceladas=${cancelled} (cart=${cancelledCart}, payment=${cancelledPayment}), fallidas=${failed}, stock_restaurado=${totalStockRestored}`,
         },
         'CleanupExpiredPending',
       );
@@ -1407,14 +1489,15 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   // -------------------------------------------------------
   // HELPER INTERNO: Cancela orden PENDING y restaura stock
   // -------------------------------------------------------
-  private async cancelPendingOrderWithStockRestore(
+  async cancelPendingOrderWithStockRestore(
     orderId: string,
     reason: string,
     mpPaymentId?: string,
     auditSource?:
       | 'WEBHOOK_MERCADOPAGO'
       | 'CLEANUP_TIMEOUT'
-      | 'PAYMENT_REJECTED',
+      | 'PAYMENT_REJECTED'
+      | 'MANUAL_OVERRIDE',
   ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -1584,12 +1667,21 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     orderItems: { variantId: string; quantity: number }[];
     totalAmount: number;
     deliveryType?: string;
+    // Dirección estructurada (preferida)
+    shippingStreetName?: string;
+    shippingStreetNumber?: string;
+    shippingFloor?: string;
+    shippingApartment?: string;
+    // Legacy single-string
     shippingAddress?: string;
     shippingCity?: string;
     shippingProvinceCode?: string;
     shippingZip?: string;
     shippingCost?: number;
     shippingProvider?: string;
+    // Correo Argentino: D (domicilio) | S (sucursal)
+    shippingDeliveryType?: string;
+    shippingAgencyCode?: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const orderItemsData: {
@@ -1670,6 +1762,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           status: OrderStatus.PENDING,
           paymentProvider: PaymentProvider.MERCADOPAGO,
           deliveryType: params.deliveryType || 'pickup',
+          // Dirección estructurada
+          shippingStreetName: params.shippingStreetName,
+          shippingStreetNumber: params.shippingStreetNumber,
+          shippingFloor: params.shippingFloor,
+          shippingApartment: params.shippingApartment,
+          // Legacy (mantener por compat con clientes viejos)
           shippingAddress: params.shippingAddress,
           shippingCity: params.shippingCity,
           shippingProvinceCode: params.shippingProvinceCode,
@@ -1679,6 +1777,9 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
               ? params.shippingCost
               : null,
           shippingProvider: params.shippingProvider,
+          // Correo: D/S + sucursal
+          shippingDeliveryType: params.shippingDeliveryType,
+          shippingAgencyCode: params.shippingAgencyCode,
           items: { create: orderItemsData },
         },
       });

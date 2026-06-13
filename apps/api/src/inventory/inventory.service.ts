@@ -60,18 +60,28 @@ export class InventoryService {
 
   // MÉTODO ESPECIAL: Ajuste de Stock (+ o -)
   async adjustStock(id: string, quantityChange: number) {
-    const item = await this.findOne(id);
-    const newStock = item.currentStock + quantityChange;
+    // Update condicional atómico: el WHERE garantiza que el stock nunca
+    // quede negativo aunque haya ajustes concurrentes sobre el mismo item
+    // (evita el read-modify-write donde dos requests leen el mismo valor).
+    const result = await this.prisma.inventoryItem.updateMany({
+      where: {
+        id,
+        ...(quantityChange < 0
+          ? { currentStock: { gte: Math.abs(quantityChange) } }
+          : {}),
+      },
+      data: { currentStock: { increment: quantityChange } },
+    });
 
-    if (newStock < 0) {
+    if (result.count === 0) {
+      // Distinguir "no existe" (findOne lanza NotFoundException)
+      // de "existe pero no alcanza el stock"
+      const item = await this.findOne(id);
       throw new BadRequestException(
         `Stock insuficiente para ${item.name}. Stock actual: ${item.currentStock}, Intentaste restar: ${Math.abs(quantityChange)}`,
       );
     }
 
-    return this.prisma.inventoryItem.update({
-      where: { id },
-      data: { currentStock: newStock },
-    });
+    return this.findOne(id);
   }
 }
