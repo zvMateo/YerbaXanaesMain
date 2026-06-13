@@ -59,12 +59,21 @@ export interface Order {
   };
   // Datos de envío
   deliveryType?: string;
+  // Dirección estructurada (preferida)
+  shippingStreetName?: string;
+  shippingStreetNumber?: string;
+  shippingFloor?: string;
+  shippingApartment?: string;
+  // Legacy single-string (DEPRECATED)
   shippingAddress?: string;
   shippingCity?: string;
   shippingZip?: string;
   shippingProvinceCode?: string;
   shippingCost?: number;
   shippingProvider?: string;
+  // D/S + sucursal para Correo Argentino
+  shippingDeliveryType?: string; // "D" | "S"
+  shippingAgencyCode?: string;
   trackingNumber?: string;
   correoShippingId?: string;
   correoImportedAt?: string;

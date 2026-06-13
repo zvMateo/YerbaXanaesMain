@@ -773,16 +773,27 @@ export function OrdersTable() {
       cell: ({ row }) => {
         const order = row.original;
         if (order.deliveryType === "shipping") {
+          const isAgency = order.shippingDeliveryType === "S";
           return (
             <div className="flex items-center gap-1.5">
               <Truck className="h-3.5 w-3.5 text-blue-600" />
               <div>
-                <p className="text-xs font-medium text-stone-900">Envío</p>
-                {order.shippingCost && (
+                <p className="text-xs font-medium text-stone-900">
+                  {isAgency ? "Sucursal" : "Domicilio"}
+                </p>
+                {order.shippingCost ? (
                   <p className="text-[10px] text-stone-500">
                     ${Number(order.shippingCost).toLocaleString("es-AR")}
                   </p>
-                )}
+                ) : null}
+                {isAgency && order.shippingAgencyCode ? (
+                  <p
+                    className="text-[10px] text-stone-500 truncate max-w-[140px]"
+                    title={order.shippingAgencyCode}
+                  >
+                    Suc. {order.shippingAgencyCode}
+                  </p>
+                ) : null}
               </div>
             </div>
           );
