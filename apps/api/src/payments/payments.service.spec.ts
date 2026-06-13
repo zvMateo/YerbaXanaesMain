@@ -464,7 +464,8 @@ describe('PaymentsService - Integration Tests', () => {
 
       const result = await service.cleanupExpiredPendingOrders(30); // Override TTL a 30 min
 
-      expect(result.data.ttlMinutes).toBe(30);
+      expect(result.data.cartAbandonedTtlMinutes).toBe(30);
+      expect(result.data.pendingPaymentTtlMinutes).toBe(30);
       // Verificar que findMany fue llamado con cutoff de 30 min atrás
       const findManyCall = jest.spyOn(prismaService.order, 'findMany').mock
         .calls[0];

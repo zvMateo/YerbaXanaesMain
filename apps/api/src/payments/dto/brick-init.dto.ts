@@ -45,6 +45,24 @@ export class BrickInitDto {
   @IsString()
   deliveryType?: string;
 
+  // Dirección estructurada (preferida — separa cada campo para MiCorreo)
+  @IsOptional()
+  @IsString()
+  shippingStreetName?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingStreetNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingFloor?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingApartment?: string;
+
+  // Legacy: si el cliente todavía manda dirección en un solo string (DEPRECATED)
   @IsOptional()
   @IsString()
   shippingAddress?: string;
@@ -69,6 +87,16 @@ export class BrickInitDto {
   @IsOptional()
   @IsString()
   shippingProvider?: string;
+
+  // Tipo de envío Correo Argentino: "D" (domicilio) o "S" (sucursal)
+  @IsOptional()
+  @IsString()
+  shippingDeliveryType?: string;
+
+  // Código de sucursal de Correo (requerido si shippingDeliveryType=S)
+  @IsOptional()
+  @IsString()
+  shippingAgencyCode?: string;
 
   @IsOptional()
   @IsString()

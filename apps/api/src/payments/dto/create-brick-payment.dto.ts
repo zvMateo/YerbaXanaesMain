@@ -146,6 +146,24 @@ export class CreateBrickPaymentDto {
   @IsString()
   deliveryType?: string;
 
+  // Dirección estructurada (preferida — campos separados para MiCorreo)
+  @IsOptional()
+  @IsString()
+  shippingStreetName?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingStreetNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingFloor?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingApartment?: string;
+
+  // Legacy (DEPRECATED — usar campos separados arriba)
   @IsOptional()
   @IsString()
   shippingAddress?: string;
@@ -170,6 +188,16 @@ export class CreateBrickPaymentDto {
   @IsOptional()
   @IsString()
   shippingProvider?: string;
+
+  // Tipo de envío Correo Argentino: "D" (domicilio) o "S" (sucursal)
+  @IsOptional()
+  @IsString()
+  shippingDeliveryType?: string;
+
+  // Código de sucursal de Correo (requerido si shippingDeliveryType=S)
+  @IsOptional()
+  @IsString()
+  shippingAgencyCode?: string;
 
   @IsOptional()
   @IsString()
