@@ -12,6 +12,7 @@ import { Throttle } from '@nestjs/throttler';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { ValidateStockDto } from './dto/validate-stock.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
@@ -29,9 +30,7 @@ export class OrdersController {
   // POST público — validación de stock antes del checkout
   @Post('validate')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
-  validateStock(
-    @Body() data: { items: { variantId: string; quantity: number }[] },
-  ) {
+  validateStock(@Body() data: ValidateStockDto) {
     return this.ordersService.validateStock(data.items);
   }
 

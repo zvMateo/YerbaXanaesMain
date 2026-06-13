@@ -7,6 +7,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
+import { PaymentsService } from '../payments/payments.service';
 import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly coupons: CouponsService,
+    private readonly payments: PaymentsService,
   ) {}
 
   async create(dto: CreateOrderDto) {
@@ -229,13 +231,65 @@ export class OrdersService {
   }
 
   async update(id: string, updateOrderDto: UpdateOrderDto) {
-    // Extraemos campos que NO queremos actualizar directamente o que requieren lógica especial
+    // Extraemos campos con lógica especial / no actualizables en una transición directa
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { items, userId, ...data } = updateOrderDto;
+    const { items, userId, status, note, ...data } = updateOrderDto;
+
+    const existing = await this.prisma.order.findUnique({
+      where: { id },
+      select: { status: true, deletedAt: true, manualOverrideAt: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Orden ${id} no encontrada`);
+    }
+
+    // Idempotencia: si pidieron cancelar y ya está cancelada/soft-deleted, OK silencioso.
+    if (
+      status === 'CANCELLED' &&
+      (existing.status === OrderStatus.CANCELLED || existing.deletedAt)
+    ) {
+      return this.prisma.order.findUnique({ where: { id } });
+    }
+
+    // Resto de operaciones sobre órdenes soft-deleted no se permiten.
+    if (existing.deletedAt) {
+      throw new BadRequestException(
+        `Orden ${id} está cancelada/eliminada y no se puede modificar`,
+      );
+    }
+
+    // Transición PENDING → CANCELLED: delegar a payments para restaurar stock + audit
+    if (status === 'CANCELLED' && existing.status === OrderStatus.PENDING) {
+      const cancelled = await this.payments.cancelPendingOrderWithStockRestore(
+        id,
+        note?.trim() || 'backoffice_manual_cancel',
+        undefined,
+        'MANUAL_OVERRIDE',
+      );
+
+      if (!cancelled) {
+        throw new BadRequestException(
+          'No se pudo cancelar la orden (estado ya cambió o tiene override manual)',
+        );
+      }
+
+      return this.findOne(id);
+    }
+
+    // Cambio de status libre (PAID, REJECTED, REFUNDED, etc.) — actualización plana
+    const patch: Prisma.OrderUpdateInput = { ...data };
+    if (status) {
+      patch.status = status as OrderStatus;
+      patch.manualOverrideAt = new Date();
+    }
+    if (note !== undefined) {
+      patch.notes = note;
+    }
 
     return this.prisma.order.update({
       where: { id },
-      data: data,
+      data: patch,
     });
   }
 
