@@ -1,15 +1,30 @@
 "use client";
 
+import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 import { CheckoutFormData } from "@/schemas/checkout-schema";
 import { CartItem } from "@/stores/cart-store";
-import { Package, Truck, CreditCard, Banknote, Landmark } from "lucide-react";
+import {
+  Package,
+  Truck,
+  CreditCard,
+  Banknote,
+  Landmark,
+  ChevronDown,
+} from "lucide-react";
 import Image from "next/image";
+import { motion, AnimatePresence } from "motion/react";
 import { MercadoPagoLogo } from "@/components/checkout/mercado-pago-logo";
 
 interface OrderSummaryProps {
   items: CartItem[];
   total: number;
+  /**
+   * Si es true, arranca colapsado mostrando solo el total y un resumen
+   * de una línea (cantidad de productos + método de entrega). El usuario
+   * puede expandirlo para ver el detalle completo. Default: false.
+   */
+  collapsible?: boolean;
 }
 
 const paymentMethodLabels: Record<
@@ -21,8 +36,14 @@ const paymentMethodLabels: Record<
   transfer: { label: "Transferencia Bancaria", icon: Landmark },
 };
 
-export function OrderSummary({ items, total }: OrderSummaryProps) {
+export function OrderSummary({
+  items,
+  total,
+  collapsible = false,
+}: OrderSummaryProps) {
   const { watch } = useFormContext<CheckoutFormData>();
+  // Si es colapsable, arranca cerrado. Si no, siempre expandido.
+  const [expanded, setExpanded] = useState(!collapsible);
 
   const formData = watch();
 
@@ -45,15 +66,66 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
     paymentMethodLabels[formData.paymentMethod]?.icon || CreditCard;
   const isMercadoPago = formData.paymentMethod === "mercadopago";
 
+  // Label de entrega para el header colapsado
+  const deliveryLabel = isPickup
+    ? "Retiro en local"
+    : formData.shippingDeliveryType === "S"
+      ? "Retiro en sucursal"
+      : "Envío a domicilio";
+  const productCountLabel = `${items.length} producto${items.length === 1 ? "" : "s"}`;
+
   return (
     <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-stone-900 mb-2">
-          Resumen del Pedido
-        </h2>
-        <p className="text-stone-600">Revisá los detalles antes de confirmar</p>
-      </div>
+      {collapsible ? (
+        // Header colapsable: click para expandir/colapsar
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full bg-yerba-600 text-white rounded-xl p-4 flex items-center justify-between gap-3 hover:bg-yerba-700 transition-colors text-left"
+          aria-expanded={expanded}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <Package className="h-5 w-5 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">
+                Total a pagar:{" "}
+                <span className="text-base font-bold">
+                  ${finalTotal.toLocaleString("es-AR")}
+                </span>
+              </p>
+              <p className="text-xs text-yerba-100 truncate">
+                {productCountLabel} · {deliveryLabel}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-yerba-100 hidden sm:inline">
+              {expanded ? "Ocultar detalle" : "Ver detalle"}
+            </span>
+            <ChevronDown
+              className={`h-5 w-5 transition-transform ${expanded ? "rotate-180" : ""}`}
+            />
+          </div>
+        </button>
+      ) : (
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-stone-900 mb-2">
+            Resumen del Pedido
+          </h2>
+          <p className="text-stone-600">
+            Revisá los detalles antes de confirmar
+          </p>
+        </div>
+      )}
 
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={collapsible ? { opacity: 0, height: 0 } : false}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="space-y-6 overflow-hidden"
+          >
       {/* Productos */}
       <div className="bg-stone-50 rounded-xl p-4">
         <h3 className="font-semibold text-stone-900 mb-4 flex items-center gap-2">
@@ -143,13 +215,22 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
               <div className="flex justify-between">
                 <span className="text-stone-500">Método</span>
                 <span className="font-medium text-stone-900">
-                  Envío a domicilio
+                  {formData.shippingDeliveryType === "S"
+                    ? "Retiro en sucursal"
+                    : "Envío a domicilio"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-stone-500">Dirección</span>
                 <span className="font-medium text-stone-900 text-right">
-                  {formData.address}
+                  {[
+                    formData.streetName,
+                    formData.streetNumber,
+                    formData.floor && `Piso ${formData.floor}`,
+                    formData.apartment && `Dpto ${formData.apartment}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -164,6 +245,15 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
                   {formData.zipCode}
                 </span>
               </div>
+              {formData.shippingDeliveryType === "S" &&
+                formData.shippingAgencyName && (
+                  <div className="flex justify-between">
+                    <span className="text-stone-500">Sucursal</span>
+                    <span className="font-medium text-stone-900 text-right">
+                      {formData.shippingAgencyName}
+                    </span>
+                  </div>
+                )}
             </>
           ) : (
             <>
@@ -253,6 +343,9 @@ export function OrderSummary({ items, total }: OrderSummaryProps) {
           </p>
         )}
       </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

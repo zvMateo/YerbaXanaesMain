@@ -11,13 +11,20 @@ import {
 import { useCartStore } from "@/stores/cart-store";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Loader2, AlertTriangle, Tag, Check, X } from "lucide-react";
+import {
+  Loader2,
+  AlertTriangle,
+  Tag,
+  Check,
+  X,
+  FileText,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 
 import { useFormContext } from "react-hook-form";
 import { PersonalInfoStep } from "./checkout-steps/personal-info-step";
-import { DeliveryStep } from "./checkout-steps/delivery-step";
-import { PaymentStep } from "./checkout-steps/payment-step";
+import { DeliveryMethodStep } from "./checkout-steps/delivery-method-step";
+import { DeliveryDetailsStep } from "./checkout-steps/delivery-details-step";
 import { OrderSummary } from "./checkout-steps/order-summary";
 
 const PaymentBrick = dynamic(
@@ -135,11 +142,13 @@ function CouponInput({ total }: { total: number }) {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+// Steps del nuevo flow de 4 pasos.
+// El step "details" se saltea cuando deliveryType === "pickup".
 const steps = [
   { id: "personal", label: "Tus Datos", number: 1 },
-  { id: "delivery", label: "Entrega", number: 2 },
-  { id: "payment", label: "Pago", number: 3 },
-  { id: "summary", label: "Confirmar", number: 4 },
+  { id: "method", label: "Entrega", number: 2 },
+  { id: "details", label: "Datos de envío", number: 3 },
+  { id: "payment", label: "Pago", number: 4 },
 ];
 
 const CHECKOUT_STORAGE_KEY = "yerbaxanaes-checkout-data";
@@ -177,16 +186,11 @@ export function CheckoutForm() {
       paymentMethod: "mercadopago",
       shippingCost: 0,
       shippingProvider: "pickup",
-      shippingProvinceCode: "B",
+      shippingProvinceCode: "",
     },
   });
 
-  const {
-    trigger,
-    watch,
-    reset,
-    getValues,
-  } = methods;
+  const { trigger, watch, reset, getValues, register } = methods;
 
   // Restaurar datos del localStorage
   useEffect(() => {
@@ -224,60 +228,100 @@ export function CheckoutForm() {
     localStorage.removeItem(CHECKOUT_STEP_KEY);
   };
 
+  // Watches usados para lógica de navegación
+  const deliveryType = watch("deliveryType");
+  const isPickup = deliveryType === "pickup";
+
   const handleNext = async () => {
     let isStepValid = false;
     switch (currentStep) {
-      case 0:
+      case 0: // Datos personales
         isStepValid = await trigger([
           "customerName",
           "customerEmail",
           "customerPhone",
         ]);
         break;
-      case 1:
-        isStepValid = await trigger([
-          "deliveryType",
-          "address",
-          "city",
-          "zipCode",
-        ]);
-        if (isStepValid) {
-          const deliveryData = getValues();
-          const hasSelectedShippingRate =
-            deliveryData.deliveryType !== "shipping" ||
-            ((deliveryData.shippingCost ?? 0) > 0 &&
-              deliveryData.shippingProvider === "correo_argentino");
 
-          if (!hasSelectedShippingRate) {
-            toast.error("Falta cotizar el envío", {
+      case 1: // Método de entrega
+        isStepValid = await trigger(["deliveryType"]);
+        // Si eligió envío, verificar también que haya elegido D o S
+        if (isStepValid && getValues().deliveryType === "shipping") {
+          const sdt = getValues().shippingDeliveryType;
+          if (sdt !== "D" && sdt !== "S") {
+            toast.error("Falta elegir el tipo de envío", {
               description:
-                "Ingresá un código postal válido y seleccioná una opción de envío antes de continuar.",
+                "Seleccioná Envío a domicilio o Retiro en sucursal.",
             });
             return;
           }
         }
         break;
-      case 2:
-        isStepValid = await trigger(["paymentMethod"]);
+
+      case 2: {
+        // Datos del envío — depende de D o S
+        const sdt = getValues().shippingDeliveryType;
+        if (sdt === "D") {
+          isStepValid = await trigger([
+            "streetName",
+            "streetNumber",
+            "city",
+            "zipCode",
+            "shippingProvinceCode",
+          ]);
+        } else if (sdt === "S") {
+          isStepValid = await trigger([
+            "zipCode",
+            "shippingProvinceCode",
+            "shippingAgencyCode",
+          ]);
+        }
         if (isStepValid) {
-          isStepValid = await validateStockBeforeSubmit();
+          const d = getValues();
+          if (
+            (d.shippingCost ?? 0) <= 0 ||
+            d.shippingProvider !== "correo_argentino"
+          ) {
+            toast.error("Falta cotizar el envío", {
+              description:
+                "Ingresá un código postal válido y seleccioná una tarifa antes de continuar.",
+            });
+            return;
+          }
         }
         break;
-      case 3:
-        isStepValid = true;
+      }
+
+      case 3: // Pago — validamos stock antes de mostrar el brick
+        isStepValid = await validateStockBeforeSubmit();
         break;
     }
-    if (isStepValid && currentStep < steps.length - 1) {
+
+    if (!isStepValid) return;
+
+    // Skip de step 2 cuando es pickup: de step 1 (Método) → step 3 (Pago) directo
+    if (currentStep === 1 && isPickup) {
+      setCurrentStep(3);
+      setStockErrors([]);
+      return;
+    }
+
+    if (currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
       setStockErrors([]);
     }
   };
 
   const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep((prev) => prev - 1);
+    if (currentStep === 0) return;
+    // Volver de step 3 (Pago) → step 1 (Método) directo cuando es pickup
+    if (currentStep === 3 && isPickup) {
+      setCurrentStep(1);
       setStockErrors([]);
+      return;
     }
+    setCurrentStep((prev) => prev - 1);
+    setStockErrors([]);
   };
 
   const validateStockBeforeSubmit = async (): Promise<boolean> => {
@@ -337,9 +381,18 @@ export function CheckoutForm() {
   // Monto final para el Payment Brick: items + envío - descuento
   const brickAmount = Math.max(0, total + shippingCost - couponDiscount);
 
+  // Label del botón Continuar — cambia cuando es pickup en step 1
+  const continueLabel =
+    currentStep === 1 && isPickup ? "Continuar al pago" : "Continuar";
+
+  // En step 4 (Pago) usamos un container más ancho en desktop para que el
+  // layout de 2 columnas (form + resumen sticky) tenga aire suficiente.
+  const containerMaxW =
+    currentStep === 3 ? "max-w-4xl lg:max-w-6xl" : "max-w-4xl";
+
   return (
     <FormProvider {...methods}>
-      <div className="max-w-4xl mx-auto">
+      <div className={`${containerMaxW} mx-auto transition-[max-width] duration-300`}>
         {/* Errores de stock */}
         {stockErrors.length > 0 && (
           <div className="mb-6 bg-red-50 p-4 rounded-xl border border-red-200">
@@ -359,20 +412,47 @@ export function CheckoutForm() {
           </div>
         )}
 
-        {/* Indicador de pasos */}
+        {/* Indicador de pasos.
+            Cuando es pickup, el step "details" se ve muted con guión
+            en lugar de número y label tachado.
+        */}
         <div className="mb-8 flex justify-between">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex flex-col items-center">
+          {steps.map((step, index) => {
+            const isSkipped = step.id === "details" && isPickup;
+            const isCompleted = !isSkipped && index < currentStep;
+            const isActive = !isSkipped && index === currentStep;
+
+            return (
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-                  index <= currentStep ? "bg-yerba-600" : "bg-stone-200"
-                }`}
+                key={step.id}
+                className="flex flex-col items-center"
+                title={
+                  isSkipped ? "Saltado: elegiste retiro en local" : undefined
+                }
               >
-                {index < currentStep ? "✓" : step.number}
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${
+                    isSkipped
+                      ? "bg-stone-100 text-stone-400 border border-dashed border-stone-300"
+                      : isActive || isCompleted
+                        ? "bg-yerba-600 text-white"
+                        : "bg-stone-200 text-stone-600"
+                  }`}
+                >
+                  {isSkipped ? "—" : isCompleted ? "✓" : step.number}
+                </div>
+                <span
+                  className={`text-xs mt-2 ${
+                    isSkipped
+                      ? "text-stone-400 line-through decoration-stone-300"
+                      : "text-stone-700"
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
-              <span className="text-xs mt-2">{step.label}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-6">
@@ -385,45 +465,76 @@ export function CheckoutForm() {
               transition={{ duration: 0.3 }}
             >
               {currentStep === 0 && <PersonalInfoStep />}
-              {currentStep === 1 && <DeliveryStep />}
-              {currentStep === 2 && <PaymentStep />}
+              {currentStep === 1 && <DeliveryMethodStep />}
+              {currentStep === 2 && <DeliveryDetailsStep />}
               {currentStep === 3 && (
-                <>
-                  <CouponInput total={total} />
-                  <OrderSummary items={items} total={total} />
+                <div className="lg:grid lg:grid-cols-3 lg:gap-6">
+                  {/* MOBILE: resumen colapsable arriba (hidden en lg+) */}
+                  <div className="lg:hidden mb-6">
+                    <OrderSummary items={items} total={total} collapsible />
+                  </div>
 
-                  {/* Payment Brick: Mercado Pago */}
-                  {selectedPaymentMethod === "mercadopago" && (
-                    <div className="mt-6">
-                      <h3 className="text-base font-semibold text-stone-900 mb-3">
-                        Completá tu pago
-                      </h3>
-                      <PaymentBrick
-                        amount={brickAmount}
-                        existingOrderId={brickOrderId}
-                        existingPreferenceId={brickPreferenceId}
-                        onInit={({ orderId, preferenceId }) => {
-                          setBrickOrderId(orderId);
-                          setBrickPreferenceId(preferenceId);
-                        }}
-                        onGoToDelivery={() => setCurrentStep(1)}
-                        onSuccess={({ orderId }) => {
-                          clearStoredData();
-                          clearCart();
-                          router.push(
-                            `/checkout/success?orderId=${orderId}`,
-                          );
-                        }}
-                        onError={(err) =>
-                          toast.error("Error en el pago", {
-                            description: err.message,
-                          })
-                        }
-                      />
+                  {/* COLUMNA IZQUIERDA: notas + cupón + brick (2/3 en desktop) */}
+                  <div className="lg:col-span-2 space-y-6">
+                    {/* Notas + Cupón en una sola card compacta */}
+                    <div className="space-y-4 border border-stone-200 rounded-xl p-4 bg-stone-50/50">
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-stone-500" />
+                            <span>Notas adicionales (opcional)</span>
+                          </div>
+                        </label>
+                        <textarea
+                          {...register("notes")}
+                          rows={2}
+                          placeholder="¿Alguna instrucción especial? Ej: Tocar timbre, dejar en portería…"
+                          className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all resize-none bg-white"
+                        />
+                      </div>
+                      <CouponInput total={total} />
                     </div>
-                  )}
 
-                </>
+                    {/* Payment Brick: Mercado Pago — protagonista visual */}
+                    {selectedPaymentMethod === "mercadopago" && (
+                      <div>
+                        <h3 className="text-base font-semibold text-stone-900 mb-3">
+                          Completá tu pago
+                        </h3>
+                        <PaymentBrick
+                          amount={brickAmount}
+                          existingOrderId={brickOrderId}
+                          existingPreferenceId={brickPreferenceId}
+                          onInit={({ orderId, preferenceId }) => {
+                            setBrickOrderId(orderId);
+                            setBrickPreferenceId(preferenceId);
+                          }}
+                          onGoToDelivery={() => {
+                            // Si es pickup volvemos al método; si no al detalle
+                            setCurrentStep(isPickup ? 1 : 2);
+                          }}
+                          onSuccess={({ orderId }) => {
+                            clearStoredData();
+                            clearCart();
+                            router.push(`/checkout/success?orderId=${orderId}`);
+                          }}
+                          onError={(err) =>
+                            toast.error("Error en el pago", {
+                              description: err.message,
+                            })
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* COLUMNA DERECHA: resumen completo sticky (solo desktop, 1/3) */}
+                  <div className="hidden lg:block">
+                    <div className="sticky top-6">
+                      <OrderSummary items={items} total={total} />
+                    </div>
+                  </div>
+                </div>
               )}
             </motion.div>
           </AnimatePresence>
@@ -450,36 +561,40 @@ export function CheckoutForm() {
                     Validando...
                   </>
                 ) : (
-                  "Continuar"
+                  continueLabel
                 )}
               </button>
             ) : null}
           </div>
         </div>
 
-        {/* Resumen del total */}
-        <div className="mt-8 bg-stone-50 p-6 rounded-xl space-y-2 text-sm">
-          <div className="flex justify-between text-stone-600">
-            <span>Subtotal</span>
-            <span>${total.toLocaleString("es-AR")}</span>
-          </div>
-          {shippingCost > 0 && (
+        {/* Resumen del total — visible en steps 0/1/2.
+            En el step 3 (Pago) se omite porque el OrderSummary colapsable
+            ya muestra el total en su header. */}
+        {currentStep < 3 && (
+          <div className="mt-8 bg-stone-50 p-6 rounded-xl space-y-2 text-sm">
             <div className="flex justify-between text-stone-600">
-              <span>Envío</span>
-              <span>${shippingCost.toLocaleString("es-AR")}</span>
+              <span>Subtotal</span>
+              <span>${total.toLocaleString("es-AR")}</span>
             </div>
-          )}
-          {couponDiscount > 0 && (
-            <div className="flex justify-between text-green-700">
-              <span>Descuento</span>
-              <span>−${couponDiscount.toLocaleString("es-AR")}</span>
+            {shippingCost > 0 && (
+              <div className="flex justify-between text-stone-600">
+                <span>Envío</span>
+                <span>${shippingCost.toLocaleString("es-AR")}</span>
+              </div>
+            )}
+            {couponDiscount > 0 && (
+              <div className="flex justify-between text-green-700">
+                <span>Descuento</span>
+                <span>−${couponDiscount.toLocaleString("es-AR")}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-lg pt-2 border-t border-stone-200">
+              <span>Total</span>
+              <span>${brickAmount.toLocaleString("es-AR")}</span>
             </div>
-          )}
-          <div className="flex justify-between font-bold text-lg pt-2 border-t border-stone-200">
-            <span>Total</span>
-            <span>${brickAmount.toLocaleString("es-AR")}</span>
           </div>
-        </div>
+        )}
       </div>
     </FormProvider>
   );
