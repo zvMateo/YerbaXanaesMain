@@ -12,7 +12,7 @@ import { GetShippingRatesDto } from './dto/get-rates.dto';
 
 // Importación para NestJS/CommonJS según doc de la librería
 import CorreoArgentinoApi from 'ylazzari-correoargentino';
-import { Environment, DeliveredType } from 'ylazzari-correoargentino/enums';
+import { Environment } from 'ylazzari-correoargentino/enums';
 
 // ============================================================
 // TIPOS DE RESPUESTA
@@ -72,6 +72,30 @@ export class ShippingService implements OnModuleInit {
   ) {}
 
   // ============================================================
+  // HELPER: Validar credenciales mínimas para HTTP directo a MiCorreo
+  // (independiente de la librería ylazzari-correoargentino)
+  // ============================================================
+
+  /**
+   * Devuelve customerId si hay credenciales suficientes para HTTP directo,
+   * o `null` si falta alguna. No requiere que la librería esté inicializada
+   * — alcanza con CA_USER_TOKEN + CA_PASSWORD_TOKEN + (CA_CUSTOMER_ID env o
+   * customerId ya cargado en la librería).
+   */
+  private getMiCorreoCredentials(): { customerId: string } | null {
+    const userToken = this.config.get<string>('CA_USER_TOKEN');
+    const passwordToken = this.config.get<string>('CA_PASSWORD_TOKEN');
+    if (!userToken || !passwordToken) return null;
+
+    const customerId =
+      this.correoApi?.getVarCustomerId() ??
+      this.config.get<string>('CA_CUSTOMER_ID');
+    if (!customerId) return null;
+
+    return { customerId };
+  }
+
+  // ============================================================
   // HELPER: Obtener token JWT de MiCorreo (con cache)
   // ============================================================
 
@@ -115,10 +139,48 @@ export class ShippingService implements OnModuleInit {
       );
     }
 
-    const data = (await response.json()) as { token: string; expires: string };
+    // MiCorreo a veces devuelve HTTP 200 con error en body
+    // ({ code, message } en vez de { token, expires }).
+    // Parseamos defensivamente para detectar ambos casos.
+    const data = (await response.json()) as {
+      token?: string;
+      expires?: string;
+      code?: string;
+      message?: string;
+    };
+
+    if (!data.token) {
+      this.logger.error(
+        `MiCorreo /token sin token en la respuesta: ${JSON.stringify(data)}`,
+      );
+      throw new ServiceUnavailableException(
+        `Error autenticando con MiCorreo${
+          data.message ? `: ${data.message}` : ''
+        }. Verificá CA_USER_TOKEN, CA_PASSWORD_TOKEN y CA_ENVIRONMENT.`,
+      );
+    }
+
     this.miCorreoToken = data.token;
-    // Parsear expires "2022-04-26 21:16:20" → Date
-    this.miCorreoTokenExpires = new Date(data.expires.replace(' ', 'T'));
+
+    // `expires` puede venir como "2022-04-26 21:16:20" o no venir en absoluto.
+    // Si no viene o es inválido, asumimos 30 minutos como cache conservadora.
+    const FALLBACK_TTL_MS = 30 * 60_000;
+    if (data.expires) {
+      const parsed = new Date(data.expires.replace(' ', 'T'));
+      if (Number.isNaN(parsed.getTime())) {
+        this.logger.warn(
+          `MiCorreo /token devolvió expires no parseable: "${data.expires}" — asumiendo cache de 30 minutos`,
+        );
+        this.miCorreoTokenExpires = new Date(Date.now() + FALLBACK_TTL_MS);
+      } else {
+        this.miCorreoTokenExpires = parsed;
+      }
+    } else {
+      this.logger.warn(
+        'MiCorreo /token no devolvió campo "expires" — asumiendo cache de 30 minutos',
+      );
+      this.miCorreoTokenExpires = new Date(Date.now() + FALLBACK_TTL_MS);
+    }
 
     this.logger.log('Token MiCorreo obtenido/renovado');
     return this.miCorreoToken;
@@ -145,7 +207,11 @@ export class ShippingService implements OnModuleInit {
       },
     });
 
-    return { ok: response.ok, status: response.status, data: await response.json() };
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await response.json(),
+    };
   }
 
   async onModuleInit() {
@@ -212,7 +278,8 @@ export class ShippingService implements OnModuleInit {
   }
 
   // ============================================================
-  // COTIZAR ENVÍO
+  // COTIZAR ENVÍO — HTTP directo a /rates
+  // Sin deliveredType → MiCorreo devuelve ambas tarifas (domicilio + sucursal)
   // ============================================================
 
   async getRates(dto: GetShippingRatesDto): Promise<ShippingRatesResponse> {
@@ -223,33 +290,54 @@ export class ShippingService implements OnModuleInit {
       this.config.get<string>('CA_POSTAL_CODE_ORIGIN') ||
       DEFAULT_POSTAL_CODE_ORIGIN;
 
-    // 2. Si no hay API inicializada → no autocotizamos
-    if (!this.isInitialized || !this.correoApi) {
+    // 2. Validar credenciales mínimas (no requiere lib inicializada)
+    const creds = this.getMiCorreoCredentials();
+    if (!creds) {
       throw new ServiceUnavailableException(
         'No pudimos cotizar automáticamente el envío con Correo Argentino. Coordiná la cotización manual por WhatsApp.',
       );
     }
 
     try {
-      // 3. Llamar a la API de Correo Argentino
-      // Usamos DeliveredType.D (domicilio) como opción principal
-      const response = await this.correoApi.getRates({
-        customerId: this.correoApi.getVarCustomerId(),
-        postalCodeOrigin,
-        postalCodeDestination: dto.postalCodeDestination,
-        deliveredType: DeliveredType.D,
-        dimensions: [
-          {
+      // 3. Llamar a /rates SIN deliveredType para obtener domicilio (D) + sucursal (S)
+      const result = await this.miCorreoFetch('/rates', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: creds.customerId,
+          postalCodeOrigin,
+          postalCodeDestination: dto.postalCodeDestination,
+          dimensions: {
             weight: packageWeightGrams,
             height: DEFAULT_DIMENSIONS.height,
             width: DEFAULT_DIMENSIONS.width,
             length: DEFAULT_DIMENSIONS.length,
-            quantity: 1,
           },
-        ],
+        }),
       });
 
-      const rates: ShippingRate[] = response.rates.map((rate) => ({
+      if (!result['ok']) {
+        const errData = result['data'] as { message?: string; code?: string };
+        this.logger.warn(
+          `MiCorreo /rates error ${errData?.code ?? result['status']}: ${errData?.message ?? 'Unknown'}`,
+        );
+        throw new ServiceUnavailableException(
+          'No pudimos cotizar automáticamente el envío con Correo Argentino. Coordiná la cotización manual por WhatsApp.',
+        );
+      }
+
+      const data = result['data'] as {
+        rates?: Array<{
+          deliveredType: string;
+          productType: string;
+          productName: string;
+          price: number;
+          deliveryTimeMin: string;
+          deliveryTimeMax: string;
+        }>;
+      };
+
+      const rawRates = data.rates ?? [];
+      const rates: ShippingRate[] = rawRates.map((rate) => ({
         deliveredType: rate.deliveredType as 'D' | 'S',
         productName: rate.productName,
         price: rate.price,
@@ -260,6 +348,8 @@ export class ShippingService implements OnModuleInit {
 
       return { rates, source: 'correo_argentino', packageWeightGrams };
     } catch (error) {
+      // Si ya tiramos ServiceUnavailableException arriba, dejá que se propague tal cual
+      if (error instanceof ServiceUnavailableException) throw error;
       this.logger.error('Error cotizando con Correo Argentino', error);
       throw new ServiceUnavailableException(
         'No pudimos cotizar automáticamente el envío con Correo Argentino. Coordiná la cotización manual por WhatsApp.',
@@ -275,9 +365,11 @@ export class ShippingService implements OnModuleInit {
   async importShipping(
     orderId: string,
   ): Promise<{ correoImportedAt: Date; message: string }> {
-    if (!this.isInitialized || !this.correoApi) {
+    // Validar credenciales mínimas para HTTP directo (no requiere lib inicializada)
+    const creds = this.getMiCorreoCredentials();
+    if (!creds) {
       throw new BadRequestException(
-        'Correo Argentino no está configurado. Configurá las variables CA_* en el entorno.',
+        'Correo Argentino no está configurado. Configurá CA_USER_TOKEN, CA_PASSWORD_TOKEN y CA_CUSTOMER_ID en el entorno.',
       );
     }
 
@@ -290,15 +382,54 @@ export class ShippingService implements OnModuleInit {
 
     if (!order) throw new NotFoundException(`Orden #${orderId} no encontrada`);
 
-    if (!order.shippingAddress || !order.shippingZip) {
-      throw new BadRequestException(
-        'La orden no tiene dirección de envío. No se puede importar a MiCorreo.',
-      );
-    }
-
     if (order.correoImportedAt) {
       throw new BadRequestException(
         `Esta orden ya fue importada a MiCorreo el ${order.correoImportedAt.toISOString()}`,
+      );
+    }
+
+    if (!order.shippingZip) {
+      throw new BadRequestException(
+        'La orden no tiene código postal de destino. No se puede importar a MiCorreo.',
+      );
+    }
+
+    // Determinar tipo de envío Correo (D = domicilio, S = sucursal).
+    // Por defecto D si no se especificó (compat con órdenes legacy).
+    const deliveryType: 'D' | 'S' =
+      order.shippingDeliveryType === 'S' ? 'S' : 'D';
+
+    // Validar requisitos según tipo
+    if (deliveryType === 'S' && !order.shippingAgencyCode) {
+      throw new BadRequestException(
+        'Esta orden es de retiro en sucursal pero no tiene el código de sucursal cargado. Asigná uno antes de importar.',
+      );
+    }
+
+    if (deliveryType === 'D' && !order.shippingProvinceCode) {
+      throw new BadRequestException(
+        'La orden no tiene código de provincia. Es obligatorio para envíos a domicilio.',
+      );
+    }
+
+    // Resolver dirección: preferir campos estructurados, fallback al string legacy
+    const legacyParts = (order.shippingAddress || '').split(',');
+    const streetName =
+      order.shippingStreetName?.trim() ||
+      legacyParts[0]?.trim() ||
+      'Sin dirección';
+    const streetNumber =
+      order.shippingStreetNumber?.trim() || legacyParts[1]?.trim() || 's/n';
+    const floor = order.shippingFloor?.trim() || '';
+    const apartment = order.shippingApartment?.trim() || '';
+
+    // Para domicilio, exigir calle + número explícitos (no aceptar defaults)
+    if (
+      deliveryType === 'D' &&
+      (streetName === 'Sin dirección' || streetNumber === 's/n')
+    ) {
+      throw new BadRequestException(
+        'La orden no tiene calle/altura cargadas. Completá la dirección antes de importar.',
       );
     }
 
@@ -310,12 +441,10 @@ export class ShippingService implements OnModuleInit {
       })),
     );
 
-    const customerId = this.correoApi.getVarCustomerId();
+    const customerId = creds.customerId;
 
-    // Parsear dirección: "Calle 1234, Ciudad" → streetName, streetNumber
-    const addressParts = (order.shippingAddress || '').split(',');
-    const streetName = addressParts[0]?.trim() || 'Sin dirección';
-    const streetNumber = addressParts[1]?.trim() || 's/n';
+    // Valor declarado en ARS — usar toFixed(2) para evitar drift de Prisma.Decimal
+    const declaredValue = parseFloat(Number(order.total).toFixed(2));
 
     try {
       const result = await this.miCorreoFetch('/shipping/import', {
@@ -334,20 +463,20 @@ export class ShippingService implements OnModuleInit {
             email: order.customerEmail || '',
           },
           shipping: {
-            deliveryType: 'D', // Siempre domicilio por ahora
+            deliveryType, // 'D' o 'S' según lo elegido por el cliente
             productType: 'CP',
-            agency: null,
+            agency: order.shippingAgencyCode ?? null,
             address: {
               streetName,
               streetNumber,
-              floor: '',
-              apartment: '',
+              floor,
+              apartment,
               city: order.shippingCity || '',
-              provinceCode: order.shippingProvinceCode || 'B',
-              postalCode: order.shippingZip || '',
+              provinceCode: order.shippingProvinceCode ?? '',
+              postalCode: order.shippingZip,
             },
             weight: packageWeightGrams,
-            declaredValue: Number(order.total),
+            declaredValue,
             height: DEFAULT_DIMENSIONS.height,
             length: DEFAULT_DIMENSIONS.length,
             width: DEFAULT_DIMENSIONS.width,
@@ -357,7 +486,7 @@ export class ShippingService implements OnModuleInit {
 
       // La respuesta exitosa es { createdAt: "..." } — no devuelve tracking number.
       // El trackingNumber real lo asigna Correo internamente y aparece en el dashboard
-      // de MiCorreo. La hermana lo va a copiar manualmente desde ahí (ver bug #2).
+      // de MiCorreo. El admin lo va a copiar manualmente desde ahí.
       if (!result['ok']) {
         const errData = result['data'] as { message?: string; code?: string };
         const apiMessage = errData?.message ?? 'Unknown';
@@ -383,7 +512,7 @@ export class ShippingService implements OnModuleInit {
       return {
         correoImportedAt: importedAt,
         message:
-          'Envío creado en MiCorreo. Imprimí la doblea desde el dashboard y cargá el número de seguimiento cuando lo tengas.',
+          'Envío creado en MiCorreo. Imprimí la oblea desde el dashboard y cargá el número de seguimiento cuando lo tengas.',
       };
     } catch (error) {
       this.logger.error('No se pudo importar el envío a MiCorreo', error);
@@ -398,10 +527,7 @@ export class ShippingService implements OnModuleInit {
           'Esta orden ya fue importada a MiCorreo anteriormente.',
         );
       }
-      if (
-        lowercased.includes('remitente') ||
-        lowercased.includes('emisor')
-      ) {
+      if (lowercased.includes('remitente') || lowercased.includes('emisor')) {
         throw new BadRequestException(
           'Faltan datos del remitente. Completá la dirección de tu cuenta en el dashboard de MiCorreo o configurá las variables CA_SENDER_* en el .env.',
         );
@@ -454,8 +580,7 @@ export class ShippingService implements OnModuleInit {
       postalCode: string | null;
     };
   } {
-    const get = (key: string) =>
-      this.config.get<string>(key)?.trim() || null;
+    const get = (key: string) => this.config.get<string>(key)?.trim() || null;
 
     return {
       name: get('CA_SENDER_NAME'),
@@ -494,8 +619,9 @@ export class ShippingService implements OnModuleInit {
 
     const trackingUrl = `https://www.correoargentino.com.ar/formularios/oas?id=${order.trackingNumber}`;
 
-    // Sin credenciales: devolver solo el link público
-    if (!this.isInitialized || !this.correoApi) {
+    // Sin credenciales mínimas: degradar a solo el link público
+    const creds = this.getMiCorreoCredentials();
+    if (!creds) {
       return {
         trackingNumber: order.trackingNumber,
         events: [],
@@ -519,20 +645,26 @@ export class ShippingService implements OnModuleInit {
       if (Array.isArray(data)) {
         return {
           trackingNumber: order.trackingNumber,
-          events: (data as Array<{ event: string; date: string; branch: string; status: string }>),
+          events: data as Array<{
+            event: string;
+            date: string;
+            branch: string;
+            status: string;
+          }>,
           trackingUrl,
         };
       }
 
       // Error struktur dari API
       if (data['error'] || data['code']) {
-        this.logger.warn(
-          `Tracking MiCorreo error: ${JSON.stringify(data)}`,
-        );
+        this.logger.warn(`Tracking MiCorreo error: ${JSON.stringify(data)}`);
         return {
           trackingNumber: order.trackingNumber,
           events: [],
-          message: (data['error'] as string) || (data['message'] as string) || 'No se pudo obtener tracking',
+          message:
+            (data['error'] as string) ||
+            (data['message'] as string) ||
+            'No se pudo obtener tracking',
           trackingUrl,
         };
       }
@@ -550,6 +682,97 @@ export class ShippingService implements OnModuleInit {
         message: 'Error consultando tracking. Usá el link oficial.',
         trackingUrl,
       };
+    }
+  }
+
+  // ============================================================
+  // SUCURSALES — GET /agencies?provinceCode=X
+  // Público (lo usa el checkout cuando el cliente elige retiro en sucursal)
+  // ============================================================
+
+  async getAgencies(provinceCode: string): Promise<
+    Array<{
+      code: string;
+      name: string;
+      address: string;
+      city: string;
+      postalCode: string;
+      hours: Record<string, { start: string; end: string } | null>;
+    }>
+  > {
+    if (!provinceCode || provinceCode.length !== 1) {
+      throw new BadRequestException(
+        'provinceCode requerido (1 letra: A, B, C, ..., X = Córdoba, etc.)',
+      );
+    }
+
+    const creds = this.getMiCorreoCredentials();
+    if (!creds) {
+      throw new ServiceUnavailableException(
+        'Correo Argentino no está configurado. No se pueden listar sucursales.',
+      );
+    }
+
+    try {
+      const url =
+        `/agencies?customerId=${encodeURIComponent(creds.customerId)}` +
+        `&provinceCode=${encodeURIComponent(provinceCode)}`;
+      const result = await this.miCorreoFetch(url, { method: 'GET' });
+
+      if (!result['ok']) {
+        const errData = result['data'] as { message?: string; code?: string };
+        this.logger.warn(
+          `MiCorreo /agencies error ${errData?.code ?? result['status']}: ${errData?.message ?? 'Unknown'}`,
+        );
+        throw new ServiceUnavailableException(
+          'No pudimos listar sucursales de Correo Argentino. Intentá nuevamente.',
+        );
+      }
+
+      const data = result['data'] as Array<{
+        code: string;
+        name: string;
+        services?: { packageReception?: boolean };
+        location?: {
+          address?: {
+            streetName?: string;
+            streetNumber?: string;
+            city?: string;
+            postalCode?: string;
+          };
+        };
+        hours?: Record<string, { start: string; end: string } | null>;
+        status?: string;
+      }>;
+
+      if (!Array.isArray(data)) {
+        return [];
+      }
+
+      // Filtrar sucursales activas con recepción de paquetes habilitada
+      // y mapear a una forma simple para el frontend
+      return data
+        .filter(
+          (a) =>
+            a.status === 'ACTIVE' && a.services?.packageReception !== false,
+        )
+        .map((a) => ({
+          code: a.code,
+          name: a.name,
+          address:
+            [a.location?.address?.streetName, a.location?.address?.streetNumber]
+              .filter(Boolean)
+              .join(' ') || '',
+          city: a.location?.address?.city || '',
+          postalCode: a.location?.address?.postalCode || '',
+          hours: a.hours || {},
+        }));
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      this.logger.error('Error listando sucursales de Correo Argentino', error);
+      throw new ServiceUnavailableException(
+        'No pudimos listar sucursales de Correo Argentino. Intentá nuevamente.',
+      );
     }
   }
 
@@ -632,8 +855,9 @@ export class ShippingService implements OnModuleInit {
       return sum + weight * item.quantity;
     }, 0);
 
-    // Mínimo 1g para la API
-    return Math.max(totalWeight, 1);
+    // La API de MiCorreo exige integers en weight/height/length/width.
+    // Redondeamos y forzamos un mínimo de 1g.
+    return Math.max(Math.round(totalWeight), 1);
   }
 
   private buildRateLabel(rate: {
