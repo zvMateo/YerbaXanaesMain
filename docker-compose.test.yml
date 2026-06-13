@@ -1,0 +1,32 @@
+# DB de test EFÍMERA para los E2E de Playwright.
+# Aislada de la DB de desarrollo (:5432) — corre en :5433 con datos en RAM (tmpfs),
+# así arranca limpia en cada `up` y no deja volumen que limpiar.
+#
+# Uso local:
+#   docker compose -f docker-compose.test.yml up -d --wait
+#   (el global-setup de Playwright corre migrate deploy + seed contra esta DB)
+#
+# Las credenciales son fijas a propósito: es una DB descartable, local, con las
+# mismas creds dev ya conocidas. No es un secreto de producción. Mantenerlas fijas
+# evita un mismatch con la DATABASE_URL por defecto del playwright.config.ts.
+#
+# `name` aísla este compose en su propio proyecto: evita el warning de "orphan
+# containers" contra el stack dev y garantiza que `down` nunca toque la DB de dev.
+name: yerbaxanaes-test
+services:
+  yerbaxanaes-db-test:
+    image: postgres:16-alpine
+    container_name: yerbaxanaes_postgres_test
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: yerbapassword123
+      POSTGRES_DB: yerbaxanaes_test_db
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d yerbaxanaes_test_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 10

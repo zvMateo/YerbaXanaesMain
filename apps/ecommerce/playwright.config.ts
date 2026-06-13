@@ -10,6 +10,7 @@ const isCI = !!process.env.CI;
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.spec\.ts$/,
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
@@ -25,9 +26,6 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
-    extraHTTPHeaders: {
-      'x-e2e-test': '1',
-    },
   },
 
   projects: [
