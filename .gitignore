@@ -53,3 +53,8 @@ Img-claude/
 
 # CodeGraph index (local, no versionar)
 .codegraph/
+
+# playwright (E2E) — reportes, artefactos y storageState (cookie de sesión)
+**/playwright-report/
+**/test-results/
+**/e2e/.auth/

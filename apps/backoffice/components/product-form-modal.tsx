@@ -243,6 +243,7 @@ export function ProductFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6">
       <motion.div
+        data-testid="product-form-modal"
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -275,6 +276,7 @@ export function ProductFormModal({
                     Nombre del producto *
                   </label>
                   <input
+                    data-testid="product-name-input"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Ej: Yerba Mate Entrefina"
@@ -304,6 +306,7 @@ export function ProductFormModal({
                     Categoría *
                   </label>
                   <select
+                    data-testid="product-category-select"
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
                     className="w-full px-4 py-3 border border-stone-200 rounded-xl bg-white focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all focus:outline-none"
@@ -467,6 +470,7 @@ export function ProductFormModal({
                                 Nombre *
                               </label>
                               <input
+                                data-testid="variant-name"
                                 value={variant.name}
                                 onChange={(e) =>
                                   updateVariant(idx, "name", e.target.value)
@@ -483,6 +487,7 @@ export function ProductFormModal({
                               <input
                                 type="number"
                                 min={0}
+                                data-testid="variant-price"
                                 value={variant.price || ""}
                                 onChange={(e) =>
                                   updateVariant(
@@ -560,6 +565,7 @@ export function ProductFormModal({
                               <input
                                 type="number"
                                 min={0}
+                                data-testid="variant-stock"
                                 value={variant.stock || ""}
                                 onChange={(e) =>
                                   updateVariant(
@@ -642,6 +648,7 @@ export function ProductFormModal({
             </button>
             <button
               type="submit"
+              data-testid="product-submit"
               disabled={
                 isPending ||
                 !name.trim() ||

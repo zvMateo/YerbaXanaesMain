@@ -84,6 +84,7 @@ function CategoryModal({
             </label>
             <input
               type="text"
+              data-testid="category-name-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: Yerbas, Mates, Bombillas..."
@@ -106,6 +107,7 @@ function CategoryModal({
             </button>
             <button
               type="submit"
+              data-testid="category-submit"
               disabled={isLoading || !name.trim()}
               className="flex-1 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
@@ -168,6 +170,7 @@ export default function CategoriasPage() {
                   onSuccess: () => toast.dismiss(t),
                 });
               }}
+              data-testid="category-delete-confirm"
               className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
             >
               Eliminar
@@ -195,6 +198,7 @@ export default function CategoriasPage() {
             </div>
             <button
               onClick={() => setModalCategory(null)}
+              data-testid="new-category-btn"
               className="flex items-center gap-2 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium shadow-lg hover:shadow-xl"
             >
               <Plus className="h-4 w-4" />
@@ -218,6 +222,7 @@ export default function CategoriasPage() {
                 {categories.map((cat) => (
                   <div
                     key={cat.id}
+                    data-testid="category-item"
                     className="flex items-center justify-between p-4 hover:bg-stone-50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -240,6 +245,7 @@ export default function CategoriasPage() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => setModalCategory(cat)}
+                          data-testid="category-edit"
                           className="p-2 hover:bg-stone-100 rounded-lg transition-colors text-stone-400 hover:text-stone-700"
                           title="Editar"
                         >
@@ -247,6 +253,7 @@ export default function CategoriasPage() {
                         </button>
                         <button
                           onClick={() => handleDelete(cat)}
+                          data-testid="category-delete"
                           className="p-2 hover:bg-red-50 rounded-lg transition-colors text-stone-400 hover:text-red-600"
                           title="Eliminar"
                         >
