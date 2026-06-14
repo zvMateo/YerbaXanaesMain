@@ -7,6 +7,15 @@ import {
 } from "./fixtures";
 
 /**
+ * `brick-init` hace una llamada REAL a MercadoPago (preferenceClient.create) para
+ * devolver el preferenceId, así que el happy-path necesita un MP_ACCESS_TOKEN de TEST
+ * válido en el API. En local ese token viene de apps/api/.env y el test corre normal.
+ * En CI solo lo tenemos si se cargó el secret MP_ACCESS_TOKEN: si falta, se skipea
+ * (no podemos crear la preferencia). Fuera de CI nunca se skipea.
+ */
+const SKIP_MP_HAPPY_PATH = !!process.env.CI && !process.env.MP_ACCESS_TOKEN;
+
+/**
  * Happy path del checkout — Opción B.
  *
  * Recorre el flujo real del cliente: listado → detalle → carrito → checkout con
@@ -23,6 +32,11 @@ test("checkout con pickup llega a brick-init con preferenceId y descuenta stock"
   page,
   request,
 }) => {
+  test.skip(
+    SKIP_MP_HAPPY_PATH,
+    "En CI sin MP_ACCESS_TOKEN: brick-init no puede crear la preferencia (llamada real a MP).",
+  );
+
   const stockAntes = await fetchVariantStock(
     request,
     SEED_PRODUCT.slug,
