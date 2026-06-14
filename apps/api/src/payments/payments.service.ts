@@ -1262,7 +1262,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Assuramos que ts y hash son string — ya se validó arriba con el throw
-    const tsNum = Number(ts!);
+    const tsNum = Number(ts);
     if (!Number.isFinite(tsNum)) {
       throw new BadRequestException('Invalid webhook signature timestamp');
     }
@@ -1277,7 +1277,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     // Asegurar que el dataIdUrl esté en minúsculas (requisito de la doc)
     const dataIdLower = dataIdUrl.toLowerCase();
 
-    const manifest = `id:${dataIdLower};request-id:${requestId};ts:${ts!};`;
+    const manifest = `id:${dataIdLower};request-id:${requestId};ts:${ts};`;
     const hmac = crypto
       .createHmac('sha256', webhookSecret)
       .update(manifest)
@@ -1285,8 +1285,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
     // Comparación en tiempo constante para evitar leaks
     if (
-      hmac.length !== hash!.length ||
-      !crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash!))
+      hmac.length !== hash.length ||
+      !crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash))
     ) {
       this.logger.warn('Firma HMAC inválida - rechazando webhook');
       throw new BadRequestException('Invalid webhook signature');
