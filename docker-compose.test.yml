@@ -16,7 +16,9 @@ name: yerbaxanaes-test
 services:
   yerbaxanaes-db-test:
     image: postgres:16-alpine
-    container_name: yerbaxanaes_postgres_test
+    # Sin container_name fijo: Compose lo nombra con el prefijo del proyecto
+    # (yerbaxanaes-test). Un nombre fijo global colisiona si una corrida no hizo
+    # `down` — el contenedor viejo bloquea el `up` siguiente ("name already in use").
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: yerbapassword123
