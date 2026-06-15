@@ -54,8 +54,12 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
+      // Sin header Origin (curl, file://, contextos sandbox, server-to-server):
+      // denegar. Los clientes de navegador legítimos siempre envían Origin; el
+      // SSR de Next y el webhook de MP no dependen de CORS (no son requests de
+      // navegador, no leen la respuesta de preflight).
       if (!origin) {
-        callback(null, true);
+        callback(null, false);
         return;
       }
 
