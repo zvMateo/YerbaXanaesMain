@@ -1325,11 +1325,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
         if (!extRef) return { status: 'ok' };
 
-        // Bloquear la fila para evitar race condition con cleanup/webhook concurrente
-        await this.prisma.$queryRaw`
-          SELECT id FROM "Order" WHERE id = ${extRef} FOR UPDATE
-        `;
-
+        // Lectura para rutear (cancelar vs actualizar). NO bloqueamos acá: un
+        // FOR UPDATE fuera de $transaction no sostiene el lock. La atomicidad
+        // real (lock + re-verificación de estado + idempotencia + protección de
+        // manualOverride) la garantizan cancelPendingOrderWithStockRestore y
+        // updateOrderStatusWithAudit, cada una dentro de su propia transacción.
         const existing = await this.prisma.order.findUnique({
           where: { id: extRef },
         });
@@ -1418,11 +1418,9 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
         if (!extRef) return { status: 'ok' };
 
-        // Bloquear la fila para evitar race condition con cleanup/webhook concurrente
-        await this.prisma.$queryRaw`
-          SELECT id FROM "Order" WHERE id = ${extRef} FOR UPDATE
-        `;
-
+        // Lectura para rutear. NO bloqueamos acá: el lock real lo toman las
+        // funciones de mutación dentro de su propia transacción (ver la nota
+        // en el handler del tópico "payment").
         const existing = await this.prisma.order.findUnique({
           where: { id: extRef },
         });
