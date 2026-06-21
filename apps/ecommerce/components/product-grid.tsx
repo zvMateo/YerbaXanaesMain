@@ -1,6 +1,5 @@
 "use client";
 
-import { motion, AnimatePresence } from "motion/react";
 import { Product } from "@repo/types";
 import { ProductCard } from "./product-card";
 import { PackageX } from "lucide-react";
@@ -10,7 +9,9 @@ interface ProductGridProps {
   isLoading?: boolean;
 }
 
-// Systems-Oriented: Grid que mantiene estado durante navegación
+// Grid de productos. Las animaciones de entrada son CSS (tw-animate-css) en vez de
+// Framer/Motion `layout` + AnimatePresence: el FLIP de layout reordenaba el DOM en
+// cada filtro y disparaba INP alto en mobile. Con CSS el reordenado es nativo.
 export function ProductGrid({ products, isLoading }: ProductGridProps) {
   if (isLoading) {
     return (
@@ -38,11 +39,7 @@ export function ProductGrid({ products, isLoading }: ProductGridProps) {
 
   if (products.length === 0) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center py-20"
-      >
+      <div className="text-center py-20 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
         <div className="inline-flex items-center justify-center w-20 h-20 bg-stone-100 rounded-full mb-6">
           <PackageX className="h-10 w-10 text-stone-400" />
         </div>
@@ -52,20 +49,15 @@ export function ProductGrid({ products, isLoading }: ProductGridProps) {
         <p className="text-stone-500 max-w-md mx-auto">
           Intentá con otros filtros o volvé a ver todos los productos.
         </p>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      layout
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-    >
-      <AnimatePresence mode="popLayout">
-        {products.map((product, index) => (
-          <ProductCard key={product.id} product={product} index={index} />
-        ))}
-      </AnimatePresence>
-    </motion.div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {products.map((product, index) => (
+        <ProductCard key={product.id} product={product} index={index} />
+      ))}
+    </div>
   );
 }
