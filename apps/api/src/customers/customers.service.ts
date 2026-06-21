@@ -2,6 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
 
+// Tope de seguridad: evita cargar toda la tabla de clientes en memoria (riesgo OOM
+// en Railway Hobby). El segmento y el gasto se calculan en memoria sobre este set.
+// Para una tienda chica alcanza; si se supera, migrar a paginación server-side real.
+const MAX_CUSTOMERS = 500;
+
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
@@ -30,6 +35,7 @@ export class CustomersService {
       orderBy: {
         createdAt: 'desc',
       },
+      take: MAX_CUSTOMERS,
     });
 
     // Transform to customer format
