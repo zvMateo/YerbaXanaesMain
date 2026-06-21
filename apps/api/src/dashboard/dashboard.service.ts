@@ -37,10 +37,10 @@ export class DashboardService {
 
     // Ejecutar todas las queries independientes en paralelo
     const [
-      todayOrders,
-      yesterdayOrders,
-      weekOrders,
-      monthOrders,
+      todayAgg,
+      yesterdayAgg,
+      weekAgg,
+      monthAgg,
       pendingOrders,
       totalOrders,
       totalCustomers,
@@ -51,21 +51,22 @@ export class DashboardService {
       topSellingProducts,
       hourlySales,
     ] = await Promise.all([
-      this.prisma.order.findMany({
+      this.prisma.order.aggregate({
         where: { createdAt: { gte: today }, deletedAt: null },
-        select: { total: true },
+        _sum: { total: true },
+        _count: true,
       }),
-      this.prisma.order.findMany({
+      this.prisma.order.aggregate({
         where: { createdAt: { gte: yesterday, lt: today }, deletedAt: null },
-        select: { total: true },
+        _sum: { total: true },
       }),
-      this.prisma.order.findMany({
+      this.prisma.order.aggregate({
         where: { createdAt: { gte: sevenDaysAgo }, deletedAt: null },
-        select: { total: true },
+        _sum: { total: true },
       }),
-      this.prisma.order.findMany({
+      this.prisma.order.aggregate({
         where: { createdAt: { gte: thirtyDaysAgo }, deletedAt: null },
-        select: { total: true },
+        _sum: { total: true },
       }),
       this.prisma.order.count({
         where: { status: OrderStatus.PENDING, deletedAt: null },
@@ -85,19 +86,10 @@ export class DashboardService {
       this.getHourlySalesData(),
     ]);
 
-    const todayRevenue = todayOrders.reduce(
-      (sum, o) => sum + Number(o.total),
-      0,
-    );
-    const yesterdayRevenue = yesterdayOrders.reduce(
-      (sum, o) => sum + Number(o.total),
-      0,
-    );
-    const weekRevenue = weekOrders.reduce((sum, o) => sum + Number(o.total), 0);
-    const monthRevenue = monthOrders.reduce(
-      (sum, o) => sum + Number(o.total),
-      0,
-    );
+    const todayRevenue = Number(todayAgg._sum.total ?? 0);
+    const yesterdayRevenue = Number(yesterdayAgg._sum.total ?? 0);
+    const weekRevenue = Number(weekAgg._sum.total ?? 0);
+    const monthRevenue = Number(monthAgg._sum.total ?? 0);
 
     const revenueChange =
       yesterdayRevenue > 0
@@ -114,7 +106,7 @@ export class DashboardService {
       weekRevenue,
       monthRevenue,
       revenueChange: Math.round(revenueChange * 100) / 100,
-      todayOrders: todayOrders.length,
+      todayOrders: todayAgg._count,
       pendingOrders,
       totalOrders,
       ordersChange: 0,
