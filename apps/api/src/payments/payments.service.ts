@@ -4,6 +4,8 @@ import {
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
+  HttpException,
+  HttpStatus,
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
@@ -24,6 +26,11 @@ import { ShippingService } from '../shipping/shipping.service';
 // rechazarse o truncarse de forma impredecible según la red de tarjeta.
 const STATEMENT_DESCRIPTOR_MAX_LENGTH = 13;
 const DEFAULT_STATEMENT_DESCRIPTOR = 'YERBAXANAES';
+
+// Tope de órdenes PENDING activas por email. El throttle por IP del controller
+// no frena a quien rota IP/proxy; este límite evita que un mismo comprador
+// acumule PENDING que reservan stock. Las expiradas las libera el cleanup.
+const MAX_PENDING_ORDERS_PER_EMAIL = 5;
 
 /**
  * Métricas devueltas por el cleanup de órdenes PENDING
@@ -125,6 +132,23 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     orderId: string;
     amount: number;
   }> {
+    // Rate-limit por email (complementa el throttle por IP del controller):
+    // rechaza si el comprador ya tiene demasiadas órdenes PENDING activas.
+    const activePending = await this.prisma.order.count({
+      where: {
+        customerEmail: dto.customerEmail,
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      },
+    });
+    if (activePending >= MAX_PENDING_ORDERS_PER_EMAIL) {
+      throw new HttpException(
+        'Demasiadas órdenes pendientes de pago para este email. ' +
+          'Completá el pago de una o esperá a que expiren.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const frontendUrl = (
       this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000'
     ).replace(/\/$/, '');

@@ -39,6 +39,7 @@ describe('PaymentsService - Integration Tests', () => {
               findUnique: jest.fn(),
               create: jest.fn(),
               update: jest.fn(),
+              count: jest.fn(),
             },
             productVariant: {
               findUnique: jest.fn(),
@@ -373,6 +374,25 @@ describe('PaymentsService - Integration Tests', () => {
       expect(
         paymentsSyncService.updateOrderStatusWithAudit,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('brick-init - Rate limit por email (PENDING)', () => {
+    it('rechaza con 429 cuando el email ya acumula el tope de PENDING activas', async () => {
+      jest.spyOn(prismaService.order, 'count').mockResolvedValue(5);
+      const createPendingOrderSpy = jest
+        .spyOn<any, any>(service as any, 'createPendingOrder')
+        .mockResolvedValue({ id: 'order-spam' });
+
+      await expect(
+        service.brickInit({
+          customerEmail: 'spam@yerba.com',
+          customerName: 'Spammer',
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+        } as any),
+      ).rejects.toMatchObject({ status: 429 });
+
+      expect(createPendingOrderSpy).not.toHaveBeenCalled();
     });
   });
 
