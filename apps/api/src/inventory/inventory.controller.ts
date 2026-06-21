@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  UseInterceptors,
   ParseFloatPipe,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
@@ -14,8 +15,10 @@ import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { RevalidateCatalogInterceptor } from '../common/revalidate-catalog.interceptor';
 
 @UseGuards(AuthGuard, AdminGuard)
+@UseInterceptors(RevalidateCatalogInterceptor)
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
