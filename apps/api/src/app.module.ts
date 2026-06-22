@@ -4,7 +4,6 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaService } from './prisma/prisma.service';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -52,7 +51,8 @@ import { SettingsModule } from './settings/settings.module';
   controllers: [AppController],
   providers: [
     AppService,
-    PrismaService,
+    // PrismaService lo provee PrismaModule (@Global). No re-declararlo acá:
+    // evita instanciar un PrismaClient extra con su propio pool de conexiones.
     // ThrottlerGuard global — aplica a todos los endpoints automáticamente
     {
       provide: APP_GUARD,

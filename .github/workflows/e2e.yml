@@ -1,0 +1,85 @@
+# E2E de YerbaXanaes — Playwright (ecommerce + backoffice).
+# Pesado: levanta Postgres (Docker), API NestJS y el server Next. Por eso NO corre en
+# cada PR — corre en push a main (red de seguridad post-merge) y on-demand (workflow_dispatch).
+#
+# ecommerce y backoffice corren en runners separados (matrix): cada uno tiene su propio
+# Docker y su propia DB de test, así no se pisan (comparten el mismo puerto/DB solo cuando
+# corren en la MISMA máquina, que acá no es el caso).
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Secret HMAC del webhook: en CI usamos un valor FIJO de test (no es de producción).
+  # El fixture firma con este mismo valor y el API lo valida → el test de firma válida pasa.
+  MP_WEBHOOK_SECRET: e2e-ci-webhook-secret-fixed-not-prod
+  # Token de MercadoPago (credencial TEST), OPCIONAL. Si no está cargado como secret, el
+  # happy-path de checkout se auto-skipea (brick-init hace una llamada real a MP).
+  MP_ACCESS_TOKEN: ${{ secrets.MP_ACCESS_TOKEN }}
+
+jobs:
+  e2e:
+    name: Playwright · ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [ecommerce, backoffice]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        working-directory: apps/api
+        run: bunx prisma generate
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright (chromium)
+        working-directory: apps/${{ matrix.app }}
+        run: bunx playwright install --with-deps chromium
+
+      # test:e2e levanta la DB de test (docker compose) y corre Playwright. El webServer
+      # hereda MP_WEBHOOK_SECRET / MP_ACCESS_TOKEN del env del job (Playwright mergea process.env).
+      - name: Run E2E (${{ matrix.app }})
+        working-directory: apps/${{ matrix.app }}
+        run: bun run test:e2e
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/playwright-report
+          retention-days: 7

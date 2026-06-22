@@ -163,6 +163,9 @@ export function PaymentBrick({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isBrickReady, setIsBrickReady] = useState(false);
   const currentBinRef = useRef<string | null>(null);
+  // Evita doble brick-init bajo React StrictMode / re-mount rápido,
+  // que crearía órdenes PENDING duplicadas.
+  const brickInitStartedRef = useRef(false);
   const { update } = usePaymentBrick();
 
   // Estado de inicialización: crea orden + preferencia para habilitar Wallet y Cuotas
@@ -174,28 +177,36 @@ export function PaymentBrick({
   const {
     customerName,
     customerEmail,
-    address,
+    streetName,
+    streetNumber,
+    floor,
+    apartment,
     city,
     shippingProvinceCode,
     zipCode,
     deliveryType,
     shippingCost,
     shippingProvider,
+    shippingDeliveryType,
+    shippingAgencyCode,
     couponCode,
     couponDiscount,
     customerPhone,
   } = getValues();
 
+  const hasAddress = !!(streetName || streetNumber || city || zipCode || shippingProvinceCode);
+
   const payerInitialization: BrickInitialization["payer"] = {
     email: customerEmail,
     ...splitFullName(customerName),
-    ...(address || city || zipCode || shippingProvinceCode
+    ...(hasAddress
       ? {
           address: {
             zipCode: zipCode || undefined,
             federalUnit: shippingProvinceCode || undefined,
             city: city || undefined,
-            streetName: address || undefined,
+            streetName: streetName || undefined,
+            streetNumber: streetNumber || undefined,
           },
         }
       : {}),
@@ -223,21 +234,21 @@ export function PaymentBrick({
   // Envío para el review step (solo si es entrega a domicilio)
   const brickShipping = useMemo(
     () =>
-      deliveryType === "shipping" && (address || city || zipCode)
+      deliveryType === "shipping" && (streetName || city || zipCode)
         ? {
             costs: shippingCost ?? 0,
             shippingMode: "custom",
             description: shippingProvider || "Envío a domicilio",
             receiverAddress: {
-              streetName: address || "",
-              streetNumber: "",
+              streetName: streetName || "",
+              streetNumber: streetNumber || "",
               zipCode: zipCode || "",
               city: city || "",
               federalUnit: shippingProvinceCode || "",
             },
           }
         : undefined,
-    [deliveryType, address, city, zipCode, shippingCost, shippingProvider, shippingProvinceCode],
+    [deliveryType, streetName, streetNumber, city, zipCode, shippingCost, shippingProvider, shippingProvinceCode],
   );
 
   // Descuentos para el review step — también estabilizado con useMemo
@@ -269,6 +280,11 @@ export function PaymentBrick({
       return;
     }
 
+    // Guard: sin esto, StrictMode (dev) dispara el efecto 2 veces y crea
+    // 2 órdenes PENDING antes de que el primer fetch resuelva.
+    if (brickInitStartedRef.current) return;
+    brickInitStartedRef.current = true;
+
     let cancelled = false;
 
     const initBrick = async () => {
@@ -285,12 +301,19 @@ export function PaymentBrick({
               quantity: item.quantity,
             })),
             deliveryType: deliveryType || undefined,
-            shippingAddress: address || undefined,
+            // Dirección estructurada (preferida — para MiCorreo)
+            shippingStreetName: streetName || undefined,
+            shippingStreetNumber: streetNumber || undefined,
+            shippingFloor: floor || undefined,
+            shippingApartment: apartment || undefined,
             shippingCity: city || undefined,
             shippingProvinceCode: shippingProvinceCode || undefined,
             shippingZip: zipCode || undefined,
             shippingCost: shippingCost ?? 0,
             shippingProvider: shippingProvider || undefined,
+            // D/S + sucursal (si retira en sucursal)
+            shippingDeliveryType: shippingDeliveryType || undefined,
+            shippingAgencyCode: shippingAgencyCode || undefined,
             couponCode: couponCode || undefined,
           }),
         });
@@ -360,12 +383,17 @@ export function PaymentBrick({
         customerEmail,
         customerPhone,
         deliveryType,
-        address,
+        streetName,
+        streetNumber,
+        floor,
+        apartment,
         city,
         shippingProvinceCode,
         zipCode,
         shippingCost,
         shippingProvider,
+        shippingDeliveryType,
+        shippingAgencyCode,
         couponCode,
       } = getValues();
 
@@ -399,12 +427,19 @@ export function PaymentBrick({
           customerName,
           customerPhone,
           deliveryType,
-          shippingAddress: address,
+          // Dirección estructurada (preferida)
+          shippingStreetName: streetName,
+          shippingStreetNumber: streetNumber,
+          shippingFloor: floor,
+          shippingApartment: apartment,
           shippingCity: city,
           shippingProvinceCode,
           shippingZip: zipCode,
           shippingCost: shippingCost ?? 0,
           shippingProvider,
+          // D/S + sucursal
+          shippingDeliveryType: shippingDeliveryType || undefined,
+          shippingAgencyCode: shippingAgencyCode || undefined,
           couponCode: couponCode || undefined,
           orderItems: items.map((item) => ({
             variantId: item.variantId,

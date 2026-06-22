@@ -39,6 +39,7 @@ describe('PaymentsService - Integration Tests', () => {
               findUnique: jest.fn(),
               create: jest.fn(),
               update: jest.fn(),
+              count: jest.fn(),
             },
             productVariant: {
               findUnique: jest.fn(),
@@ -376,6 +377,25 @@ describe('PaymentsService - Integration Tests', () => {
     });
   });
 
+  describe('brick-init - Rate limit por email (PENDING)', () => {
+    it('rechaza con 429 cuando el email ya acumula el tope de PENDING activas', async () => {
+      jest.spyOn(prismaService.order, 'count').mockResolvedValue(5);
+      const createPendingOrderSpy = jest
+        .spyOn<any, any>(service as any, 'createPendingOrder')
+        .mockResolvedValue({ id: 'order-spam' });
+
+      await expect(
+        service.brickInit({
+          customerEmail: 'spam@yerba.com',
+          customerName: 'Spammer',
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+        } as any),
+      ).rejects.toMatchObject({ status: 429 });
+
+      expect(createPendingOrderSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Cleanup - Automatic Expiration', () => {
     it('debería encontrar y cancelar órdenes PENDING expiradas', async () => {
       const expiredOrderId = 'order-expired-1';
@@ -464,7 +484,8 @@ describe('PaymentsService - Integration Tests', () => {
 
       const result = await service.cleanupExpiredPendingOrders(30); // Override TTL a 30 min
 
-      expect(result.data.ttlMinutes).toBe(30);
+      expect(result.data.cartAbandonedTtlMinutes).toBe(30);
+      expect(result.data.pendingPaymentTtlMinutes).toBe(30);
       // Verificar que findMany fue llamado con cutoff de 30 min atrás
       const findManyCall = jest.spyOn(prismaService.order, 'findMany').mock
         .calls[0];

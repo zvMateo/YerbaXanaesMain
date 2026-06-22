@@ -20,6 +20,7 @@ import { UpdateCatalogDto } from './dto/update-catalog.dto';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { RevalidateCatalogInterceptor } from '../common/revalidate-catalog.interceptor';
 
 class UpdateProductStatusDto {
   @IsBoolean()
@@ -33,6 +34,7 @@ type UploadedImageFile = {
 };
 
 @Controller('catalog')
+@UseInterceptors(RevalidateCatalogInterceptor)
 export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 

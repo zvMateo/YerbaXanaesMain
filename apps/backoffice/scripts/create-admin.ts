@@ -3,19 +3,37 @@ import { auth } from "../lib/auth";
 // ============================================================
 // Script para crear el primer usuario ADMIN en producción.
 //
-// Uso:
+// Uso (ADMIN_EMAIL y ADMIN_PASSWORD son OBLIGATORIOS — sin defaults inseguros):
 //   1. Copiá el DATABASE_URL de Railway (desde las variables del servicio PostgreSQL)
 //   2. Ejecutá:
-//      DATABASE_URL="postgresql://..." bun run scripts/create-admin.ts
-//
-//   3. Opcionalmente personalizá email/password:
-//      ADMIN_EMAIL="tu@email.com" ADMIN_PASSWORD="tu-password" bun run scripts/create-admin.ts
+//      DATABASE_URL="postgresql://..." \
+//      ADMIN_EMAIL="tu@email.com" ADMIN_PASSWORD="<contraseña-fuerte-min-12>" \
+//      bun run scripts/create-admin.ts
 // ============================================================
 
+const MIN_PASSWORD_LENGTH = 12;
+
 async function main() {
-  const email = process.env.ADMIN_EMAIL ?? "admin@yerbaxanaes.com";
-  const password = process.env.ADMIN_PASSWORD ?? "admin123";
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
   const name = "Administrador";
+
+  if (!email || !password) {
+    console.error(
+      "❌ Faltan credenciales. Pasá ADMIN_EMAIL y ADMIN_PASSWORD como variables de entorno.",
+    );
+    console.error(
+      '   Ej: ADMIN_EMAIL="admin@tudominio.com" ADMIN_PASSWORD="<contraseña-fuerte>" bun run scripts/create-admin.ts',
+    );
+    process.exit(1);
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    console.error(
+      `❌ ADMIN_PASSWORD debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`,
+    );
+    process.exit(1);
+  }
 
   console.log(`Creando usuario admin: ${email}`);
 
@@ -30,12 +48,11 @@ async function main() {
     });
 
     console.log("✅ Admin creado exitosamente");
-    console.log(`   Email:    ${email}`);
-    console.log(`   Password: ${password}`);
-    console.log(`   ID:       ${user.user.id}`);
+    console.log(`   Email: ${email}`);
+    console.log(`   ID:    ${user.user.id}`);
     console.log("");
     console.log(
-      "⚠️  Cambiá la contraseña desde el panel después del primer login.",
+      "⚠️  Guardá la contraseña en tu gestor; no se vuelve a mostrar.",
     );
   } catch (error: any) {
     if (error?.message?.includes("already exists") || error?.status === 422) {

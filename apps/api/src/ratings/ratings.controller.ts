@@ -12,6 +12,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { RatingsService } from './ratings.service';
+import { CreateRatingDto } from './dto/create-rating.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
@@ -22,17 +23,10 @@ export class RatingsController {
   // POST /ratings — submit a review (público, el userId es opcional)
   @Post('ratings')
   create(
-    @Body() body: Record<string, any>,
+    @Body() dto: CreateRatingDto,
     @Request() req: { user?: { id?: string } },
   ) {
-    const userId = req.user?.id;
-    return this.ratingsService.create({
-      productId: String(body['productId'] || ''),
-      rating: Number(body['rating'] || 0),
-      comment: body['comment'] ? String(body['comment']) : undefined,
-      orderId: body['orderId'] ? String(body['orderId']) : undefined,
-      userId,
-    });
+    return this.ratingsService.create({ ...dto, userId: req.user?.id });
   }
 
   // GET /products/:id/ratings — ratings aprobados de un producto

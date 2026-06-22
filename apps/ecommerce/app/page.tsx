@@ -66,7 +66,11 @@ function OrganizationSchema() {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      // Escapamos "<" para que ningún valor (incl. data dinámica futura) pueda
+      // cerrar el <script> ni inyectar markup. Patrón recomendado por Next.js.
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify(schema).replace(/</g, "\\u003c"),
+      }}
     />
   );
 }

@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "docker compose -f ../../docker-compose.test.yml up -d --wait && playwright test",
+    "test:e2e:ui": "docker compose -f ../../docker-compose.test.yml up -d --wait && playwright test --ui",
+    "test:e2e:down": "docker compose -f ../../docker-compose.test.yml down"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
@@ -43,6 +46,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -58,6 +58,7 @@ export async function getProducts({
   minPrice,
   maxPrice,
   inStock,
+  throwOnError = false,
 }: {
   category?: string;
   search?: string;
@@ -66,6 +67,9 @@ export async function getProducts({
   minPrice?: number;
   maxPrice?: number;
   inStock?: boolean;
+  /** Si true, propaga el error en vez de devolver []. Lo usa /productos para
+   *  distinguir "API caída" de "catálogo vacío" y mostrar ApiErrorState. */
+  throwOnError?: boolean;
 } = {}): Promise<Product[]> {
   const params = new URLSearchParams();
 
@@ -77,25 +81,27 @@ export async function getProducts({
   if (maxPrice) params.append("maxPrice", maxPrice.toString());
   if (inStock) params.append("inStock", "true");
 
-  return safeFetch(
+  return safeFetch<Product[]>(
     `${API_URL}/catalog?${params.toString()}`,
     {
       next: {
-        revalidate: 60, // Cache 1 minuto - Systems-Oriented: Datos frescos
+        // Cache largo (1h): el API dispara revalidación on-demand del tag
+        // "products" al mutar catálogo/stock (POST /api/revalidate).
+        revalidate: 3600,
         tags: ["products"],
       },
     },
-    [], // Fallback: array vacío si la API falla
+    throwOnError ? undefined : [], // Fallback: array vacío si la API falla
   );
 }
 
-export async function getCategories(): Promise<Category[]> {
-  return safeFetch(
+export async function getCategories(throwOnError = false): Promise<Category[]> {
+  return safeFetch<Category[]>(
     `${API_URL}/categories`,
     {
       next: { revalidate: 300 }, // Cache 5 minutos
     },
-    [], // Fallback
+    throwOnError ? undefined : [], // Fallback
   );
 }
 
@@ -103,7 +109,9 @@ export async function getProduct(id: string): Promise<Product | null> {
   return safeFetch(
     `${API_URL}/catalog/${id}`,
     {
-      next: { revalidate: 60 },
+      // Mismo tag "products" para que la revalidación on-demand también refresque
+      // las páginas de detalle al editar un producto.
+      next: { revalidate: 3600, tags: ["products"] },
     },
     null, // Fallback
   );
@@ -129,17 +137,4 @@ export async function getProductRatings(
     { next: { revalidate: 60, tags: [`ratings-${productId}`] } },
     { ratings: [], avgRating: 0, totalRatings: 0 },
   );
-}
-
-// Health check - Systems-Oriented: Verificar conectividad
-export async function checkApiHealth(): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_URL}/catalog`, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(2000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
 }

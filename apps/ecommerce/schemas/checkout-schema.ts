@@ -3,6 +3,34 @@
 
 import { z } from "zod";
 
+// Provincias argentinas — códigos de Correo Argentino
+export const PROVINCES = [
+  { code: "A", name: "Salta" },
+  { code: "B", name: "Provincia de Buenos Aires" },
+  { code: "C", name: "Ciudad Autónoma de Buenos Aires" },
+  { code: "D", name: "San Luis" },
+  { code: "E", name: "Entre Ríos" },
+  { code: "F", name: "La Rioja" },
+  { code: "G", name: "Santiago del Estero" },
+  { code: "H", name: "Chaco" },
+  { code: "J", name: "San Juan" },
+  { code: "K", name: "Catamarca" },
+  { code: "L", name: "La Pampa" },
+  { code: "M", name: "Mendoza" },
+  { code: "N", name: "Misiones" },
+  { code: "P", name: "Formosa" },
+  { code: "Q", name: "Neuquén" },
+  { code: "R", name: "Río Negro" },
+  { code: "S", name: "Santa Fe" },
+  { code: "T", name: "Tucumán" },
+  { code: "U", name: "Chubut" },
+  { code: "V", name: "Tierra del Fuego" },
+  { code: "W", name: "Corrientes" },
+  { code: "X", name: "Córdoba" },
+  { code: "Y", name: "Jujuy" },
+  { code: "Z", name: "Santa Cruz" },
+] as const;
+
 // Zod v4: Nuevos métodos de validación
 export const checkoutSchema = z.object({
   // Paso 1: Datos personales
@@ -15,21 +43,32 @@ export const checkoutSchema = z.object({
 
   customerPhone: z
     .string()
-    .min(8, "El teléfono debe tener al menos 8 dígitos")
-    .max(20, "El teléfono es demasiado largo")
-    .regex(
-      /^(?:(?:00|\+)?549?\s?|0)(?:11|[2368]\d)(?:(?:\s?\d{4}){2}|\d{4}[-\s]?\d{4})$/,
-      "Ingresá un número válido. Ej: 11 1234-5678 o +54 9 11 1234-5678",
+    .trim()
+    .min(8, "Ingresá tu número de teléfono")
+    .max(25, "El teléfono es demasiado largo")
+    .refine(
+      (val) => {
+        // Validación permisiva: contamos solo los dígitos para aceptar
+        // cualquier formato AR (con/sin +54, 9, 0, espacios, guiones, paréntesis).
+        // Un número nacional son 10 dígitos; hasta 15 con prefijos internacionales.
+        const digits = val.replace(/\D/g, "");
+        return digits.length >= 8 && digits.length <= 15;
+      },
+      "Ingresá un número válido. Ej: 351 456-7890 o +54 9 351 456-7890",
     ),
 
   // Paso 2: Tipo de entrega
   deliveryType: z.enum(["shipping", "pickup"]),
 
-  // Condicional: Solo si es envío
-  address: z
+  // Dirección estructurada (preferida — campos separados para MiCorreo)
+  streetName: z
     .string()
-    .min(5, "La dirección debe tener al menos 5 caracteres")
+    .min(2, "La calle debe tener al menos 2 caracteres")
+    .max(100)
     .optional(),
+  streetNumber: z.string().max(20).optional(),
+  floor: z.string().max(10).optional(),
+  apartment: z.string().max(10).optional(),
 
   city: z.string().optional(),
 
@@ -41,10 +80,22 @@ export const checkoutSchema = z.object({
   // Paso 3: Método de pago — ecommerce usa solo Mercado Pago Payment Brick
   paymentMethod: z.enum(["mercadopago"]),
 
-// Costo de envío calculado (lo setea el delivery-step tras cotizar)
+  // Costo de envío calculado (lo setea el delivery-step tras cotizar)
   shippingCost: z.number().min(0, "El costo de envío no puede ser negativo"),
   shippingProvider: z.string(), // "correo_argentino" | "manual_quote_required" | "pickup"
   shippingProvinceCode: z.string(), // Código de provincia Correo Argentino
+
+  // Tipo de envío Correo Argentino: "D" (domicilio) o "S" (sucursal).
+  // Vacío cuando es pickup o todavía no se eligió.
+  shippingDeliveryType: z.enum(["D", "S", ""]).optional(),
+
+  // Sucursal seleccionada — requerida si shippingDeliveryType === "S"
+  shippingAgencyCode: z.string().optional(),
+  shippingAgencyName: z.string().optional(), // Para mostrar en el resumen
+
+  // Producto Correo elegido (ej: "Correo Argentino Clasico" o "Correo Argentino Expreso").
+  // Sirve para distinguir entre las 2 tarifas del mismo deliveredType.
+  shippingProductName: z.string().optional(),
 
   // Cupón de descuento (opcional)
   couponCode: z.string().optional(),
@@ -63,11 +114,18 @@ export const checkoutSchema = z.object({
 export const checkoutSchemaValidated = checkoutSchema.superRefine(
   (data, ctx) => {
     if (data.deliveryType === "shipping") {
-      if (!data.address || data.address.length < 5) {
+      if (!data.streetName || data.streetName.length < 2) {
         ctx.addIssue({
           code: "custom",
-          path: ["address"],
-          message: "La dirección es requerida para envío a domicilio",
+          path: ["streetName"],
+          message: "La calle es requerida",
+        });
+      }
+      if (!data.streetNumber) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["streetNumber"],
+          message: "La altura es requerida",
         });
       }
       if (!data.city || data.city.length < 2) {
@@ -82,6 +140,21 @@ export const checkoutSchemaValidated = checkoutSchema.superRefine(
           code: "custom",
           path: ["zipCode"],
           message: "El código postal es requerido",
+        });
+      }
+      if (!data.shippingProvinceCode) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["shippingProvinceCode"],
+          message: "La provincia es requerida",
+        });
+      }
+      // Si el cliente eligió retirar en sucursal, exigir código de sucursal
+      if (data.shippingDeliveryType === "S" && !data.shippingAgencyCode) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["shippingAgencyCode"],
+          message: "Seleccioná una sucursal para retirar tu envío",
         });
       }
     }
@@ -100,9 +173,15 @@ export const personalInfoSchema = checkoutSchema.pick({
 
 export const deliverySchema = checkoutSchema.pick({
   deliveryType: true,
-  address: true,
+  streetName: true,
+  streetNumber: true,
+  floor: true,
+  apartment: true,
   city: true,
   zipCode: true,
+  shippingProvinceCode: true,
+  shippingDeliveryType: true,
+  shippingAgencyCode: true,
 });
 
 export const paymentSchema = checkoutSchema.pick({

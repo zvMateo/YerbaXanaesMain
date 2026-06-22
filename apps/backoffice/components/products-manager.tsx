@@ -102,6 +102,7 @@ function DeleteConfirmModal({
               <div className="flex flex-col gap-2">
                 <button
                   onClick={onDeactivate}
+                  data-testid="product-deactivate"
                   disabled={isDeactivating || !product.isActive}
                   className="w-full py-2.5 bg-stone-800 text-white rounded-xl hover:bg-stone-900 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -135,6 +136,7 @@ function DeleteConfirmModal({
                 </button>
                 <button
                   onClick={onConfirmDelete}
+                  data-testid="product-delete-confirm"
                   disabled={isDeleting}
                   className="flex-1 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -189,6 +191,7 @@ function ActionDropdown({
           e.stopPropagation();
           setOpen((v) => !v);
         }}
+        data-testid="product-actions-trigger"
         className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
         title="Más acciones"
       >
@@ -210,6 +213,7 @@ function ActionDropdown({
                 setOpen(false);
                 onEdit();
               }}
+              data-testid="product-edit"
               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors"
             >
               <Edit className="h-4 w-4 text-stone-500" />
@@ -223,6 +227,7 @@ function ActionDropdown({
                 onToggleStatus();
               }}
               disabled={isTogglingStatus}
+              data-testid="product-toggle"
               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors disabled:opacity-50"
             >
               {product.isActive ? (
@@ -246,6 +251,7 @@ function ActionDropdown({
                 setOpen(false);
                 onDelete();
               }}
+              data-testid="product-delete"
               className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
             >
               <Trash2 className="h-4 w-4" />
@@ -465,6 +471,7 @@ export function ProductsManager() {
 
             <button
               onClick={openCreate}
+              data-testid="new-product-btn"
               className="flex items-center gap-2 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors"
             >
               <Plus className="h-5 w-5" />
@@ -505,6 +512,7 @@ export function ProductsManager() {
           return (
             <motion.div
               key={product.id}
+              data-testid="product-card"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}

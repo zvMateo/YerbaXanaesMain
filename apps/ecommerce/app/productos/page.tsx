@@ -8,7 +8,7 @@ import {
   ProductGridSkeleton,
   ProductFiltersSkeleton,
 } from "@/components/skeletons";
-import { getProducts, getCategories, checkApiHealth } from "@/lib/api";
+import { getProducts, getCategories } from "@/lib/api";
 
 interface ProductosPageProps {
   searchParams: Promise<{
@@ -28,24 +28,26 @@ async function ProductContent({
   search?: string;
   sortBy?: string;
 }) {
-  // Verificar salud de la API primero
-  const isHealthy = await checkApiHealth();
-
-  if (!isHealthy) {
-    return <ApiErrorState />;
-  }
-
-  // Systems-Oriented: Fetch paralelo de datos
-  const [products, categories] = await Promise.all([
+  // Fetch paralelo. throwOnError distingue "API caída" (→ ApiErrorState) de
+  // "catálogo vacío" (→ grid con empty state). Evita el HEAD previo (checkApiHealth)
+  // que ejecutaba el query más pesado del backend antes del fetch real.
+  const data = await Promise.all([
     getProducts({
       category,
       search,
       sortBy,
       order:
         sortBy?.includes("price") && sortBy.includes("desc") ? "desc" : "asc",
+      throwOnError: true,
     }),
-    getCategories(),
-  ]);
+    getCategories(true),
+  ]).catch(() => null);
+
+  if (!data) {
+    return <ApiErrorState />;
+  }
+
+  const [products, categories] = data;
 
   return (
     <>

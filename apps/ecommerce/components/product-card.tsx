@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "motion/react";
 import { ShoppingCart, AlertCircle, Check } from "lucide-react";
 import { Product } from "@repo/types";
 import { useState } from "react";
@@ -14,9 +13,10 @@ interface ProductCardProps {
   index?: number;
 }
 
-// Human-Core: Card con micro-animaciones orgánicas y estados "vivos"
+// Card de producto. El hover (scale de imagen, cross-fade, botón quick-add) se
+// resuelve con CSS `group-hover` en vez de estado React + Motion: evita re-renders
+// en cada hover y el costo de Framer. La entrada usa tw-animate-css (no Motion layout).
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const { addItem, openCart } = useCartStore();
 
@@ -69,18 +69,13 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   };
 
   return (
-    <motion.article
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.4,
-        delay: index * 0.05,
-        ease: [0.25, 0.46, 0.45, 0.94], // Human-Core: Curva de animación natural
+    <article
+      // Entrada escalonada por CSS (delay capado para no retrasar el LCP en grids grandes)
+      style={{
+        animationDelay: `${Math.min(index, 7) * 60}ms`,
+        animationDuration: "500ms",
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="group relative bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl transition-shadow duration-300"
+      className="group relative bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl transition-shadow duration-300 animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-both"
       data-product-id={product.id}
       data-category={product.category?.name}
     >
@@ -89,11 +84,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
         {/* Image Container - Human-Core: Organic feel */}
         <div className="aspect-square bg-stone-100 relative overflow-hidden">
           {/* Placeholder Image */}
-          <motion.div
-            className="absolute inset-0 flex items-center justify-center"
-            animate={{ scale: isHovered ? 1.05 : 1 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-          >
+          <div className="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-105">
             {product.images?.[0] ? (
               <>
                 <Image
@@ -101,7 +92,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                   alt={product.name}
                   fill
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                  className={`object-cover transition-opacity duration-500 ${isHovered && product.images[1] ? "opacity-0" : "opacity-100"}`}
+                  className={`object-cover transition-opacity duration-500 ${product.images[1] ? "group-hover:opacity-0" : ""}`}
                 />
                 {product.images[1] && (
                   <Image
@@ -109,7 +100,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                     alt={`${product.name} - Vista alternativa`}
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    className={`object-cover absolute inset-0 transition-opacity duration-500 ${isHovered ? "opacity-100" : "opacity-0"}`}
+                    className="object-cover absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                   />
                 )}
               </>
@@ -121,7 +112,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 </span>
               </div>
             )}
-          </motion.div>
+          </div>
 
           {/* Generative UI: Badge de stock adaptativo */}
           {!hasStock && (
@@ -133,41 +124,30 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           )}
 
           {isLowStock && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute top-3 left-3 bg-earth-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1"
-            >
+            <div className="absolute top-3 left-3 bg-earth-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 animate-in fade-in-0 slide-in-from-top-1 duration-300">
               <AlertCircle className="w-3 h-3" />
               ¡Últimas {totalStock}!
-            </motion.div>
+            </div>
           )}
 
           {/* Quick Add Button - Systems-Oriented: Conexión directa al carrito */}
-          <motion.button
+          <button
+            type="button"
             onClick={handleAddToCart}
             disabled={!hasStock || isAdding}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: isHovered ? 1 : 0, y: isHovered ? 0 : 20 }}
-            transition={{ duration: 0.2 }}
-            className={`absolute bottom-4 right-4 p-3 rounded-full shadow-lg transition-colors ${
+            aria-label={`Agregar ${product.name} al carrito`}
+            className={`absolute bottom-4 right-4 p-3 rounded-full shadow-lg opacity-0 translate-y-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 ${
               hasStock
                 ? "bg-yerba-600 text-white hover:bg-yerba-700"
                 : "bg-stone-300 text-stone-500 cursor-not-allowed"
             }`}
           >
             {isAdding ? (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="w-5 h-5 flex items-center justify-center"
-              >
-                <Check className="w-5 h-5" />
-              </motion.div>
+              <Check className="w-5 h-5" />
             ) : (
               <ShoppingCart className="w-5 h-5" />
             )}
-          </motion.button>
+          </button>
         </div>
 
         {/* Content - Agents-Ready: Datos estructurados */}
@@ -198,20 +178,11 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
               </div>
             </div>
 
-            {/* Stock Indicator - Human-Core: Pulso sutil si hay stock */}
+            {/* Stock Indicator - Human-Core: Pulso sutil si hay stock bajo */}
             {hasStock && (
               <div className="flex items-center gap-1.5">
-                <motion.span
-                  className="w-2 h-2 rounded-full bg-yerba-500"
-                  animate={{
-                    scale: isLowStock ? [1, 1.2, 1] : 1,
-                    opacity: isLowStock ? [1, 0.7, 1] : 1,
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
+                <span
+                  className={`w-2 h-2 rounded-full bg-yerba-500 ${isLowStock ? "animate-pulse" : ""}`}
                 />
                 <span className="text-xs text-stone-500">
                   {totalStock} disponibles
@@ -246,6 +217,6 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           )}
         </div>
       </Link>
-    </motion.article>
+    </article>
   );
 }

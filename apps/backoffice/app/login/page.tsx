@@ -174,6 +174,7 @@ export default function LoginPage() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-stone-400" />
                   <input
                     type="email"
+                    data-testid="login-email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-stone-200 focus:border-yerba-500 focus:ring-yerba-100 transition-all duration-200 focus:outline-none focus:ring-4"
@@ -193,6 +194,7 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-stone-400" />
                   <input
                     type={showPassword ? "text" : "password"}
+                    data-testid="login-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={`
@@ -240,6 +242,7 @@ export default function LoginPage() {
               {/* Submit Button */}
               <motion.button
                 type="submit"
+                data-testid="login-submit"
                 disabled={isLoading || !email || !password}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}

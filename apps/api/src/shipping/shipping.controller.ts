@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -29,6 +30,17 @@ export class ShippingController {
   @ApiOperation({ summary: 'Cotizar envío con Correo Argentino' })
   async getRates(@Body() dto: GetShippingRatesDto) {
     return this.shippingService.getRates(dto);
+  }
+
+  // -------------------------------------------------------
+  // GET /shipping/agencies?provinceCode=X — Público
+  // Lista sucursales de Correo Argentino para una provincia
+  // (lo usa el checkout cuando el cliente elige retiro en sucursal)
+  // -------------------------------------------------------
+  @Get('agencies')
+  @ApiOperation({ summary: 'Listar sucursales de Correo por provincia' })
+  async getAgencies(@Query('provinceCode') provinceCode: string) {
+    return this.shippingService.getAgencies(provinceCode);
   }
 
   // -------------------------------------------------------
