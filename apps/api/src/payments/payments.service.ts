@@ -652,7 +652,9 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
          * c) Manipulación del shippingCost en el payload del cliente
          * Solo aplica para método "correo_argentino". Otros providers se ignoran.
          */
-        let serverShippingCost = shippingCost;
+        // Solo se rechaza si Correo responde y ninguna de sus tarifas coincide
+        // con lo que pagó el cliente. Ante cualquier duda, se acepta.
+        let shippingCostIsValid = true;
 
         if (dto.shippingProvider === 'correo_argentino' && dto.shippingZip) {
           try {
@@ -661,20 +663,31 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
               postalCodeDestination: dto.shippingZip,
             });
 
-            // MiCorreo devuelve domicilio (D) y sucursal (S) en la misma
-            // respuesta. Comparar contra la más barata de ambas rechazaba
-            // todo envío a domicilio, que siempre cuesta más que retirar
-            // en sucursal. Hay que comparar contra el tipo que eligió el cliente.
+            // MiCorreo devuelve varias tarifas juntas: domicilio (D) y sucursal
+            // (S), cada una en variante clásica y expresa. Ej. para CP 5000:
+            // S=$5121 (2-5d), S=$5631 (1-3d), D=$8046 (2-5d), D=$8853 (1-3d).
+            // El cliente elige cualquiera de ellas, así que hay que validar
+            // contra TODAS las de su tipo de entrega, no contra una sola.
             const deliveredType = dto.shippingDeliveryType === 'S' ? 'S' : 'D';
             const matchingRates = rateResponse.rates.filter(
               (r) => r.deliveredType === deliveredType,
             );
 
             if (matchingRates.length > 0) {
-              const cheapestRate = matchingRates.reduce((a, b) =>
-                a.price <= b.price ? a : b,
+              // Alcanza con que el costo coincida con alguna tarifa ofrecida:
+              // eso prueba que no fue manipulado, sin importar cuál eligió.
+              shippingCostIsValid = matchingRates.some(
+                (r) => Math.abs(r.price - shippingCost) <= 0.5,
               );
-              serverShippingCost = cheapestRate.price;
+
+              if (!shippingCostIsValid) {
+                this.logger.warn(
+                  `Shipping cost mismatch en orden ${existing.id}: client=${shippingCost} — ` +
+                    `tarifas "${deliveredType}" ofrecidas: [${matchingRates
+                      .map((r) => r.price)
+                      .join(', ')}]`,
+                );
+              }
             } else if (rateResponse.rates.length > 0) {
               // Correo no ofreció el tipo elegido. No hay contra qué comparar
               // sin arriesgar un falso rechazo, así que omitimos la validación
@@ -695,11 +708,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         // Si Correo nos da un costo distinto al enviado, rechazar el pago.
         // El cliente debe volver al paso de envío para re-cotizar y confirmar el nuevo total.
         // Cancelamos la orden y restauramos stock para no dejarla colgada.
-        if (Math.abs(serverShippingCost - shippingCost) > 0.5) {
-          this.logger.warn(
-            `Shipping cost mismatch en orden ${existing.id}: ` +
-              `client=${shippingCost} server=${serverShippingCost} — rechazando pago`,
-          );
+        if (!shippingCostIsValid) {
           await this.cancelPendingOrderWithStockRestore(
             existing.id,
             'shipping_cost_changed',

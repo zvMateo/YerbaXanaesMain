@@ -18,6 +18,46 @@ import { OrderStatus, Prisma } from '@prisma/client';
  * 3. Idempotencia: cancelar misma orden 2 veces = 1 restauración
  * 4. Stock accuracy con múltiples ingredientes
  */
+/**
+ * Respuesta real de MiCorreo para el CP 5000 (Córdoba capital): devuelve las
+ * cuatro tarifas juntas — sucursal (S) y domicilio (D), cada una en variante
+ * clásica (2-5 días) y expresa (1-3 días). El cliente elige cualquiera.
+ */
+const CORREO_RATES_CP_5000 = [
+  {
+    deliveredType: 'S',
+    productName: 'Correo Argentino Sucursal Clasico',
+    price: 5121,
+    deliveryTimeMin: '2',
+    deliveryTimeMax: '5',
+    label: 'En sucursal — $5121',
+  },
+  {
+    deliveredType: 'S',
+    productName: 'Correo Argentino Sucursal Expreso',
+    price: 5631,
+    deliveryTimeMin: '1',
+    deliveryTimeMax: '3',
+    label: 'En sucursal expreso — $5631',
+  },
+  {
+    deliveredType: 'D',
+    productName: 'Correo Argentino Domicilio Clasico',
+    price: 8046,
+    deliveryTimeMin: '2',
+    deliveryTimeMax: '5',
+    label: 'A domicilio — $8046',
+  },
+  {
+    deliveredType: 'D',
+    productName: 'Correo Argentino Domicilio Expreso',
+    price: 8853,
+    deliveryTimeMin: '1',
+    deliveryTimeMax: '3',
+    label: 'A domicilio expreso — $8853',
+  },
+];
+
 describe('PaymentsService - Integration Tests', () => {
   let service: PaymentsService;
   let prismaService: PrismaService;
@@ -322,6 +362,126 @@ describe('PaymentsService - Integration Tests', () => {
 
       // Este test deja correr el flujo más allá de la re-cotización, así que
       // hay que resetear los mocks para no contaminar los tests siguientes.
+      cancelSpy.mockRestore();
+      (prismaService.order.findUnique as jest.Mock).mockReset();
+      (prismaService.productVariant.findMany as jest.Mock).mockReset();
+      shippingService.getRates.mockReset();
+    });
+
+    it('acepta la tarifa Expreso aunque exista una clásica más barata del mismo tipo', async () => {
+      // Regresión: MiCorreo devuelve dos variantes por tipo de entrega (clásica
+      // y expresa). La re-cotización comparaba contra la más barata del tipo,
+      // así que todo cliente que elegía Expreso veía su pago rechazado.
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-expreso',
+        total: 9753,
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(prismaService.productVariant, 'findMany')
+        .mockResolvedValue([{ id: 'var-1', price: 900 }] as any);
+
+      const shippingService = (service as any).shipping as {
+        getRates: jest.Mock;
+      };
+      shippingService.getRates.mockResolvedValue({
+        rates: CORREO_RATES_CP_5000,
+        source: 'correo_argentino',
+        packageWeightGrams: 600,
+      });
+
+      const cancelSpy = jest
+        .spyOn<any, any>(service as any, 'cancelPendingOrderWithStockRestore')
+        .mockResolvedValue(true);
+
+      // Igual que el test anterior: pasada la re-cotización el flujo sigue
+      // hacia MercadoPago, que acá no está mockeado y falla. Lo que importa es
+      // que no se cancele por mismatch de envío.
+      await service
+        .processBrickPayment({
+          selectedPaymentMethod: 'credit_card',
+          existingOrderId: 'order-expreso',
+          formData: {
+            token: 'tok_test',
+            payment_method_id: 'visa',
+            transaction_amount: 9753, // 900 items + 8853 domicilio expreso
+            installments: 1,
+            payer: { email: 'test@yerba.com' },
+          },
+          customerName: 'Test User',
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+          shippingCost: 8853, // la variante EXPRESA, no la clásica de 8046
+          shippingProvider: 'correo_argentino',
+          shippingZip: '5000',
+          deliveryType: 'shipping',
+          shippingDeliveryType: 'D',
+        })
+        .catch(() => undefined);
+
+      expect(shippingService.getRates).toHaveBeenCalled();
+
+      const cancelReasons = cancelSpy.mock.calls.map((call) => call[1]);
+      expect(cancelReasons).not.toContain('shipping_cost_changed');
+
+      cancelSpy.mockRestore();
+      (prismaService.order.findUnique as jest.Mock).mockReset();
+      (prismaService.productVariant.findMany as jest.Mock).mockReset();
+      shippingService.getRates.mockReset();
+    });
+
+    it('rechaza cuando el costo no coincide con NINGUNA tarifa del tipo elegido', async () => {
+      // Contracara del test anterior: aceptar "cualquier tarifa ofrecida" no
+      // puede degenerar en aceptar cualquier número que mande el cliente.
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-manipulado',
+        total: 6900,
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(prismaService.productVariant, 'findMany')
+        .mockResolvedValue([{ id: 'var-1', price: 900 }] as any);
+
+      const shippingService = (service as any).shipping as {
+        getRates: jest.Mock;
+      };
+      shippingService.getRates.mockResolvedValue({
+        rates: CORREO_RATES_CP_5000,
+        source: 'correo_argentino',
+        packageWeightGrams: 600,
+      });
+
+      const cancelSpy = jest
+        .spyOn<any, any>(service as any, 'cancelPendingOrderWithStockRestore')
+        .mockResolvedValue(true);
+
+      await expect(
+        service.processBrickPayment({
+          selectedPaymentMethod: 'credit_card',
+          existingOrderId: 'order-manipulado',
+          formData: {
+            token: 'tok_test',
+            payment_method_id: 'visa',
+            transaction_amount: 6900,
+            installments: 1,
+            payer: { email: 'test@yerba.com' },
+          },
+          customerName: 'Test User',
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+          shippingCost: 6000, // no coincide ni con 8046 ni con 8853
+          shippingProvider: 'correo_argentino',
+          shippingZip: '5000',
+          deliveryType: 'shipping',
+          shippingDeliveryType: 'D',
+        }),
+      ).rejects.toThrow(/costo de envío cambió/i);
+
+      const cancelReasons = cancelSpy.mock.calls.map((call) => call[1]);
+      expect(cancelReasons).toContain('shipping_cost_changed');
+
       cancelSpy.mockRestore();
       (prismaService.order.findUnique as jest.Mock).mockReset();
       (prismaService.productVariant.findMany as jest.Mock).mockReset();
