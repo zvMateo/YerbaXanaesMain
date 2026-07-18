@@ -50,6 +50,27 @@ const DEFAULT_DIMENSIONS = {
 // CP de origen por defecto si no está configurado en env
 const DEFAULT_POSTAL_CODE_ORIGIN = '1000';
 
+// Datos del remitente para /shipping/import. Si NINGUNA está definida,
+// MiCorreo usa la dirección registrada del customerId en su dashboard.
+// Si se define alguna, hay que definirlas TODAS: un sender a medias arma un
+// payload híbrido que MiCorreo rechaza con errores poco claros.
+const SENDER_REQUIRED_KEYS = [
+  'CA_SENDER_NAME',
+  'CA_SENDER_STREET',
+  'CA_SENDER_NUMBER',
+  'CA_SENDER_CITY',
+  'CA_SENDER_PROVINCE_CODE',
+  'CA_SENDER_POSTAL_CODE',
+] as const;
+
+const SENDER_OPTIONAL_KEYS = [
+  'CA_SENDER_PHONE',
+  'CA_SENDER_CELL_PHONE',
+  'CA_SENDER_EMAIL',
+  'CA_SENDER_FLOOR',
+  'CA_SENDER_APARTMENT',
+] as const;
+
 // URLs de la API MiCorreo según ambiente
 const MICORREO_BASE_URLS = {
   TEST: 'https://apitest.correoargentino.com.ar/micorreo/v1',
@@ -216,6 +237,45 @@ export class ShippingService implements OnModuleInit {
 
   async onModuleInit() {
     await this.initializeCorreoApi();
+    this.warnOnIncompleteSenderConfig();
+  }
+
+  /**
+   * Estado de las CA_SENDER_*: 'none' (usar perfil del dashboard),
+   * 'complete' (usar las env vars) o 'partial' (configuración rota).
+   */
+  private getSenderConfigStatus(): {
+    state: 'none' | 'complete' | 'partial';
+    missing: string[];
+  } {
+    const isSet = (key: string) => !!this.config.get<string>(key)?.trim();
+
+    const missing = SENDER_REQUIRED_KEYS.filter((key) => !isSet(key));
+    const hasAny =
+      missing.length < SENDER_REQUIRED_KEYS.length ||
+      SENDER_OPTIONAL_KEYS.some(isSet);
+
+    if (!hasAny) return { state: 'none', missing: [] };
+    if (missing.length === 0) return { state: 'complete', missing: [] };
+    return { state: 'partial', missing: [...missing] };
+  }
+
+  private warnOnIncompleteSenderConfig(): void {
+    const { state, missing } = this.getSenderConfigStatus();
+
+    if (state === 'partial') {
+      this.logger.warn(
+        `Remitente de Correo Argentino configurado a medias — faltan: ${missing.join(', ')}. ` +
+          'Los envíos no se van a poder importar hasta completarlas (o borrar todas las CA_SENDER_* para usar el perfil del dashboard de MiCorreo).',
+      );
+      return;
+    }
+
+    if (state === 'none') {
+      this.logger.log(
+        'Remitente de Correo Argentino no configurado por env — se usará la dirección registrada del customerId en el dashboard de MiCorreo.',
+      );
+    }
   }
 
   // ============================================================
@@ -370,6 +430,16 @@ export class ShippingService implements OnModuleInit {
     if (!creds) {
       throw new BadRequestException(
         'Correo Argentino no está configurado. Configurá CA_USER_TOKEN, CA_PASSWORD_TOKEN y CA_CUSTOMER_ID en el entorno.',
+      );
+    }
+
+    // Un sender a medias produce un rechazo confuso de MiCorreo recién después
+    // de crear la orden del lado nuestro. Cortamos antes de gastar la llamada.
+    const senderConfig = this.getSenderConfigStatus();
+    if (senderConfig.state === 'partial') {
+      throw new BadRequestException(
+        `Datos del remitente incompletos en el servidor (faltan: ${senderConfig.missing.join(', ')}). ` +
+          'Completá esas variables de entorno antes de importar envíos.',
       );
     }
 
