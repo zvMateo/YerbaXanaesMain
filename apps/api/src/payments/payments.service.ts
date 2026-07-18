@@ -661,11 +661,27 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
               postalCodeDestination: dto.shippingZip,
             });
 
-            if (rateResponse.rates.length > 0) {
-              const cheapestRate = rateResponse.rates.reduce((a, b) =>
+            // MiCorreo devuelve domicilio (D) y sucursal (S) en la misma
+            // respuesta. Comparar contra la más barata de ambas rechazaba
+            // todo envío a domicilio, que siempre cuesta más que retirar
+            // en sucursal. Hay que comparar contra el tipo que eligió el cliente.
+            const deliveredType = dto.shippingDeliveryType === 'S' ? 'S' : 'D';
+            const matchingRates = rateResponse.rates.filter(
+              (r) => r.deliveredType === deliveredType,
+            );
+
+            if (matchingRates.length > 0) {
+              const cheapestRate = matchingRates.reduce((a, b) =>
                 a.price <= b.price ? a : b,
               );
               serverShippingCost = cheapestRate.price;
+            } else if (rateResponse.rates.length > 0) {
+              // Correo no ofreció el tipo elegido. No hay contra qué comparar
+              // sin arriesgar un falso rechazo, así que omitimos la validación
+              // igual que cuando la cotización falla.
+              this.logger.warn(
+                `Correo no devolvió tarifa "${deliveredType}" para orden ${existing.id} — omitiendo re-validación de envío`,
+              );
             }
           } catch (error) {
             // Correo falló — usar el shippingCost del cliente (no blockeamos el pago)

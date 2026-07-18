@@ -244,6 +244,90 @@ describe('PaymentsService - Integration Tests', () => {
       cancelSpy.mockRestore();
     });
 
+    it('acepta envío a domicilio aunque Correo devuelva una tarifa de sucursal más barata', async () => {
+      // Regresión: la re-cotización tomaba la tarifa más barata de TODAS las que
+      // devuelve MiCorreo (domicilio + sucursal juntas). Como sucursal siempre
+      // cuesta menos, todo pago con envío a domicilio se cancelaba y se rechazaba.
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-domicilio',
+        total: 1700,
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(prismaService.productVariant, 'findMany')
+        .mockResolvedValue([{ id: 'var-1', price: 900 }] as any);
+
+      const shippingService = (service as any).shipping as {
+        getRates: jest.Mock;
+      };
+      shippingService.getRates.mockResolvedValue({
+        rates: [
+          {
+            deliveredType: 'S',
+            productName: 'Correo Argentino Sucursal',
+            price: 500,
+            deliveryTimeMin: '2',
+            deliveryTimeMax: '5',
+            label: 'En sucursal — $500',
+          },
+          {
+            deliveredType: 'D',
+            productName: 'Correo Argentino Clasico',
+            price: 800,
+            deliveryTimeMin: '2',
+            deliveryTimeMax: '5',
+            label: 'A domicilio — $800',
+          },
+        ],
+        source: 'correo_argentino',
+        packageWeightGrams: 600,
+      });
+
+      const cancelSpy = jest
+        .spyOn<any, any>(service as any, 'cancelPendingOrderWithStockRestore')
+        .mockResolvedValue(true);
+
+      // Pasada la re-cotización el flujo sigue hacia MercadoPago, que acá no
+      // está mockeado y va a fallar. Eso es irrelevante: lo que se verifica es
+      // que la orden no se haya cancelado por un mismatch de envío.
+      await service
+        .processBrickPayment({
+          selectedPaymentMethod: 'credit_card',
+          existingOrderId: 'order-domicilio',
+          formData: {
+            token: 'tok_test',
+            payment_method_id: 'visa',
+            transaction_amount: 1700, // 900 items + 800 envío a domicilio
+            installments: 1,
+            payer: { email: 'test@yerba.com' },
+          },
+          customerName: 'Test User',
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+          shippingCost: 800,
+          shippingProvider: 'correo_argentino',
+          shippingZip: '5000',
+          deliveryType: 'shipping',
+          shippingDeliveryType: 'D',
+        })
+        .catch(() => undefined);
+
+      expect(shippingService.getRates).toHaveBeenCalled();
+
+      // La orden puede cancelarse por otros motivos río abajo (MercadoPago no
+      // está mockeado). Lo que no puede pasar es que se cancele por envío.
+      const cancelReasons = cancelSpy.mock.calls.map((call) => call[1]);
+      expect(cancelReasons).not.toContain('shipping_cost_changed');
+
+      // Este test deja correr el flujo más allá de la re-cotización, así que
+      // hay que resetear los mocks para no contaminar los tests siguientes.
+      cancelSpy.mockRestore();
+      (prismaService.order.findUnique as jest.Mock).mockReset();
+      (prismaService.productVariant.findMany as jest.Mock).mockReset();
+      shippingService.getRates.mockReset();
+    });
+
     it('rechaza webhook con timestamp expirado', async () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const expiredTs = String(nowSec - 700);
