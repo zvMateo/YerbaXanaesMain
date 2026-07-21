@@ -6,6 +6,7 @@ import { Product } from "@repo/types";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCartStore } from "@/stores/cart-store";
+import { sortVariantsBySize } from "@/lib/variant-order";
 import Image from "next/image";
 
 interface ProductCardProps {
@@ -29,16 +30,23 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const hasStock = totalStock > 0;
   const isLowStock = totalStock > 0 && totalStock < 5;
 
-  // Systems-Oriented: Precio mínimo para mostrar "desde"
-  const firstAvailableVariant =
-    product.variants?.find((v) => v.stock > 0) || product.variants?.[0];
-  const minPrice = firstAvailableVariant?.price || 0;
+  // Systems-Oriented: variante más barata disponible — alimenta el precio
+  // "Desde" y el quick-add, así lo que se muestra coincide con lo que se agrega.
+  // Prioriza variantes con stock; si ninguna tiene, cae a la más barata igual.
+  const cheapestVariant =
+    product.variants && product.variants.length > 0
+      ? [...product.variants].sort(
+          (a, b) =>
+            (a.stock > 0 ? 0 : 1) - (b.stock > 0 ? 0 : 1) || a.price - b.price,
+        )[0]
+      : undefined;
+  const minPrice = cheapestVariant?.price || 0;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!hasStock || !firstAvailableVariant) {
+    if (!hasStock || !cheapestVariant) {
       toast.error("Producto sin stock");
       return;
     }
@@ -48,12 +56,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
 
     try {
       // Systems-Oriented: Agregar al store global
-      addItem(product, firstAvailableVariant, 1);
+      addItem(product, cheapestVariant, 1);
 
       setTimeout(() => {
         setIsAdding(false);
         toast.success(`${product.name} agregado al carrito`, {
-          description: firstAvailableVariant.name,
+          description: cheapestVariant.name,
           action: {
             label: "Ver carrito",
             onClick: () => openCart(),
@@ -195,7 +203,9 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           {product.variants && product.variants.length > 1 && (
             <div className="mt-4 pt-4 border-t border-stone-100">
               <div className="flex flex-wrap gap-2">
-                {product.variants.slice(0, 3).map((variant) => (
+                {sortVariantsBySize(product.variants)
+                  .slice(0, 3)
+                  .map((variant) => (
                   <span
                     key={variant.id}
                     className={`text-xs px-2 py-1 rounded-md ${
