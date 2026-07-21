@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, ProductVariant } from "@repo/types";
+import { sortVariantsBySize } from "@/lib/variant-order";
 import {
   ShoppingCart,
   Check,
@@ -152,7 +153,7 @@ function VariantSelector({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        {variants.map((variant) => {
+        {sortVariantsBySize(variants).map((variant) => {
           const isSelected = selectedVariant.id === variant.id;
           const hasStock = variant.stock > 0;
           const isLowStock = variant.stock > 0 && variant.stock < 5;
