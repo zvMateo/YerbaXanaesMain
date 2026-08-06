@@ -110,8 +110,8 @@ export default function NosotrosPage() {
                   <div className="w-24 h-24 rounded-full bg-white shadow-md flex items-center justify-center">
                     <Leaf className="h-12 w-12 text-yerba-500" aria-hidden="true" />
                   </div>
-                  <p className="text-stone-500 text-sm">
-                    Foto del equipo próximamente
+                  <p className="text-stone-500 text-sm text-center px-6">
+                    Emprendimiento de yerba mate en Villa del Rosario, Córdoba
                   </p>
                 </div>
               </div>

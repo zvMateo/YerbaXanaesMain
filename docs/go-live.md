@@ -1,6 +1,6 @@
 # Go-live — YerbaXanaes
 
-Checklist de salida a producción (relevamiento 2026-08). Actualizar al cerrar ítems.
+Checklist de salida a producción. Workspace: `~/projects/YerbaXanaesMain`.
 
 ## Estado del core
 
@@ -10,54 +10,57 @@ Checklist de salida a producción (relevamiento 2026-08). Actualizar al cerrar �
 | Checkout MP Brick + webhook + cleanup PENDING | Alto |
 | Backoffice auth allowlist + AdminGuard | Alto |
 | Envíos MiCorreo | Alto (requiere credenciales PROD) |
-| Contenido/marca pública | **Bajo — bloqueante** |
+| Contenido/marca pública | **En progreso (código P0)** |
 | Observabilidad (Sentry) | Ausente |
 | Emails transaccionales | Ausente |
 
+## Fuente de marca
+
+Datos públicos del ecommerce: `apps/ecommerce/lib/brand.ts`  
+(footer, contacto, WhatsApp envíos, schema.org).
+
 ---
 
-## P0 — Contenido / confianza (antes de anunciar)
+## P0 — Contenido / confianza
 
-- [ ] Unificar contacto real: **footer = `/contacto` = WhatsApp de envíos**
-  - Hoy inconsistente: footer con Buenos Aires / `+54 11 1234-5678` vs contacto Córdoba / WA real
-- [ ] Formulario de contacto: implementar envío real **o** quitar y dejar solo WhatsApp/email
-- [ ] Newsletter: implementar **o** quitar (hoy es toast simulado)
-- [ ] Testimonios inventados + “Miles de mates felices” + hero “500+” / “24h”: reales o fuera
-- [ ] Links muertos footer: Instagram, Facebook, FAQ, Envíos, Términos, Privacidad
-- [ ] Catálogo prod con productos/precios/fotos reales (no seeds Unsplash/placehold)
-- [ ] `og-image.jpg` y fotos hero/nosotros reales
+- [x] Unificar contacto real: footer = `/contacto` = WhatsApp de envíos (`lib/brand.ts`)
+- [x] Formulario de contacto fake → reemplazado por CTA WhatsApp + email
+- [x] Newsletter simulado → eliminado del home
+- [x] Testimonios inventados + “Miles de mates…” → eliminados
+- [x] Hero claims “500+ / 24h” → reemplazados por claims honestos
+- [x] Links footer: FAQ, Envíos, Términos, Privacidad (páginas reales)
+- [x] Redes: no se muestran si no hay URL en `brand.social`
+- [ ] Catálogo prod con productos/precios/fotos reales (operación BO + Cloudinary)
+- [ ] `og-image.jpg` y fotos hero/nosotros reales (assets)
 
-## P1 — Técnico (antes de tráfico real)
+## P1 — Técnico
 
-- [ ] `MP_ACCESS_TOKEN` + public key **APP_USR-** (no TEST-)
-- [ ] `MP_WEBHOOK_SECRET` + URL pública `POST /payments/webhook`
-- [ ] `ALLOWED_ORIGINS` con tienda + admin HTTPS
-- [ ] `ADMIN_EMAILS`, `BETTER_AUTH_SECRET`, Google OAuth redirect prod
-- [ ] MiCorreo `CA_ENVIRONMENT=PROD` + perfil remitente / `CA_SENDER_*`
-- [ ] Cloudinary (`CLOUDINARY_*`)
+- [x] CORS default incluye `admin.yerbaxanaes.com`
+- [x] `POST /orders` solo admin (ecommerce usa payments/*)
+- [x] Rate limit estricto en `POST /ratings`
+- [x] `CLOUDINARY_*` documentado en `apps/api/.env.example`
+- [x] PII quitada de `.env.example` raíz (`ADMIN_EMAILS` placeholder)
+- [ ] `MP_ACCESS_TOKEN` + public key **APP_USR-**
+- [ ] `MP_WEBHOOK_SECRET` + URL pública webhook
+- [ ] `ALLOWED_ORIGINS` prod con tienda + admin HTTPS
+- [ ] `ADMIN_EMAILS`, `BETTER_AUTH_SECRET`, Google OAuth prod
+- [ ] MiCorreo `CA_ENVIRONMENT=PROD` + sender
+- [ ] Cloudinary configurado en Railway
 - [ ] `REVALIDATE_SECRET` API ↔ ecommerce
-- [ ] Smoke: 1 compra real → orden BO → stock correcto → webhook
+- [ ] Smoke: 1 compra real → BO → stock
 
-## P2 — Primera semana post soft-launch
+## P2 — Post soft-launch
 
 - [ ] Sentry API + fronts
 - [ ] Backup Postgres Railway
-- [ ] Rate limit Better Auth ON
-- [ ] Email o proceso WhatsApp documentado para “pedido pagado”
-- [ ] Endurecer `POST /orders` (CASH/TRANSFER solo admin si el store solo usa MP)
-- [ ] Quitar PII de `.env.example` (email admin hardcodeado en raíz)
+- [ ] Better Auth rateLimit ON (DEBT documentado en `auth.ts`)
+- [ ] Email o playbook WhatsApp “pedido pagado”
+- [ ] Alertas 5xx / webhook
 
-## QA pagos (mínimo)
+## QA pagos
 
-Ver `apps/ecommerce/PAYMENTS_QA_MANUAL.md`:
+Ver `apps/ecommerce/PAYMENTS_QA_MANUAL.md`.
 
-- Tarjeta aprobada / rechazada / in_process
-- Ticket (Rapipago/Pago Fácil) pending
-- Account money approved/pending
-- Mismatch de monto y stock insuficiente
-- Webhook duplicado idempotente
+## Setup IA
 
-## Skills / setup IA
-
-- Setup Grok del repo: `AGENTS.md`, `.grok/`, `.envrc`
-- No usar Claude Code en este proyecto
+- Grok-only: `AGENTS.md`, `.grok/`, `.envrc`, `docs/ai-setup-grok.md`

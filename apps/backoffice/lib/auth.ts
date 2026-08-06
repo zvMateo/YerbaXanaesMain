@@ -122,8 +122,9 @@ export const auth = betterAuth({
       },
     },
   },
-  // Rate limiting desactivado por ahora para evitar errores de tablas faltantes.
-  // Se puede reactivar en el futuro creando la migración correspondiente.
+  // DEBT: rateLimit desactivado — Better Auth requiere tablas de rate-limit en DB.
+  // Reactivar (enabled: true) tras migración de Better Auth rate-limit antes de
+  // exposición pública agresiva del login. Mitigación actual: allowlist ADMIN_EMAILS.
   rateLimit: {
     enabled: false,
   },

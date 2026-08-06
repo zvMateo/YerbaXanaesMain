@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { RatingsService } from './ratings.service';
 import { CreateRatingDto } from './dto/create-rating.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -20,8 +21,9 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 export class RatingsController {
   constructor(private readonly ratingsService: RatingsService) {}
 
-  // POST /ratings — submit a review (público, el userId es opcional)
+  // POST /ratings — submit a review (público; moderación admin antes de publicar)
   @Post('ratings')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   create(
     @Body() dto: CreateRatingDto,
     @Request() req: { user?: { id?: string } },

@@ -1,8 +1,8 @@
 import { Header } from "@/components/header";
 import { Hero } from "@/components/hero";
 import { Footer } from "@/components/footer";
-import { NewsletterCta } from "@/components/newsletter-cta";
 import { getProducts, getCategories } from "@/lib/api";
+import { brand } from "@/lib/brand";
 import type { Product, Category } from "@repo/types";
 import Link from "next/link";
 import Image from "next/image";
@@ -13,7 +13,6 @@ import {
   Shield,
   Leaf,
   Coffee,
-  Star,
   Blend,
   ShoppingBag,
 } from "lucide-react";
@@ -22,13 +21,17 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://yerbaxanaes.com";
 
 // --- Structured Data ---
 function OrganizationSchema() {
+  const sameAs = [brand.social.instagram, brand.social.facebook].filter(
+    (u): u is string => Boolean(u),
+  );
+
   const schema = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Organization",
         "@id": `${SITE_URL}/#organization`,
-        name: "YerbaXanaes",
+        name: brand.businessName,
         url: SITE_URL,
         logo: {
           "@type": "ImageObject",
@@ -36,20 +39,20 @@ function OrganizationSchema() {
         },
         description:
           "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu puerta.",
+        email: brand.email,
         address: {
           "@type": "PostalAddress",
+          addressLocality: brand.city,
+          addressRegion: brand.region,
           addressCountry: "AR",
         },
-        sameAs: [
-          "https://www.instagram.com/yerbaxanaes",
-          "https://www.facebook.com/yerbaxanaes",
-        ],
+        ...(sameAs.length > 0 ? { sameAs } : {}),
       },
       {
         "@type": "WebSite",
         "@id": `${SITE_URL}/#website`,
         url: SITE_URL,
-        name: "YerbaXanaes",
+        name: brand.businessName,
         publisher: { "@id": `${SITE_URL}/#organization` },
         potentialAction: {
           "@type": "SearchAction",
@@ -276,85 +279,6 @@ function Benefits() {
   );
 }
 
-// --- Testimonios ---
-const TESTIMONIALS = [
-  {
-    name: "Martina G.",
-    city: "Buenos Aires",
-    initials: "MG",
-    rating: 5,
-    text: "La yerba es de una calidad impresionante. Llegó súper bien envasada y el sabor es increíble. Ya pedí por tercera vez y siempre llega rápido.",
-  },
-  {
-    name: "Diego F.",
-    city: "Córdoba",
-    initials: "DF",
-    rating: 5,
-    text: "Compré el combo de yerba + mate artesanal y quedé muy conforme. El mate es hermoso y la yerba tiene un sabor muy auténtico. ¡100% recomendable!",
-  },
-  {
-    name: "Carla R.",
-    city: "Rosario",
-    initials: "CR",
-    rating: 5,
-    text: "Excelente atención y producto de primera. Muy buena relación calidad-precio. Se nota que hay dedicación en cada pedido. ¡Gracias YerbaXanaes!",
-  },
-];
-
-function Testimonials() {
-  return (
-    <section className="py-20 bg-stone-50">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <p className="text-yerba-600 font-semibold text-sm uppercase tracking-wider mb-2">
-            Lo que dicen nuestros clientes
-          </p>
-          <h2 className="font-serif text-3xl md:text-4xl font-bold text-stone-900 mb-4">
-            Miles de mates felices
-          </h2>
-          <p className="text-stone-600 max-w-xl mx-auto">
-            La opinión de quienes ya probaron la diferencia
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {TESTIMONIALS.map((t) => (
-            <div
-              key={t.name}
-              className="bg-white rounded-2xl p-6 border border-stone-200 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center gap-1 mb-4">
-                {Array.from({ length: t.rating }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className="h-4 w-4 text-earth-500 fill-earth-500"
-                  />
-                ))}
-              </div>
-              <p className="text-stone-700 text-sm leading-relaxed mb-6 italic">
-                &ldquo;{t.text}&rdquo;
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-yerba-100 flex items-center justify-center shrink-0">
-                  <span className="text-yerba-700 font-bold text-sm">
-                    {t.initials}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-semibold text-stone-900 text-sm">
-                    {t.name}
-                  </p>
-                  <p className="text-stone-500 text-xs">{t.city}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // --- Categories ---
 function CategoriesSection({ categories }: { categories: Category[] }) {
   if (categories.length === 0) return null;
@@ -425,9 +349,7 @@ export default async function Home() {
         <Hero />
         <FeaturedProducts products={featured} />
         <Benefits />
-        <Testimonials />
         <CategoriesSection categories={categories} />
-        <NewsletterCta />
       </main>
       <Footer />
     </div>

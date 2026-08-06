@@ -20,9 +20,11 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  // POST público — lo usa el ecommerce para crear órdenes (CASH/TRANSFER)
+  // POST admin — órdenes manuales (CASH/TRANSFER/canales offline) desde backoffice.
+  // El ecommerce online crea órdenes vía /payments/brick-init + /payments/brick.
   @Post()
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(AuthGuard, AdminGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@Body() createOrderDto: CreateOrderDto) {
     return this.ordersService.create(createOrderDto);
   }
