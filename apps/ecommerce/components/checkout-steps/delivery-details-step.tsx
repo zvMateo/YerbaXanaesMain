@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useCartStore } from "@/stores/cart-store";
+import { shippingWhatsappUrl } from "@/lib/brand";
 
 // ============================================================
 // TIPOS
@@ -47,10 +48,7 @@ interface Agency {
   postalCode: string;
 }
 
-const MANUAL_SHIPPING_WHATSAPP_URL =
-  process.env.NEXT_PUBLIC_SHIPPING_WHATSAPP_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_URL ||
-  "https://wa.me/541100000000?text=Hola%2C%20necesito%20cotizar%20el%20env%C3%ADo%20de%20mi%20pedido%20de%20YerbaXanaes";
+const MANUAL_SHIPPING_WHATSAPP_URL = shippingWhatsappUrl();
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"

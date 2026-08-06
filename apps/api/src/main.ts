@@ -40,6 +40,7 @@ async function bootstrap() {
     'http://localhost:3002',
     'https://www.yerbaxanaes.com',
     'https://yerbaxanaes.com',
+    'https://admin.yerbaxanaes.com',
   ];
 
   const envOrigins = process.env.ALLOWED_ORIGINS

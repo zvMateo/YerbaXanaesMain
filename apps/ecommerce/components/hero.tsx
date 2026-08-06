@@ -51,7 +51,7 @@ export function Hero() {
               </Link>
             </div>
 
-            {/* Stats */}
+            {/* Stats — solo claims honestos (sin números inventados) */}
             <div className="mt-12 grid grid-cols-3 gap-8 border-t border-stone-200 pt-8">
               <div>
                 <div className="font-serif text-3xl font-bold text-yerba-600">
@@ -60,16 +60,16 @@ export function Hero() {
                 <div className="text-sm text-stone-600">Natural</div>
               </div>
               <div>
-                <div className="font-serif text-3xl font-bold text-yerba-600">
-                  500+
+                <div className="font-serif text-2xl sm:text-3xl font-bold text-yerba-600">
+                  AR
                 </div>
-                <div className="text-sm text-stone-600">Clientes</div>
+                <div className="text-sm text-stone-600">Origen Córdoba</div>
               </div>
               <div>
-                <div className="font-serif text-3xl font-bold text-yerba-600">
-                  24h
+                <div className="font-serif text-2xl sm:text-3xl font-bold text-yerba-600">
+                  País
                 </div>
-                <div className="text-sm text-stone-600">Envío</div>
+                <div className="text-sm text-stone-600">Envíos a todo el país</div>
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
-import { ContactForm } from "@/components/contact-form";
+import { brand, mailtoUrl, whatsappUrl } from "@/lib/brand";
 import { Leaf, MapPin, Phone, Mail, Clock } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -19,33 +19,32 @@ const CONTACT_INFO = [
   {
     icon: MapPin,
     label: "Ubicación",
-    value: "Buenos Aires, Argentina",
+    value: brand.locationLabel,
   },
   {
     icon: Phone,
     label: "WhatsApp",
-    value: "+54 11 0000-0000",
-    href: "https://wa.me/541100000000",
+    value: brand.whatsappDisplay,
+    href: whatsappUrl(),
   },
   {
     icon: Mail,
     label: "Email",
-    value: "hola@yerbaxanaes.com",
-    href: "mailto:hola@yerbaxanaes.com",
+    value: brand.email,
+    href: mailtoUrl(),
   },
   {
     icon: Clock,
     label: "Horarios",
-    value: "Lun–Vie 9 a 18 hs",
+    value: brand.hours,
   },
-];
+] as const;
 
 export default function ContactoPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1">
-        {/* Page Header */}
         <section className="bg-gradient-to-br from-yerba-50 via-white to-earth-50 py-20 overflow-hidden relative">
           <div
             aria-hidden="true"
@@ -61,18 +60,16 @@ export default function ContactoPage() {
                 Contacto
               </h1>
               <p className="text-lg text-stone-600">
-                Cualquier duda sobre pedidos, envíos o productos, escribinos.
-                Te respondemos a la brevedad.
+                Cualquier duda sobre pedidos, envíos o productos, escribinos. Te
+                respondemos a la brevedad.
               </p>
             </div>
           </div>
         </section>
 
-        {/* Content */}
         <section className="py-20 bg-white">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-16 items-start max-w-5xl mx-auto">
-              {/* Contact info */}
               <div>
                 <h2 className="font-serif text-2xl font-bold text-stone-900 mb-8">
                   Información de contacto
@@ -91,7 +88,7 @@ export default function ContactoPage() {
                         <p className="text-sm text-stone-500 font-medium mb-0.5">
                           {item.label}
                         </p>
-                        {item.href ? (
+                        {"href" in item && item.href ? (
                           <a
                             href={item.href}
                             className="text-stone-900 font-semibold hover:text-yerba-600 transition-colors"
@@ -117,34 +114,47 @@ export default function ContactoPage() {
                     </div>
                   ))}
                 </div>
+              </div>
 
-                <div className="bg-yerba-50 rounded-2xl p-6 border border-yerba-100">
-                  <h3 className="font-semibold text-stone-900 mb-2">
-                    Consultas rápidas por WhatsApp
-                  </h3>
-                  <p className="text-stone-600 text-sm leading-relaxed mb-4">
-                    Para consultas sobre disponibilidad de stock, combos
-                    especiales o seguimiento de pedidos, el WhatsApp es la vía
-                    más rápida.
+              <div className="space-y-6">
+                <div className="bg-yerba-50 rounded-2xl p-8 border border-yerba-100">
+                  <h2 className="font-serif text-2xl font-bold text-stone-900 mb-3">
+                    Escribinos por WhatsApp
+                  </h2>
+                  <p className="text-stone-600 text-sm leading-relaxed mb-6">
+                    Es la vía más rápida para consultas de stock, combos,
+                    seguimiento de pedidos o cotización de envíos. Respondemos en
+                    horario de atención.
                   </p>
                   <a
-                    href="https://wa.me/541100000000"
+                    href={whatsappUrl(
+                      "Hola YerbaXanaes, tengo una consulta:",
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-yerba-600 text-white px-6 py-3 rounded-full font-semibold text-sm hover:bg-yerba-700 transition-colors"
+                    className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-yerba-600 text-white px-8 py-3.5 rounded-full font-semibold text-sm hover:bg-yerba-700 transition-colors"
                   >
-                    Escribirnos por WhatsApp
+                    Abrir WhatsApp
                     <Phone className="h-4 w-4" aria-hidden="true" />
                   </a>
                 </div>
-              </div>
 
-              {/* Form */}
-              <div>
-                <h2 className="font-serif text-2xl font-bold text-stone-900 mb-8">
-                  Envianos un mensaje
-                </h2>
-                <ContactForm />
+                <div className="bg-white rounded-2xl p-8 border border-stone-200">
+                  <h3 className="font-semibold text-stone-900 mb-2">
+                    Preferís email
+                  </h3>
+                  <p className="text-stone-600 text-sm leading-relaxed mb-4">
+                    Escribinos a{" "}
+                    <a
+                      href={mailtoUrl("Consulta desde la web")}
+                      className="text-yerba-700 font-medium hover:underline"
+                    >
+                      {brand.email}
+                    </a>
+                    . Te respondemos a la brevedad.
+                  </p>
+                  <p className="text-xs text-stone-500">{brand.hours}</p>
+                </div>
               </div>
             </div>
           </div>
