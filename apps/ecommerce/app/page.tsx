@@ -109,6 +109,8 @@ function isUnsplashImage(url: string): boolean {
 
 // --- Featured Products ---
 function FeaturedProducts({ products }: { products: Product[] }) {
+  if (products.length === 0) return null;
+
   return (
     <section className="py-20 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -121,8 +123,7 @@ function FeaturedProducts({ products }: { products: Product[] }) {
               Productos Destacados
             </h2>
             <p className="text-stone-600 max-w-xl">
-              Descubrí nuestra selección de productos más populares, elegidos
-              por nuestros clientes
+              Nuestra selección de yerbas y accesorios listos para tu mate
             </p>
           </div>
           <Link

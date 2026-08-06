@@ -40,27 +40,30 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/**",
       },
-      // Cloudinary (imágenes de productos)
+      // Cloudinary (imágenes de productos en prod)
       {
         protocol: "https",
         hostname: "res.cloudinary.com",
         port: "",
         pathname: "/**",
       },
-      // Placeholders y Unsplash (dev/seeds)
-      {
-        protocol: "https",
-        hostname: "placehold.co",
-        port: "",
-        pathname: "/**",
-        // SVG habilitado para placeholders de desarrollo
-      },
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        port: "",
-        pathname: "/**",
-      },
+      // Placeholders solo en desarrollo (seeds / demos)
+      ...(isDev
+        ? [
+            {
+              protocol: "https" as const,
+              hostname: "placehold.co",
+              port: "",
+              pathname: "/**",
+            },
+            {
+              protocol: "https" as const,
+              hostname: "images.unsplash.com",
+              port: "",
+              pathname: "/**",
+            },
+          ]
+        : []),
     ],
   },
 };
