@@ -21,6 +21,7 @@ direnv allow                 # una vez por máquina
 - Instrucciones del proyecto: `AGENTS.md`
 - Rules + MCP CodeGraph: `.grok/`
 - Checklist producción: `docs/go-live.md`
+- Variables prod: `docs/prod-env-checklist.md`
 - Detalle del setup IA: `docs/ai-setup-grok.md`
 
 ## Comandos principales

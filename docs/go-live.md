@@ -10,7 +10,7 @@ Checklist de salida a producción. Workspace: `~/projects/YerbaXanaesMain`.
 | Checkout MP Brick + webhook + cleanup PENDING | Alto |
 | Backoffice auth allowlist + AdminGuard | Alto |
 | Envíos MiCorreo | Alto (requiere credenciales PROD) |
-| Contenido/marca pública | **En progreso (código P0)** |
+| Contenido/marca pública | **P0 código listo** — falta catálogo/fotos reales |
 | Observabilidad (Sentry) | Ausente |
 | Emails transaccionales | Ausente |
 
@@ -31,7 +31,8 @@ Datos públicos del ecommerce: `apps/ecommerce/lib/brand.ts`
 - [x] Links footer: FAQ, Envíos, Términos, Privacidad (páginas reales)
 - [x] Redes: no se muestran si no hay URL en `brand.social`
 - [ ] Catálogo prod con productos/precios/fotos reales (operación BO + Cloudinary)
-- [ ] `og-image.jpg` y fotos hero/nosotros reales (assets)
+- [x] OG/Twitter image dinámica (`app/opengraph-image.tsx`) — sin depender de jpg faltante
+- [ ] Foto hero/nosotros con asset real (opcional; placeholder honesto hoy)
 
 ## P1 — Técnico
 
@@ -60,6 +61,10 @@ Datos públicos del ecommerce: `apps/ecommerce/lib/brand.ts`
 ## QA pagos
 
 Ver `apps/ecommerce/PAYMENTS_QA_MANUAL.md`.
+
+## Variables prod
+
+Ver matriz completa: `docs/prod-env-checklist.md`.
 
 ## Setup IA
 

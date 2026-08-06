@@ -50,22 +50,15 @@ export const metadata: Metadata = {
     siteName: "YerbaXanaes",
     title: "YerbaXanaes | Yerba Mate Premium Argentina",
     description:
-      "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu mesa.",
-    images: [
-      {
-        url: "/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "YerbaXanaes — Yerba Mate Premium Argentina",
-      },
-    ],
+      "Yerba mate premium desde Villa del Rosario, Córdoba. Envíos a todo el país.",
+    // images: generadas por app/opengraph-image.tsx
   },
   twitter: {
     card: "summary_large_image",
     title: "YerbaXanaes | Yerba Mate Premium Argentina",
     description:
-      "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu mesa.",
-    images: ["/og-image.jpg"],
+      "Yerba mate premium desde Villa del Rosario, Córdoba. Envíos a todo el país.",
+    // images: generadas por app/twitter-image.tsx
   },
   robots: {
     index: true,

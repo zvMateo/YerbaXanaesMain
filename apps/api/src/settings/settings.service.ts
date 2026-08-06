@@ -13,10 +13,21 @@ export class SettingsService {
    * Devuelve la configuración actual. Si no existe la fila singleton, la crea
    * con los valores por defecto definidos en el schema.
    */
+  /** Defaults alineados con la marca pública del ecommerce (Villa del Rosario). */
+  private readonly brandDefaults = {
+    businessName: 'YerbaXanaes',
+    email: 'yerbaxanaes@gmail.com',
+    phone: '+54 9 3573 50-0348',
+    address: 'Villa del Rosario',
+    city: 'Córdoba, Argentina',
+    notificationEmail: 'yerbaxanaes@gmail.com',
+    freeShippingThreshold: 15000,
+  } as const;
+
   async get(): Promise<StoreSettings> {
     return this.prisma.storeSettings.upsert({
       where: { id: SINGLETON_ID },
-      create: { id: SINGLETON_ID },
+      create: { id: SINGLETON_ID, ...this.brandDefaults },
       update: {},
     });
   }
@@ -27,7 +38,7 @@ export class SettingsService {
   async update(dto: UpdateSettingsDto): Promise<StoreSettings> {
     return this.prisma.storeSettings.upsert({
       where: { id: SINGLETON_ID },
-      create: { id: SINGLETON_ID, ...dto },
+      create: { id: SINGLETON_ID, ...this.brandDefaults, ...dto },
       update: dto,
     });
   }

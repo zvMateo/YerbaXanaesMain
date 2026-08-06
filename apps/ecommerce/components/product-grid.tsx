@@ -2,7 +2,8 @@
 
 import { Product } from "@repo/types";
 import { ProductCard } from "./product-card";
-import { PackageX } from "lucide-react";
+import { PackageX, Phone } from "lucide-react";
+import { whatsappUrl } from "@/lib/brand";
 
 interface ProductGridProps {
   products: Product[];
@@ -40,15 +41,27 @@ export function ProductGrid({ products, isLoading }: ProductGridProps) {
   if (products.length === 0) {
     return (
       <div className="text-center py-20 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-stone-100 rounded-full mb-6">
-          <PackageX className="h-10 w-10 text-stone-400" />
+        <div className="inline-flex items-center justify-center w-20 h-20 bg-yerba-50 rounded-full mb-6 border border-yerba-100">
+          <PackageX className="h-10 w-10 text-yerba-600" />
         </div>
         <h3 className="font-serif text-xl font-semibold text-stone-900 mb-2">
-          No encontramos productos
+          Catálogo en preparación
         </h3>
-        <p className="text-stone-500 max-w-md mx-auto">
-          Intentá con otros filtros o volvé a ver todos los productos.
+        <p className="text-stone-500 max-w-md mx-auto mb-6">
+          Estamos cargando los productos. Si buscás una yerba o un combo en
+          particular, escribinos y te armamos el pedido.
         </p>
+        <a
+          href={whatsappUrl(
+            "Hola YerbaXanaes, quiero consultar por productos disponibles",
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-yerba-600 text-white px-6 py-3 rounded-full font-semibold text-sm hover:bg-yerba-700 transition-colors"
+        >
+          Consultar por WhatsApp
+          <Phone className="h-4 w-4" aria-hidden="true" />
+        </a>
       </div>
     );
   }
