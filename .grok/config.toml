@@ -1,0 +1,41 @@
+# YerbaXanaes — config de proyecto para Grok
+# Solo aportan: [mcp_servers], [plugins], [permission]
+# (el resto de settings va en ~/.grok/config.toml)
+
+# ------------------------------------------------------------
+# MCP: solo lo que aporta valor aquí (rápido y confiable).
+# Los MCP de Claude (context7 timeout, atlassian sin auth) se
+# desactivan vía .envrc → GROK_CLAUDE_MCPS_ENABLED=false
+# ------------------------------------------------------------
+
+[mcp_servers.codegraph]
+command = "codegraph"
+args = ["serve", "--mcp"]
+enabled = true
+startup_timeout_sec = 15
+tool_timeout_sec = 120
+
+# ------------------------------------------------------------
+# Permisos del proyecto (merge con user config; deny > ask > allow)
+# ------------------------------------------------------------
+
+[permission]
+# Lecturas y checks de calidad sin fricción
+allow = [
+  "Bash(bun run *)",
+  "Bash(bunx prisma *)",
+  "Bash(bun test*)",
+  "Bash(codegraph *)",
+  "Bash(git status*)",
+  "Bash(git diff*)",
+  "Bash(git log*)",
+  "Bash(git branch*)",
+  "Bash(docker compose *)",
+]
+# Nunca en este proyecto sin confirmación explícita del usuario
+ask = [
+  "Bash(git push*)",
+  "Bash(git push --force*)",
+  "Bash(gh pr create*)",
+  "Bash(gh pr merge*)",
+]

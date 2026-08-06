@@ -8,6 +8,21 @@ Monorepo Turborepo (Bun) para e-commerce de yerba mate.
 - `apps/ecommerce`: Next.js storefront (puerto 3000)
 - `apps/backoffice`: Next.js admin (puerto 3002)
 
+## Agente de código (Grok)
+
+Este repositorio está optimizado para **Grok** (no Claude Code).
+
+```bash
+direnv allow                 # una vez por máquina
+# o sin direnv:
+./scripts/grok-here.sh
+```
+
+- Instrucciones del proyecto: `AGENTS.md`
+- Rules + MCP CodeGraph: `.grok/`
+- Checklist producción: `docs/go-live.md`
+- Detalle del setup IA: `docs/ai-setup-grok.md`
+
 ## Comandos principales
 
 Desde la raíz:
