@@ -11,6 +11,9 @@ interface ErrorProps {
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
     console.error('[BackofficeErrorBoundary]', error);
+    void import('@/lib/sentry').then(({ captureClientError }) => {
+      captureClientError(error);
+    });
   }, [error]);
 
   return (
@@ -33,7 +36,7 @@ export default function Error({ error, reset }: ErrorProps) {
             Reintentar
           </button>
           <a
-            href="/dashboard"
+            href="/"
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
           >
             Ir al dashboard

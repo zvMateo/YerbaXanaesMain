@@ -69,3 +69,10 @@ Redirect Google: `https://admin.yerbaxanaes.com/api/auth/callback/google`
 ## Catálogo
 
 No uses seeds de Unsplash en prod. Cargá productos reales desde el backoffice (`/productos`) con fotos propias.
+
+## Observabilidad
+
+| Variable | Dónde | ✓ |
+|----------|-------|---|
+| `SENTRY_DSN` | Railway API | |
+| `NEXT_PUBLIC_SENTRY_DSN` | Vercel ecommerce + backoffice | |
