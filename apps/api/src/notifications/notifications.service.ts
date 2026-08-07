@@ -1,16 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus } from '@prisma/client';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Notificaciones de pedido (email).
  * - Fail-open: un fallo de email NUNCA revierte el estado de la orden.
  * - Idempotente: usa Order.notifiedPaidAt para no spamear en retries de webhook.
+ * - Providers: Gmail/SMTP (arranque) o Resend (API). Sin config = solo log.
  */
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private smtpTransport: Transporter | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -121,22 +125,89 @@ export class NotificationsService {
     text: string;
     html: string;
   }): Promise<void> {
-    const resendKey = this.config.get<string>('RESEND_API_KEY')?.trim();
-    const from =
-      this.config.get<string>('EMAIL_FROM')?.trim() ||
-      'YerbaXanaes <onboarding@resend.dev>';
+    const from = this.resolveFromAddress();
 
-    if (!resendKey) {
-      // Dev / sin proveedor: log estructurado (no es error)
-      this.logger.log({
-        event: 'email_skipped_no_provider',
-        to: params.to,
-        subject: params.subject,
-        hint: 'Configurá RESEND_API_KEY + EMAIL_FROM para envío real',
-      });
+    // 1) Resend (cuando migren de Gmail)
+    const resendKey = this.config.get<string>('RESEND_API_KEY')?.trim();
+    if (resendKey) {
+      await this.sendViaResend(params, from, resendKey);
       return;
     }
 
+    // 2) SMTP / Gmail (arranque barato)
+    if (this.hasSmtpConfig()) {
+      await this.sendViaSmtp(params, from);
+      return;
+    }
+
+    // 3) Dev / sin proveedor
+    this.logger.log({
+      event: 'email_skipped_no_provider',
+      to: params.to,
+      subject: params.subject,
+      hint:
+        'Configurá SMTP (Gmail App Password) o RESEND_API_KEY. Ver apps/api/.env.example',
+    });
+  }
+
+  private resolveFromAddress(): string {
+    const explicit = this.config.get<string>('EMAIL_FROM')?.trim();
+    if (explicit) return explicit;
+
+    const smtpUser = this.config.get<string>('SMTP_USER')?.trim();
+    if (smtpUser) return `YerbaXanaes <${smtpUser}>`;
+
+    return 'YerbaXanaes <onboarding@resend.dev>';
+  }
+
+  private hasSmtpConfig(): boolean {
+    const host = this.config.get<string>('SMTP_HOST')?.trim();
+    const user = this.config.get<string>('SMTP_USER')?.trim();
+    const pass = this.config.get<string>('SMTP_PASS')?.trim();
+    return Boolean(host && user && pass);
+  }
+
+  private getSmtpTransport(): Transporter {
+    if (this.smtpTransport) return this.smtpTransport;
+
+    const host = this.config.get<string>('SMTP_HOST')!.trim();
+    const port = Number(this.config.get<string>('SMTP_PORT') ?? '465');
+    const user = this.config.get<string>('SMTP_USER')!.trim();
+    const pass = this.config.get<string>('SMTP_PASS')!.trim();
+    // 465 = SSL; 587 = STARTTLS. Gmail soporta ambos.
+    const secure =
+      this.config.get<string>('SMTP_SECURE')?.trim() === 'true' || port === 465;
+
+    this.smtpTransport = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+    });
+
+    return this.smtpTransport;
+  }
+
+  private async sendViaSmtp(
+    params: { to: string; subject: string; text: string; html: string },
+    from: string,
+  ): Promise<void> {
+    const transport = this.getSmtpTransport();
+    await transport.sendMail({
+      from,
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
+    });
+    this.logger.log(`Email SMTP enviado a ${params.to}`);
+  }
+
+  private async sendViaResend(
+    params: { to: string; subject: string; text: string; html: string },
+    from: string,
+    resendKey: string,
+  ): Promise<void> {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -158,6 +229,7 @@ export class NotificationsService {
         `Resend HTTP ${response.status}: ${detail.slice(0, 300)}`,
       );
     }
+    this.logger.log(`Email Resend enviado a ${params.to}`);
   }
 
   private buildPaidEmailText(order: {
