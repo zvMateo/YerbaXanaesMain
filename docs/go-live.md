@@ -52,7 +52,7 @@ Datos públicos del ecommerce: `apps/ecommerce/lib/brand.ts`
 
 ## P2 — Post soft-launch
 
-- [ ] Sentry API + fronts
+- [x] Sentry API + fronts (código; configurar SENTRY_DSN / NEXT_PUBLIC_SENTRY_DSN)
 - [ ] Backup Postgres Railway
 - [ ] Better Auth rateLimit ON (DEBT documentado en `auth.ts`)
 - [x] Email de pedido pagado (código: `NotificationsService` + Resend) — falta configurar `RESEND_API_KEY` / `ORDER_NOTIFY_EMAIL` en prod

@@ -1,3 +1,4 @@
+import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
@@ -5,7 +6,43 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as express from 'express';
 
+/** Evita que libs de terceros logueen JWT/tokens en stdout. */
+function installConsoleRedaction(): void {
+  const redact = (args: unknown[]) =>
+    args.map((arg) => {
+      if (typeof arg !== 'string') return arg;
+      return arg
+        .replace(
+          /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+          '[REDACTED_JWT]',
+        )
+        .replace(
+          /(Bearer\s+)[A-Za-z0-9._\-]+/gi,
+          '$1[REDACTED_TOKEN]',
+        )
+        .replace(
+          /(token["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi,
+          '$1[REDACTED]',
+        );
+    });
+
+  const wrap =
+    (fn: (...a: unknown[]) => void) =>
+    (...args: unknown[]) =>
+      fn(...redact(args));
+
+  // eslint-disable-next-line no-console
+  console.log = wrap(console.log.bind(console));
+  // eslint-disable-next-line no-console
+  console.info = wrap(console.info.bind(console));
+  // eslint-disable-next-line no-console
+  console.warn = wrap(console.warn.bind(console));
+  // eslint-disable-next-line no-console
+  console.error = wrap(console.error.bind(console));
+}
+
 async function bootstrap() {
+  installConsoleRedaction();
   const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule);

@@ -141,12 +141,30 @@ function QuickGuide() {
       ],
     },
     {
-      title: "Gestionar órdenes",
+      title: "Gestionar órdenes de la tienda (Mercado Pago)",
       steps: [
-        "Andá a Órdenes para ver todos los pedidos",
-        "Los nuevos pedidos aparecen en estado PENDING",
-        "Cuando MercadoPago confirma el pago, cambian a PAID",
-        "Podés cambiar el estado manualmente con las acciones de la tabla",
+        "Andá a Órdenes: los pedidos web entran como PENDING y pasan a PAID cuando MP confirma",
+        "Revisá alertas del Dashboard: 'pagados sin tracking' = listos para despachar",
+        "Podés cambiar estado a mano (PROCESSING, SHIPPED, etc.) con una nota",
+        "Si cancelás un PENDING, el stock se restaura solo",
+      ],
+    },
+    {
+      title: "Venta en efectivo o transferencia",
+      steps: [
+        "Órdenes → Registrar venta (no cobra por Mercado Pago)",
+        "Elegí canal: Feria, Tienda, Instagram, WhatsApp…",
+        "Efectivo: la orden queda PAID al guardar (ya cobraste)",
+        "Transferencia: queda PENDING hasta que veas el depósito → marcá PAID",
+      ],
+    },
+    {
+      title: "Envío con Correo Argentino",
+      steps: [
+        "El cliente cotiza en el checkout con su código postal",
+        "Con la orden PAID, usá 'Importar a MiCorreo' en la orden",
+        "Imprimí la etiqueta en el panel de MiCorreo",
+        "Copiá el número de seguimiento y cargalo en la orden",
       ],
     },
     {
@@ -154,8 +172,8 @@ function QuickGuide() {
       steps: [
         "El Dashboard muestra KPIs en tiempo real",
         "Revenue de hoy, semana y mes con comparativa",
+        "Alertas de stock bajo e insumos en Inventario",
         "Productos más vendidos y ventas por categoría",
-        "Gráfico de ventas semanales",
       ],
     },
   ];

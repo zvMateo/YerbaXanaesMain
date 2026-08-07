@@ -237,6 +237,7 @@ export class ShippingService implements OnModuleInit {
     }
 
     try {
+      // La lib ylazzari a veces imprime tokens en console.log — main.ts redacta JWT.
       const api = new CorreoArgentinoApi();
       const customerId = this.config.get<string>('CA_CUSTOMER_ID');
       const envStr = this.config.get<string>('CA_ENVIRONMENT') || 'PROD';
@@ -260,9 +261,9 @@ export class ShippingService implements OnModuleInit {
           password,
           environment,
         });
+        const resolvedId = api.getVarCustomerId();
         this.logger.log(
-          `Correo Argentino inicializado. CustomerId: ${api.getVarCustomerId()}. ` +
-            `Guardalo en CA_CUSTOMER_ID para acelerar futuros starts.`,
+          `Correo Argentino inicializado. CustomerId obtenido (configurá CA_CUSTOMER_ID=${resolvedId ? '[ok]' : '[vacío]'} en env para acelerar starts).`,
         );
       }
 
@@ -271,8 +272,8 @@ export class ShippingService implements OnModuleInit {
       this.logger.log('Correo Argentino API inicializada correctamente.');
     } catch (error) {
       this.logger.error(
-        'No se pudo inicializar Correo Argentino API — usando tarifa plana como fallback.',
-        error,
+        'No se pudo inicializar Correo Argentino API — cotización HTTP directa puede seguir funcionando si hay CA_USER_TOKEN.',
+        error instanceof Error ? error.message : error,
       );
     }
   }
@@ -550,6 +551,21 @@ export class ShippingService implements OnModuleInit {
       if (lowercased.includes('codigo postal') || lowercased.includes('cp')) {
         throw new BadRequestException(
           'Código postal inválido. Verificá el CP del destino.',
+        );
+      }
+      if (
+        lowercased.includes('401') ||
+        lowercased.includes('403') ||
+        lowercased.includes('unauthorized') ||
+        lowercased.includes('token')
+      ) {
+        throw new BadRequestException(
+          'Credenciales de Correo Argentino inválidas o vencidas. Revisá CA_USER_TOKEN / CA_PASSWORD_TOKEN en el servidor.',
+        );
+      }
+      if (lowercased.includes('timeout') || lowercased.includes('econnrefused')) {
+        throw new ServiceUnavailableException(
+          'MiCorreo no responde en este momento. Reintentá en unos minutos.',
         );
       }
 

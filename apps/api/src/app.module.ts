@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -22,6 +23,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
+    // Sentry (no-op si no hay SENTRY_DSN / instrument no inicializó)
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -59,6 +62,11 @@ import { NotificationsModule } from './notifications/notifications.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Captura excepciones no manejadas en Sentry (si DSN configurado)
+    {
+      provide: APP_FILTER,
+      useClass: SentryGlobalFilter,
     },
   ],
 })

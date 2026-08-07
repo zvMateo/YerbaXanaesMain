@@ -10,8 +10,10 @@ interface ErrorProps {
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // Loguear en servicio de errores (Sentry, etc.) cuando esté configurado
     console.error('[ErrorBoundary]', error);
+    void import('@/lib/sentry').then(({ captureClientError }) => {
+      captureClientError(error);
+    });
   }, [error]);
 
   return (
