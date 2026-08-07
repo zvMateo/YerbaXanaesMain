@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrderStatus } from '@prisma/client';
 import { PaymentsSyncService } from './payments-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * TESTS UNITARIOS: PaymentsSyncService
@@ -57,6 +58,12 @@ describe('PaymentsSyncService - Unit Tests', () => {
               };
               return config[key];
             }),
+          },
+        },
+        {
+          provide: NotificationsService,
+          useValue: {
+            notifyOrderPaidIfNeeded: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * PAYMENTS SYNC SERVICE
@@ -23,6 +24,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit() {
@@ -138,7 +140,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
     changedByEmail?: string;
     notes?: string;
   }): Promise<boolean> {
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       // 1. LOCK: Bloquea la fila para evitar race conditions
       await tx.$queryRaw`
         SELECT id
@@ -228,6 +230,13 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
 
       return true;
     });
+
+    // Fuera de la tx: email fail-open (no revierte PAID)
+    if (updated && params.newStatus === OrderStatus.PAID) {
+      void this.notifications.notifyOrderPaidIfNeeded(params.orderId);
+    }
+
+    return updated;
   }
 
   /**

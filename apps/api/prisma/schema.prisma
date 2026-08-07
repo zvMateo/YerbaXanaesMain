@@ -290,6 +290,9 @@ model Order {
   manualOverrideAt DateTime?      // Marca cuándo se hizo override manual (backoffice)
   manualOverrideReason String?    // Por qué se hizo override
 
+  // Notificaciones: evita reenviar email al reintentar webhooks
+  notifiedPaidAt  DateTime?       // Cuándo se envió email de "pedido pagado"
+
   // Auditoría y Soft Delete
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

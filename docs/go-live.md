@@ -55,8 +55,10 @@ Datos públicos del ecommerce: `apps/ecommerce/lib/brand.ts`
 - [ ] Sentry API + fronts
 - [ ] Backup Postgres Railway
 - [ ] Better Auth rateLimit ON (DEBT documentado en `auth.ts`)
-- [ ] Email o playbook WhatsApp “pedido pagado”
+- [x] Email de pedido pagado (código: `NotificationsService` + Resend) — falta configurar `RESEND_API_KEY` / `ORDER_NOTIFY_EMAIL` en prod
 - [ ] Alertas 5xx / webhook
+- [x] Alertas BO: stock → inventario; pedidos PAID sin tracking
+- [x] UX venta manual CASH/TRANSFER en modal de órdenes
 
 ## QA pagos
 
