@@ -8,6 +8,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { PaymentsService } from '../payments/payments.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly coupons: CouponsService,
     private readonly payments: PaymentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(dto: CreateOrderDto) {
@@ -36,7 +38,7 @@ export class OrdersService {
     // -------------------------------------------------------------
     // TRANSACCIÓN: Asegura consistencia de Stock
     // -------------------------------------------------------------
-    return this.prisma.$transaction(async (tx) => {
+    const order = await this.prisma.$transaction(async (tx) => {
       let totalAmount = 0;
       const orderItemsData: Array<{
         variantId: string;
@@ -162,8 +164,16 @@ export class OrdersService {
           channel: salesChannel ?? 'ONLINE',
           notes: dto.notes,
           paymentProvider: paymentProvider,
-          status: OrderStatus.PENDING,
+          // Efectivo en feria/local: se considera cobrado al registrar.
+          // Transferencia queda PENDING hasta que la dueña confirme el depósito.
+          status:
+            paymentProvider === PaymentProvider.CASH
+              ? OrderStatus.PAID
+              : OrderStatus.PENDING,
           total: totalWithShipping,
+          ...(paymentProvider === PaymentProvider.CASH
+            ? { notifiedPaidAt: null }
+            : {}),
           // Datos de entrega
           deliveryType: dto.deliveryType || 'pickup',
           shippingAddress: dto.shippingAddress,
@@ -191,6 +201,13 @@ export class OrdersService {
 
       return order;
     });
+
+    // Venta en efectivo: notificar PAID (fail-open)
+    if (order.status === OrderStatus.PAID) {
+      void this.notifications.notifyOrderPaidIfNeeded(order.id);
+    }
+
+    return order;
   }
 
   findAll() {

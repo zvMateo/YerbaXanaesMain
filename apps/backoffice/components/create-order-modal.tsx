@@ -297,6 +297,11 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                   <h3 className="text-sm font-semibold text-stone-700 mb-3">
                     Método de pago
                   </h3>
+                  <p className="text-xs text-stone-500 mb-3 leading-relaxed">
+                    Esto <strong>no cobra por Mercado Pago</strong>. Registrá acá
+                    ventas de feria, local o transferencia. El cobro lo
+                    confirmás vos.
+                  </p>
                   <div className="grid grid-cols-3 gap-2">
                     {paymentOptions.map((opt) => {
                       const Icon = opt.icon;
@@ -318,6 +323,25 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                       );
                     })}
                   </div>
+                  {paymentMethod === "CASH" && (
+                    <p className="mt-2 text-xs text-yerba-700 bg-yerba-50 border border-yerba-100 rounded-lg px-3 py-2">
+                      Efectivo: la orden queda como <strong>PAID</strong> al
+                      guardar (ya cobraste).
+                    </p>
+                  )}
+                  {paymentMethod === "TRANSFER" && (
+                    <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                      Transferencia: queda <strong>PENDING</strong> hasta que
+                      veas el depósito. Después marcá <strong>PAID</strong> en
+                      la orden.
+                    </p>
+                  )}
+                  {paymentMethod === "MERCADOPAGO" && (
+                    <p className="mt-2 text-xs text-stone-600 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                      Mercado Pago online se cobra solo desde la tienda. Acá
+                      solo registrás el canal si ya cobraste por un link externo.
+                    </p>
+                  )}
                 </section>
 
                 {/* ── Datos del cliente (opcionales) ── */}

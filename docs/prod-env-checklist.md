@@ -22,6 +22,9 @@ Completar en Railway (API) y Vercel (ecommerce + backoffice) **antes** del anunc
 | `REVALIDATE_SECRET` | Igual que en ecommerce | |
 | `MP_CART_ABANDONED_TTL_MINUTES` | `15` (default ok) | |
 | `MP_PENDING_PAYMENT_TTL_MINUTES` | `1440` (default ok) | |
+| `RESEND_API_KEY` | API key Resend (emails PAID) | |
+| `EMAIL_FROM` | Ej. `YerbaXanaes <hola@tudominio.com>` | |
+| `ORDER_NOTIFY_EMAIL` | Email de la dueña / operaciones | |
 
 ### Webhook Mercado Pago
 

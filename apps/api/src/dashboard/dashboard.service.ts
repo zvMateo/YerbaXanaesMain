@@ -143,17 +143,38 @@ export class DashboardService {
       alerts.push({
         type: 'warning',
         title: 'Stock bajo',
-        message: `${criticalStock.length} productos con stock bajo`,
+        message: `${criticalStock.length} insumos con stock bajo`,
         action: 'Ver inventario',
-        link: '/productos',
+        link: '/inventario',
       });
     }
 
-    if (pendingCount > 5) {
+    if (pendingCount > 0) {
       alerts.push({
-        type: 'info',
-        title: 'Órdenes pendientes',
-        message: `${pendingCount} órdenes esperan procesamiento`,
+        type: pendingCount > 5 ? 'info' : 'info',
+        title: 'Órdenes pendientes de pago',
+        message: `${pendingCount} orden${pendingCount === 1 ? '' : 'es'} en PENDING (web u offline)`,
+        action: 'Ver órdenes',
+        link: '/ordenes',
+      });
+    }
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const paidTodayToShip = await this.prisma.order.count({
+      where: {
+        status: OrderStatus.PAID,
+        deletedAt: null,
+        createdAt: { gte: startOfToday },
+        trackingNumber: null,
+      },
+    });
+
+    if (paidTodayToShip > 0) {
+      alerts.push({
+        type: 'warning',
+        title: 'Pedidos pagados para despachar',
+        message: `${paidTodayToShip} pagado${paidTodayToShip === 1 ? '' : 's'} hoy sin tracking`,
         action: 'Ver órdenes',
         link: '/ordenes',
       });

@@ -18,6 +18,7 @@ import { RatingsModule } from './ratings/ratings.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { SettingsModule } from './settings/settings.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { SettingsModule } from './settings/settings.module';
     AuthModule,
     UsersModule,
     PrismaModule,
+    NotificationsModule,
     InventoryModule,
     CatalogModule,
     OrdersModule,
