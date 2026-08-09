@@ -48,26 +48,28 @@ describe('NotificationsService', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  const paidOrder = {
+    id: 'order-1',
+    status: OrderStatus.PAID,
+    total: 1000,
+    customerName: 'Ana',
+    customerEmail: 'ana@test.com',
+    customerPhone: '111',
+    deliveryType: 'shipping',
+    shippingCity: 'Córdoba',
+    shippingZip: '5000',
+    items: [
+      {
+        quantity: 1,
+        price: 1000,
+        variant: { name: '1kg', product: { name: 'Yerba' } },
+      },
+    ],
+  };
+
   it('envía a dueña y comprador cuando hay RESEND_API_KEY', async () => {
     prisma.order.updateMany.mockResolvedValue({ count: 1 });
-    prisma.order.findUnique.mockResolvedValue({
-      id: 'order-1',
-      status: OrderStatus.PAID,
-      total: 1000,
-      customerName: 'Ana',
-      customerEmail: 'ana@test.com',
-      customerPhone: '111',
-      deliveryType: 'shipping',
-      shippingCity: 'Córdoba',
-      shippingZip: '5000',
-      items: [
-        {
-          quantity: 1,
-          price: 1000,
-          variant: { name: '1kg', product: { name: 'Yerba' } },
-        },
-      ],
-    });
+    prisma.order.findUnique.mockResolvedValue(paidOrder);
     configGet.mockImplementation((key: string) => {
       const map: Record<string, string> = {
         ORDER_NOTIFY_EMAIL: 'duena@test.com',
@@ -91,18 +93,37 @@ describe('NotificationsService', () => {
     expect(tos).toEqual(['ana@test.com', 'duena@test.com']);
   });
 
-  it('sin RESEND_API_KEY no llama fetch (log only)', async () => {
+  it('usa SMTP cuando no hay Resend pero hay SMTP_*', async () => {
+    prisma.order.updateMany.mockResolvedValue({ count: 1 });
+    prisma.order.findUnique.mockResolvedValue(paidOrder);
+    configGet.mockImplementation((key: string) => {
+      const map: Record<string, string> = {
+        ORDER_NOTIFY_EMAIL: 'duena@test.com',
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_PORT: '465',
+        SMTP_USER: 'tienda@gmail.com',
+        SMTP_PASS: 'app-password-16',
+        EMAIL_FROM: 'YerbaXanaes <tienda@gmail.com>',
+      };
+      return map[key];
+    });
+
+    const sendMail = jest.fn().mockResolvedValue({ messageId: '1' });
+    // Inyectar transport mock
+    (service as any).smtpTransport = { sendMail };
+
+    await service.notifyOrderPaidIfNeeded('order-1');
+
+    expect(sendMail).toHaveBeenCalledTimes(2);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('sin Resend ni SMTP no llama fetch (log only)', async () => {
     prisma.order.updateMany.mockResolvedValue({ count: 1 });
     prisma.order.findUnique.mockResolvedValue({
-      id: 'order-1',
-      status: OrderStatus.PAID,
-      total: 500,
+      ...paidOrder,
       customerName: null,
       customerEmail: 'c@test.com',
-      customerPhone: null,
-      deliveryType: null,
-      shippingCity: null,
-      shippingZip: null,
       items: [],
     });
     configGet.mockImplementation((key: string) =>

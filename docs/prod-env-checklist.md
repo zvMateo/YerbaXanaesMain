@@ -22,9 +22,16 @@ Completar en Railway (API) y Vercel (ecommerce + backoffice) **antes** del anunc
 | `REVALIDATE_SECRET` | Igual que en ecommerce | |
 | `MP_CART_ABANDONED_TTL_MINUTES` | `15` (default ok) | |
 | `MP_PENDING_PAYMENT_TTL_MINUTES` | `1440` (default ok) | |
-| `RESEND_API_KEY` | API key Resend (emails PAID) | |
-| `EMAIL_FROM` | Ej. `YerbaXanaes <hola@tudominio.com>` | |
 | `ORDER_NOTIFY_EMAIL` | Email de la dueña / operaciones | |
+| `EMAIL_FROM` | Ej. `YerbaXanaes <tu-gmail@gmail.com>` | |
+| **Gmail SMTP (arranque)** | | |
+| `SMTP_HOST` | `smtp.gmail.com` | |
+| `SMTP_PORT` | `465` (o `587`) | |
+| `SMTP_SECURE` | `true` si port 465 | |
+| `SMTP_USER` | tu Gmail | |
+| `SMTP_PASS` | App Password de Google (16 chars) | |
+| **Resend (opcional, pisa SMTP)** | | |
+| `RESEND_API_KEY` | Si está seteado, se usa en vez de Gmail | |
 
 ### Webhook Mercado Pago
 
