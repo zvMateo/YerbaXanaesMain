@@ -11,8 +11,8 @@ Checklist de salida a producción. Workspace: `~/projects/YerbaXanaesMain`.
 | Backoffice auth allowlist + AdminGuard | Alto |
 | Envíos MiCorreo | Alto (requiere credenciales PROD) |
 | Contenido/marca pública | **P0 código listo** — falta catálogo/fotos reales |
-| Observabilidad (Sentry) | Ausente |
-| Emails transaccionales | Ausente |
+| Observabilidad (Sentry) | Código listo — falta `SENTRY_DSN` en prod |
+| Emails transaccionales | Código listo (Gmail SMTP / Resend) — falta config en Railway |
 
 ## Fuente de marca
 
@@ -55,10 +55,15 @@ Datos públicos del ecommerce: `apps/ecommerce/lib/brand.ts`
 - [x] Sentry API + fronts (código; configurar SENTRY_DSN / NEXT_PUBLIC_SENTRY_DSN)
 - [ ] Backup Postgres Railway
 - [ ] Better Auth rateLimit ON (DEBT documentado en `auth.ts`)
-- [x] Email de pedido pagado (código: `NotificationsService` + Resend) — falta configurar `RESEND_API_KEY` / `ORDER_NOTIFY_EMAIL` en prod
+- [x] Email de pedido pagado (código: Gmail SMTP + Resend) — falta `SMTP_*` / `ORDER_NOTIFY_EMAIL` (o Resend) en prod
 - [ ] Alertas 5xx / webhook
 - [x] Alertas BO: stock → inventario; pedidos PAID sin tracking
 - [x] UX venta manual CASH/TRANSFER en modal de órdenes
+
+## Sesión con clienta (credenciales)
+
+Todo lo que necesita su login (Gmail, MP, OAuth, Cloudinary, MiCorreo):  
+**`docs/sesion-clienta.md`** — checklist de ~45–90 min.
 
 ## QA pagos
 

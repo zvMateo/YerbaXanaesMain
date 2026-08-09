@@ -2,6 +2,9 @@
 
 Completar en Railway (API) y Vercel (ecommerce + backoffice) **antes** del anuncio público.
 
+> **Sesión en persona con clienta:** seguir el orden y scripts de  
+> [`docs/sesion-clienta.md`](./sesion-clienta.md) (Gmail, MP, OAuth, Cloudinary, MiCorreo, smoke).
+
 ## API — Railway
 
 | Variable | Valor esperado | ✓ |
