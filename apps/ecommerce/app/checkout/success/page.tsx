@@ -36,7 +36,8 @@ export default async function CheckoutSuccessPage({
   searchParams,
 }: SuccessPageProps) {
   const params = await searchParams;
-  const { orderId, paymentId, status, payment_id, mpPaymentId, ticketUrl } = params;
+  const { orderId, paymentId, status, payment_id, mpPaymentId, ticketUrl } =
+    params;
 
   // Normalizar: MP puede volver con ?payment_id=xxx o ?paymentId=xxx
   const resolvedPaymentId = paymentId || payment_id;
@@ -49,7 +50,9 @@ export default async function CheckoutSuccessPage({
   // Estado canónico desde backend (fuente de verdad) cuando tenemos orderId.
   // Server Component: use private API_URL (not exposed to browser bundle)
   const apiUrl = (
-    process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:3001"
   ).replace(/\/$/, "");
 
   let backendOrderStatus: string | null = null;
@@ -322,7 +325,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
           <p className="text-center text-sm text-stone-500 mt-6">
             ¿Tenés alguna pregunta?{" "}
             <a
-              href="mailto:hola@yerbaxanaes.com"
+              href="mailto:yerbaxanaes@gmail.com"
               className="text-yerba-600 hover:underline"
             >
               Contactanos

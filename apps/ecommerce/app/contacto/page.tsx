@@ -19,19 +19,19 @@ const CONTACT_INFO = [
   {
     icon: MapPin,
     label: "Ubicación",
-    value: "Buenos Aires, Argentina",
+    value: "Villa del Rosario, Córdoba, Argentina",
   },
   {
     icon: Phone,
     label: "WhatsApp",
-    value: "+54 11 0000-0000",
-    href: "https://wa.me/541100000000",
+    value: "+54 9 3573 50-0348",
+    href: "https://wa.me/5493573500348",
   },
   {
     icon: Mail,
     label: "Email",
-    value: "hola@yerbaxanaes.com",
-    href: "mailto:hola@yerbaxanaes.com",
+    value: "yerbaxanaes@gmail.com",
+    href: "mailto:yerbaxanaes@gmail.com",
   },
   {
     icon: Clock,
@@ -61,8 +61,8 @@ export default function ContactoPage() {
                 Contacto
               </h1>
               <p className="text-lg text-stone-600">
-                Cualquier duda sobre pedidos, envíos o productos, escribinos.
-                Te respondemos a la brevedad.
+                Cualquier duda sobre pedidos, envíos o productos, escribinos. Te
+                respondemos a la brevedad.
               </p>
             </div>
           </div>
@@ -128,7 +128,7 @@ export default function ContactoPage() {
                     más rápida.
                   </p>
                   <a
-                    href="https://wa.me/541100000000"
+                    href="https://wa.me/5493573500348"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 bg-yerba-600 text-white px-6 py-3 rounded-full font-semibold text-sm hover:bg-yerba-700 transition-colors"
