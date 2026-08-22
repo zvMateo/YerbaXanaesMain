@@ -35,7 +35,7 @@ function OrganizationSchema() {
         url: SITE_URL,
         logo: {
           "@type": "ImageObject",
-          url: `${SITE_URL}/logo.png`,
+          url: `${SITE_URL}/brand/logo.png`,
         },
         description:
           "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu puerta.",
@@ -112,7 +112,7 @@ function FeaturedProducts({ products }: { products: Product[] }) {
   if (products.length === 0) return null;
 
   return (
-    <section className="py-20 bg-white">
+    <section className="py-20 bg-cream">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-end justify-between mb-12">
           <div>
@@ -148,7 +148,7 @@ function FeaturedProducts({ products }: { products: Product[] }) {
               <Link
                 key={product.id}
                 href={`/productos/${product.slug}`}
-                className="group bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl hover:border-yerba-200 transition-all duration-300 cursor-pointer"
+                className="group bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl hover:border-palm/40 transition-all duration-300 cursor-pointer"
               >
                 <div className="aspect-square bg-stone-100 relative overflow-hidden">
                   {shouldRenderImage ? (
@@ -285,7 +285,7 @@ function CategoriesSection({ categories }: { categories: Category[] }) {
   if (categories.length === 0) return null;
 
   return (
-    <section className="py-20 bg-white">
+    <section className="py-20 bg-cream">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <p className="text-yerba-600 font-semibold text-sm uppercase tracking-wider mb-2">

@@ -1,18 +1,16 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Source_Sans_3, Playfair_Display } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-// Fuente principal - Sans-serif moderna
-const inter = Inter({
-  variable: "--font-inter",
+const sourceSans = Source_Sans_3({
+  variable: "--font-source-sans",
   subsets: ["latin"],
   display: "swap",
 });
 
-// Fuente títulos - Serif elegante
 const playfair = Playfair_Display({
   variable: "--font-playfair",
   subsets: ["latin"],
@@ -51,14 +49,12 @@ export const metadata: Metadata = {
     title: "YerbaXanaes | Yerba Mate Premium Argentina",
     description:
       "Yerba mate premium desde Villa del Rosario, Córdoba. Envíos a todo el país.",
-    // images: generadas por app/opengraph-image.tsx
   },
   twitter: {
     card: "summary_large_image",
     title: "YerbaXanaes | Yerba Mate Premium Argentina",
     description:
       "Yerba mate premium desde Villa del Rosario, Córdoba. Envíos a todo el país.",
-    // images: generadas por app/twitter-image.tsx
   },
   robots: {
     index: true,
@@ -84,7 +80,7 @@ export default function RootLayout({
   return (
     <html lang="es" data-scroll-behavior="smooth">
       <body
-        className={`${inter.variable} ${playfair.variable} font-sans antialiased bg-stone-50 text-stone-900`}
+        className={`${sourceSans.variable} ${playfair.variable} font-sans antialiased bg-background text-foreground`}
       >
         <Providers>{children}</Providers>
         <Analytics />

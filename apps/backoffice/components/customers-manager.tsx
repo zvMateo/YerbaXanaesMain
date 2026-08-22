@@ -207,7 +207,40 @@ export function CustomersManager() {
             </select>
           </div>
           <button
-            onClick={() => toast.success("Exportando clientes...")}
+            onClick={() => {
+              const header = [
+                "nombre",
+                "email",
+                "telefono",
+                "ordenes",
+                "total",
+                "segmento",
+                "ultimaOrden",
+              ];
+              const rows = filteredCustomers.map((c) => [
+                c.name,
+                c.email,
+                c.phone,
+                String(c.orders),
+                String(c.totalSpent),
+                c.segment,
+                c.lastOrder,
+              ]);
+              const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+              const csv = [header, ...rows]
+                .map((r) => r.map(esc).join(","))
+                .join("\n");
+              const blob = new Blob([csv], {
+                type: "text/csv;charset=utf-8;",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "clientes-yerbaxanaes.csv";
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success("CSV de clientes descargado");
+            }}
             className="flex items-center gap-2 px-4 py-2.5 border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
           >
             <Download className="h-5 w-5 text-stone-600" />
@@ -309,22 +342,18 @@ export function CustomersManager() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() =>
-                          toast.success(`Email enviado a ${customer.email}`)
-                        }
-                        className="flex-1 px-4 py-2 bg-yerba-100 text-yerba-700 rounded-lg text-sm font-medium hover:bg-yerba-200"
+                      <a
+                        href={`mailto:${customer.email}`}
+                        className="flex-1 px-4 py-2 bg-yerba-100 text-yerba-700 rounded-lg text-sm font-medium hover:bg-yerba-200 text-center"
                       >
                         Enviar email
-                      </button>
-                      <button
-                        onClick={() =>
-                          toast.success(`Llamando a ${customer.phone}...`)
-                        }
-                        className="flex-1 px-4 py-2 bg-stone-100 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-200"
+                      </a>
+                      <a
+                        href={`tel:${customer.phone}`}
+                        className="flex-1 px-4 py-2 bg-stone-100 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-200 text-center"
                       >
                         Llamar
-                      </button>
+                      </a>
                     </div>
                   </motion.div>
                 )}

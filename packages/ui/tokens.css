@@ -1,0 +1,202 @@
+/* YerbaXanaes design-system v2 — shared by ecommerce and backoffice */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Brand: Palm, Leaf, Shadow, Terra, Cream */
+  --color-palm: #657f38;
+  --color-leaf: #9eab57;
+  --color-shadow: #212c1b;
+  --color-terra: #d57640;
+  --color-cream: #fce0c0;
+  --color-danger: #a33b2b;
+
+  /* Unified yerba/earth scales (replaces the two divergent hex ramps) */
+  --color-yerba-50: #f4d4ae;
+  --color-yerba-100: #ead7a8;
+  --color-yerba-200: #e2c49a;
+  --color-yerba-300: #c4c882;
+  --color-yerba-400: #9eab57;
+  --color-yerba-500: #7a9244;
+  --color-yerba-600: #657f38;
+  --color-yerba-700: #4f652c;
+  --color-yerba-800: #354428;
+  --color-yerba-900: #212c1b;
+  --color-yerba-950: #212c1b;
+
+  --color-earth-50: #fce0c0;
+  --color-earth-100: #f4d4ae;
+  --color-earth-200: #e2c49a;
+  --color-earth-300: #e0a070;
+  --color-earth-400: #d57640;
+  --color-earth-500: #d57640;
+  --color-earth-600: #c46838;
+  --color-earth-700: #8b4a2c;
+  --color-earth-800: #5c3824;
+  --color-earth-900: #212c1b;
+  --color-earth-950: #212c1b;
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: #fce0c0;
+  --foreground: #212c1b;
+  --card: #fff6ea;
+  --card-foreground: #212c1b;
+  --popover: #fff6ea;
+  --popover-foreground: #212c1b;
+  --primary: #657f38;
+  --primary-foreground: #ffffff;
+  --secondary: #f4d4ae;
+  --secondary-foreground: #212c1b;
+  --muted: #f4d4ae;
+  --muted-foreground: #3d4a32;
+  --accent: #d57640;
+  --accent-foreground: #212c1b;
+  --destructive: #a33b2b;
+  --border: #e2c49a;
+  --input: #e2c49a;
+  --ring: #657f38;
+  --chart-1: #657f38;
+  --chart-2: #9eab57;
+  --chart-3: #d57640;
+  --chart-4: #212c1b;
+  --chart-5: #f4d4ae;
+  --sidebar: #fff6ea;
+  --sidebar-foreground: #212c1b;
+  --sidebar-primary: #657f38;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f4d4ae;
+  --sidebar-accent-foreground: #212c1b;
+  --sidebar-border: #e2c49a;
+  --sidebar-ring: #657f38;
+}
+
+/* Softened dark: Shadow canvas + Cream text. Not a product surface. */
+.dark {
+  --background: #212c1b;
+  --foreground: #fce0c0;
+  --card: #2a3724;
+  --card-foreground: #fce0c0;
+  --popover: #2a3724;
+  --popover-foreground: #fce0c0;
+  --primary: #657f38;
+  --primary-foreground: #ffffff;
+  --secondary: #354428;
+  --secondary-foreground: #fce0c0;
+  --muted: #354428;
+  --muted-foreground: #c4c882;
+  --accent: #d57640;
+  --accent-foreground: #212c1b;
+  --destructive: #a33b2b;
+  --border: #3d4a32;
+  --input: #3d4a32;
+  --ring: #9eab57;
+  --chart-1: #657f38;
+  --chart-2: #9eab57;
+  --chart-3: #d57640;
+  --chart-4: #fce0c0;
+  --chart-5: #f4d4ae;
+  --sidebar: #2a3724;
+  --sidebar-foreground: #fce0c0;
+  --sidebar-primary: #657f38;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #354428;
+  --sidebar-accent-foreground: #fce0c0;
+  --sidebar-border: #3d4a32;
+  --sidebar-ring: #9eab57;
+}
+
+.lucide {
+  stroke-width: 1.75;
+}
+
+/* Sonner — brand variants (never cream-on-terra) */
+[data-sonner-toast][data-type="success"] {
+  background: #657f38 !important;
+  color: #ffffff !important;
+  border: 1px solid #657f38 !important;
+}
+[data-sonner-toast][data-type="error"] {
+  background: #a33b2b !important;
+  color: #ffffff !important;
+  border: 1px solid #a33b2b !important;
+}
+[data-sonner-toast][data-type="warning"] {
+  background: #fce0c0 !important;
+  color: #212c1b !important;
+  border: 2px solid #d57640 !important;
+}
+[data-sonner-toast][data-type="info"] {
+  background: #212c1b !important;
+  color: #fce0c0 !important;
+  border: 1px solid #212c1b !important;
+}
+[data-sonner-toast] [data-title],
+[data-sonner-toast] [data-description],
+[data-sonner-toast] [data-button],
+[data-sonner-toast] [data-close-button] {
+  color: inherit !important;
+}
+[data-sonner-toast][data-type="success"] [data-button],
+[data-sonner-toast][data-type="error"] [data-button] {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border: 0 !important;
+}
+[data-sonner-toast][data-type="warning"] [data-button] {
+  background: #d57640 !important;
+  color: #212c1b !important;
+  border: 0 !important;
+}
+[data-sonner-toast][data-type="info"] [data-button] {
+  background: #fce0c0 !important;
+  color: #212c1b !important;
+  border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toast],
+  [data-sonner-toast] * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

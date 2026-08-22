@@ -202,16 +202,15 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: updateProduct,
+    mutationFn: (input: Parameters<typeof updateProduct>[0]) =>
+      toast.promise(updateProduct(input), {
+        loading: "Guardando producto...",
+        success: "Producto actualizado correctamente",
+        error: (error) =>
+          error instanceof Error ? error.message : "Error al actualizar producto",
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
-      toast.success("Producto actualizado correctamente");
-    },
-    onError: (error) => {
-      toast.error("Error al actualizar producto", {
-        description:
-          error instanceof Error ? error.message : "Error desconocido",
-      });
     },
   });
 }

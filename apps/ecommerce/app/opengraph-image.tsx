@@ -18,7 +18,7 @@ export default function OpenGraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #f0f7eb 0%, #ffffff 45%, #f5efe6 100%)",
+          background: "#FCE0C0",
           padding: "64px 80px",
           fontFamily: "system-ui, sans-serif",
         }}
@@ -36,7 +36,7 @@ export default function OpenGraphImage() {
               width: 64,
               height: 64,
               borderRadius: 999,
-              background: "#4a7c3d",
+              background: "#657F38",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -47,7 +47,7 @@ export default function OpenGraphImage() {
           >
             Y
           </div>
-          <span style={{ fontSize: 36, fontWeight: 700, color: "#1c1917" }}>
+          <span style={{ fontSize: 36, fontWeight: 700, color: "#212C1B" }}>
             YerbaXanaes
           </span>
         </div>
@@ -55,7 +55,7 @@ export default function OpenGraphImage() {
           style={{
             fontSize: 64,
             fontWeight: 700,
-            color: "#1c1917",
+            color: "#212C1B",
             lineHeight: 1.15,
             maxWidth: 900,
             marginBottom: 24,
@@ -63,7 +63,7 @@ export default function OpenGraphImage() {
         >
           Yerba mate premium de Córdoba
         </div>
-        <div style={{ fontSize: 28, color: "#57534e", maxWidth: 800 }}>
+        <div style={{ fontSize: 28, color: "#3D4A32", maxWidth: 800 }}>
           Tradición argentina, fraccionada con cuidado · Envíos a todo el país
         </div>
         <div
@@ -72,7 +72,7 @@ export default function OpenGraphImage() {
             display: "flex",
             gap: 16,
             fontSize: 22,
-            color: "#4a7c3d",
+            color: "#657F38",
             fontWeight: 600,
           }}
         >

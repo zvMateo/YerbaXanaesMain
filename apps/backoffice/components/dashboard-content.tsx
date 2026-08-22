@@ -196,8 +196,8 @@ function AlertBanner({
               {alert.message}
             </p>
           </div>
-          <button
-            onClick={() => toast.info(`Navegando a ${alert.link}`)}
+          <Link
+            href={alert.link}
             className={`px-4 py-2 rounded-xl text-sm font-medium ${
               alert.type === "error"
                 ? "bg-red-100 text-red-700 hover:bg-red-200"
@@ -207,7 +207,7 @@ function AlertBanner({
             }`}
           >
             {alert.action}
-          </button>
+          </Link>
         </motion.div>
       ))}
     </div>
@@ -322,7 +322,25 @@ export function DashboardContent() {
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-semibold text-stone-900">Ventas semanales</h3>
             <button
-              onClick={() => toast.success("Exportando gráfico...")}
+              onClick={() => {
+                const rows = metrics.weeklySales ?? [];
+                if (rows.length === 0) {
+                  toast.warning("No hay datos de ventas para descargar");
+                  return;
+                }
+                const csv = [
+                  "dia,ingresos,ordenes",
+                  ...rows.map((r) => `${r.day},${r.revenue},${r.orders}`),
+                ].join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "ventas-semanales.csv";
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success("CSV de ventas descargado");
+              }}
               className="text-sm text-yerba-600 hover:text-yerba-700"
             >
               Descargar

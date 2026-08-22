@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ShoppingCart, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useCartStore } from "@/stores/cart-store";
 import { cn } from "@/lib/utils";
+import { BrandSeal } from "@/components/brand-seal";
 
 const NAV_LINKS = [
   { href: "/", label: "Inicio" },
@@ -29,25 +29,16 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-stone-200">
+    <header className="sticky top-0 z-40 w-full bg-cream/90 backdrop-blur-md border-b border-border">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/brand/logo.png"
-              alt="Yerba Xanaes"
-              width={40}
-              height={40}
-              className="h-10 w-10 rounded-full object-cover"
-              sizes="40px"
-            />
-            <span className="font-serif text-xl font-bold text-stone-900">
+            <BrandSeal size={40} className="h-10 w-10" />
+            <span className="font-serif text-xl font-bold text-shadow">
               YerbaXanaes
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
           <nav
             className="hidden md:flex items-center gap-8"
             aria-label="Navegación principal"
@@ -60,8 +51,8 @@ export function Header() {
                 className={cn(
                   "font-medium transition-colors",
                   isActive(link.href)
-                    ? "text-yerba-600"
-                    : "text-stone-600 hover:text-yerba-600",
+                    ? "text-palm"
+                    : "text-shadow/70 hover:text-palm",
                 )}
               >
                 {link.label}
@@ -69,13 +60,12 @@ export function Header() {
             ))}
           </nav>
 
-          {/* Actions */}
           <div className="flex items-center gap-4">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={toggleCart}
-              className="relative p-2 text-stone-600 hover:text-yerba-600 transition-colors cursor-pointer"
+              className="relative p-2 text-shadow/70 hover:text-palm transition-colors cursor-pointer"
               aria-label={
                 itemCount > 0
                   ? `Abrir carrito (${itemCount} producto${itemCount !== 1 ? "s" : ""})`
@@ -92,7 +82,7 @@ export function Header() {
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
                     transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-yerba-600 text-white text-xs flex items-center justify-center font-bold"
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-palm text-white text-xs flex items-center justify-center font-bold"
                     aria-hidden="true"
                   >
                     {itemCount > 9 ? "9+" : itemCount}
@@ -101,9 +91,8 @@ export function Header() {
               </AnimatePresence>
             </motion.button>
 
-            {/* Mobile Menu Button */}
             <button
-              className="md:hidden p-2 text-stone-600 cursor-pointer"
+              className="md:hidden p-2 text-shadow/70 cursor-pointer"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               aria-label={isMenuOpen ? "Cerrar menú" : "Abrir menú"}
               aria-expanded={isMenuOpen}
@@ -119,7 +108,6 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
@@ -127,7 +115,7 @@ export function Header() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-stone-200 bg-white"
+            className="md:hidden border-t border-border bg-cream"
           >
             <nav
               className="flex flex-col py-4 px-4 space-y-1"
@@ -141,8 +129,8 @@ export function Header() {
                   className={cn(
                     "font-medium py-2.5 px-3 rounded-lg transition-colors",
                     isActive(link.href)
-                      ? "text-yerba-600 bg-yerba-50"
-                      : "text-stone-600 hover:text-yerba-600 hover:bg-stone-50",
+                      ? "text-palm bg-muted"
+                      : "text-shadow/70 hover:text-palm hover:bg-muted",
                   )}
                   onClick={() => setIsMenuOpen(false)}
                 >

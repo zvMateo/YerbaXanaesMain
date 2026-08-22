@@ -15,6 +15,8 @@ import {
   Leaf,
   ChevronLeft,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Bell,
   Settings,
   HelpCircle,
@@ -24,11 +26,6 @@ import {
   Tag,
   Star,
 } from "lucide-react";
-import {
-  TbLayoutSidebarLeftCollapseFilled,
-  TbLayoutSidebarRightCollapseFilled,
-} from "react-icons/tb";
-
 import {
   useState,
   useEffect,
@@ -400,7 +397,7 @@ function SidebarContent({
             className="w-full flex items-center justify-center p-2 rounded-xl bg-stone-50 hover:bg-yerba-50 text-stone-500 hover:text-yerba-600 transition-all duration-200 group"
             title="Expandir menú"
           >
-            <TbLayoutSidebarRightCollapseFilled className="h-5 w-5 group-hover:scale-110 transition-transform" />
+            <PanelLeftOpen className="h-5 w-5 group-hover:scale-110 transition-transform" />
           </button>
         </div>
       )}
@@ -742,7 +739,7 @@ export function Sidebar() {
               aria-label="Colapsar menú"
               title="Colapsar menú"
             >
-              <TbLayoutSidebarLeftCollapseFilled className="h-4 w-4" />
+              <PanelLeftClose className="h-4 w-4" />
             </button>
           )}
         </div>

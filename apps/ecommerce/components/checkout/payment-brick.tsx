@@ -614,13 +614,13 @@ export function PaymentBrick({
             style: {
               theme: "default",
               customVariables: {
-                baseColor: "#365314",
-                textPrimaryColor: "#292524",
+                baseColor: "#657F38",
+                textPrimaryColor: "#212C1B",
                 textSecondaryColor: "#57534e",
-                buttonTextColor: "#fafaf9",
+                buttonTextColor: "#ffffff",
                 borderRadiusMedium: "0.75rem",
-                formBackgroundColor: "#ffffff",
-                outlinePrimaryColor: "#84cc16",
+                formBackgroundColor: "#FFF6EA",
+                outlinePrimaryColor: "#657F38",
               },
             },
             defaultPaymentOption: {

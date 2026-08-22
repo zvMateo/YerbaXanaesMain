@@ -9,16 +9,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryProvider>
       <AuthProvider>
         {children}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "#fff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "0.75rem",
-            },
-          }}
-        />
+        <Toaster position="top-right" richColors={false} />
       </AuthProvider>
     </QueryProvider>
   );

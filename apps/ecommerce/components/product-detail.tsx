@@ -13,6 +13,7 @@ import {
   Package,
   Truck,
   Shield,
+  Leaf,
 } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -75,8 +76,8 @@ function ImageGallery({
             />
           </motion.div>
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="text-8xl">🧉</span>
+          <div className="w-full h-full flex items-center justify-center text-palm">
+            <Leaf className="h-24 w-24" aria-hidden="true" />
           </div>
         )}
 
@@ -116,8 +117,8 @@ function ImageGallery({
                   className="object-cover"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-stone-200">
-                  <span className="text-2xl">🧉</span>
+                <div className="w-full h-full flex items-center justify-center bg-muted text-palm">
+                  <Leaf className="h-6 w-6" aria-hidden="true" />
                 </div>
               )}
             </button>
@@ -242,7 +243,7 @@ function AddToCartSection({
 }) {
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
-  const { addItem, openCart } = useCartStore();
+  const { addItem, removeItem, updateQuantity } = useCartStore();
 
   const handleAddToCart = () => {
     if (variant.stock === 0) {
@@ -260,15 +261,32 @@ function AddToCartSection({
 
     try {
       // Systems-Oriented: Agregar al store global
+      const existing = useCartStore
+        .getState()
+        .items.find((item) => item.variantId === variant.id);
+      const prevQty = existing?.quantity ?? 0;
+      const prevId = existing?.id;
+
       addItem(product, variant, quantity);
+
+      const added = useCartStore
+        .getState()
+        .items.find((item) => item.variantId === variant.id);
 
       setTimeout(() => {
         setIsAdding(false);
         toast.success(`${product.name} agregado`, {
           description: `${variant.name} x${quantity} = $${(variant.price * quantity).toLocaleString()}`,
           action: {
-            label: "Ver carrito",
-            onClick: () => openCart(),
+            label: "Deshacer",
+            onClick: () => {
+              if (!added) return;
+              if (prevQty <= 0) {
+                removeItem(added.id);
+              } else if (prevId) {
+                updateQuantity(prevId, prevQty);
+              }
+            },
           },
         });
       }, 400);
@@ -335,8 +353,8 @@ function AddToCartSection({
           variant.stock === 0
             ? "bg-stone-200 text-stone-400 cursor-not-allowed"
             : isAdding
-              ? "bg-yerba-700 text-white"
-              : "bg-yerba-600 text-white hover:bg-yerba-700 shadow-lg hover:shadow-xl"
+              ? "bg-terra text-shadow"
+              : "bg-terra text-shadow hover:bg-terra/90 shadow-lg hover:shadow-xl"
         }`}
       >
         <AnimatePresence mode="wait">

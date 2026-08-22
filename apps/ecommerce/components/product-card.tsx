@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, AlertCircle, Check } from "lucide-react";
+import { ShoppingCart, AlertCircle, Check, Leaf } from "lucide-react";
 import { Product } from "@repo/types";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,14 +14,10 @@ interface ProductCardProps {
   index?: number;
 }
 
-// Card de producto. El hover (scale de imagen, cross-fade, botón quick-add) se
-// resuelve con CSS `group-hover` en vez de estado React + Motion: evita re-renders
-// en cada hover y el costo de Framer. La entrada usa tw-animate-css (no Motion layout).
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
-  const { addItem, openCart } = useCartStore();
+  const { addItem, removeItem, updateQuantity } = useCartStore();
 
-  // Generative UI: Calcula el stock total de todas las variantes
   const totalStock =
     product.variants?.reduce((acc, variant) => {
       return acc + (variant.stock || 0);
@@ -30,9 +26,6 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const hasStock = totalStock > 0;
   const isLowStock = totalStock > 0 && totalStock < 5;
 
-  // Systems-Oriented: variante más barata disponible — alimenta el precio
-  // "Desde" y el quick-add, así lo que se muestra coincide con lo que se agrega.
-  // Prioriza variantes con stock; si ninguna tiene, cae a la más barata igual.
   const cheapestVariant =
     product.variants && product.variants.length > 0
       ? [...product.variants].sort(
@@ -51,20 +44,35 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
       return;
     }
 
-    // Human-Core: Feedback táctil natural
     setIsAdding(true);
 
     try {
-      // Systems-Oriented: Agregar al store global
+      const existing = useCartStore
+        .getState()
+        .items.find((item) => item.variantId === cheapestVariant.id);
+      const prevQty = existing?.quantity ?? 0;
+      const prevId = existing?.id;
+
       addItem(product, cheapestVariant, 1);
+
+      const added = useCartStore
+        .getState()
+        .items.find((item) => item.variantId === cheapestVariant.id);
 
       setTimeout(() => {
         setIsAdding(false);
         toast.success(`${product.name} agregado al carrito`, {
           description: cheapestVariant.name,
           action: {
-            label: "Ver carrito",
-            onClick: () => openCart(),
+            label: "Deshacer",
+            onClick: () => {
+              if (!added) return;
+              if (prevQty <= 0) {
+                removeItem(added.id);
+              } else if (prevId) {
+                updateQuantity(prevId, prevQty);
+              }
+            },
           },
         });
       }, 400);
@@ -78,20 +86,16 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
 
   return (
     <article
-      // Entrada escalonada por CSS (delay capado para no retrasar el LCP en grids grandes)
       style={{
         animationDelay: `${Math.min(index, 7) * 60}ms`,
         animationDuration: "500ms",
       }}
-      className="group relative bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl transition-shadow duration-300 animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-both"
+      className="group relative bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl transition-shadow duration-300 animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-both"
       data-product-id={product.id}
       data-category={product.category?.name}
     >
-      {/* Agents-Ready: Estructura semántica clara */}
       <Link href={`/productos/${product.slug}`} className="block">
-        {/* Image Container - Human-Core: Organic feel */}
-        <div className="aspect-square bg-stone-100 relative overflow-hidden">
-          {/* Placeholder Image */}
+        <div className="aspect-square bg-muted relative overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-105">
             {product.images?.[0] ? (
               <>
@@ -113,32 +117,30 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
                 )}
               </>
             ) : (
-              <div className="text-center">
-                <span className="text-6xl block mb-2">🧉</span>
-                <span className="text-stone-400 text-sm">
+              <div className="text-center text-palm">
+                <Leaf className="h-16 w-16 mx-auto mb-2" aria-hidden="true" />
+                <span className="text-muted-foreground text-sm">
                   {product.category?.name}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Generative UI: Badge de stock adaptativo */}
           {!hasStock && (
-            <div className="absolute inset-0 bg-stone-900/60 flex items-center justify-center">
-              <span className="bg-stone-800 text-white px-4 py-2 rounded-full text-sm font-medium">
+            <div className="absolute inset-0 bg-shadow/60 flex items-center justify-center">
+              <span className="bg-shadow text-cream px-4 py-2 rounded-full text-sm font-medium">
                 Sin Stock
               </span>
             </div>
           )}
 
           {isLowStock && (
-            <div className="absolute top-3 left-3 bg-earth-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 animate-in fade-in-0 slide-in-from-top-1 duration-300">
+            <div className="absolute top-3 left-3 bg-cream text-shadow border-2 border-terra px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 animate-in fade-in-0 slide-in-from-top-1 duration-300">
               <AlertCircle className="w-3 h-3" />
               ¡Últimas {totalStock}!
             </div>
           )}
 
-          {/* Quick Add Button - Systems-Oriented: Conexión directa al carrito */}
           <button
             type="button"
             onClick={handleAddToCart}
@@ -146,8 +148,8 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             aria-label={`Agregar ${product.name} al carrito`}
             className={`absolute bottom-4 right-4 p-3 rounded-full shadow-lg opacity-0 translate-y-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 ${
               hasStock
-                ? "bg-yerba-600 text-white hover:bg-yerba-700"
-                : "bg-stone-300 text-stone-500 cursor-not-allowed"
+                ? "bg-terra text-shadow hover:bg-terra/90"
+                : "bg-muted text-muted-foreground cursor-not-allowed"
             }`}
           >
             {isAdding ? (
@@ -158,67 +160,60 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           </button>
         </div>
 
-        {/* Content - Agents-Ready: Datos estructurados */}
         <div className="p-5">
-          {/* Category Tag */}
-          <span className="text-xs font-medium text-yerba-600 uppercase tracking-wider">
+          <span className="text-xs font-medium text-palm uppercase tracking-wider">
             {product.category?.name || "Producto"}
           </span>
 
-          {/* Title */}
-          <h3 className="font-serif text-lg font-semibold text-stone-900 mt-1 mb-2 line-clamp-2">
+          <h3 className="font-serif text-lg font-semibold text-shadow mt-1 mb-2 line-clamp-2">
             {product.name}
           </h3>
 
-          {/* Description */}
-          <p className="text-sm text-stone-500 line-clamp-2 mb-4">
+          <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
             {product.description || "Yerba mate premium seleccionada"}
           </p>
 
-          {/* Price & Stock - Generative UI: Info contextual */}
           <div className="flex items-end justify-between">
             <div>
-              <span className="text-xs text-stone-400">Desde</span>
+              <span className="text-xs text-muted-foreground">Desde</span>
               <div className="flex items-baseline gap-1">
-                <span className="font-serif text-2xl font-bold text-yerba-600">
+                <span className="font-serif text-2xl font-bold text-palm">
                   ${(minPrice || 0).toLocaleString()}
                 </span>
               </div>
             </div>
 
-            {/* Stock Indicator - Human-Core: Pulso sutil si hay stock bajo */}
             {hasStock && (
               <div className="flex items-center gap-1.5">
                 <span
-                  className={`w-2 h-2 rounded-full bg-yerba-500 ${isLowStock ? "animate-pulse" : ""}`}
+                  className={`w-2 h-2 rounded-full bg-palm ${isLowStock ? "animate-pulse" : ""}`}
                 />
-                <span className="text-xs text-stone-500">
+                <span className="text-xs text-muted-foreground">
                   {totalStock} disponibles
                 </span>
               </div>
             )}
           </div>
 
-          {/* Variants Preview - Generative: Muestra opciones disponibles */}
           {product.variants && product.variants.length > 1 && (
-            <div className="mt-4 pt-4 border-t border-stone-100">
+            <div className="mt-4 pt-4 border-t border-border">
               <div className="flex flex-wrap gap-2">
                 {sortVariantsBySize(product.variants)
                   .slice(0, 3)
                   .map((variant) => (
-                  <span
-                    key={variant.id}
-                    className={`text-xs px-2 py-1 rounded-md ${
-                      variant.stock && variant.stock > 0
-                        ? "bg-yerba-50 text-yerba-700"
-                        : "bg-stone-100 text-stone-400 line-through"
-                    }`}
-                  >
-                    {variant.name}
-                  </span>
-                ))}
+                    <span
+                      key={variant.id}
+                      className={`text-xs px-2 py-1 rounded-md ${
+                        variant.stock && variant.stock > 0
+                          ? "bg-muted text-shadow"
+                          : "bg-muted/60 text-muted-foreground line-through"
+                      }`}
+                    >
+                      {variant.name}
+                    </span>
+                  ))}
                 {product.variants.length > 3 && (
-                  <span className="text-xs px-2 py-1 text-stone-400">
+                  <span className="text-xs px-2 py-1 text-muted-foreground">
                     +{product.variants.length - 3} más
                   </span>
                 )}

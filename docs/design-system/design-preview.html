@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>YerbaXanaes — Design System v2</title>
+<style>
+  :root {
+    --palm:#657F38; --leaf:#9EAB57; --shadow:#212C1B; --terra:#D57640; --cream:#FCE0C0;
+    --danger:#A33B2B; --muted:#F4D4AE; --border:#E2C49A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--cream); color: var(--shadow);
+    font-family: "Source Sans 3", "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  h1,h2,h3 { font-family: "Playfair Display", Georgia, serif; font-weight: 600; margin: 0 0 .4em; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 80px; }
+  header { display:flex; gap:28px; align-items:center; margin-bottom: 48px; flex-wrap:wrap; }
+  .seal { width: 148px; height: 148px; flex: none; }
+  .lede { max-width: 38rem; }
+  .lede p { margin: 0; color: #3D4A32; }
+  .swatches { display:grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 28px 0 48px; }
+  @media (max-width: 700px) { .swatches { grid-template-columns: 1fr 1fr; } }
+  .swatch { border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .swatch .chip { height: 88px; }
+  .swatch figcaption { padding: 10px 12px 12px; font-size: 13px; }
+  .swatch code { display:block; opacity:.75; }
+  section { margin-bottom: 48px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  button {
+    font: inherit; border: 0; cursor: pointer; border-radius: 10px;
+    padding: 12px 18px; min-height: 44px;
+  }
+  .btn-primary { background: var(--palm); color: #fff; }
+  .btn-accent { background: var(--terra); color: var(--shadow); font-weight: 600; }
+  .btn-ghost { background: transparent; color: var(--shadow); box-shadow: inset 0 0 0 1.5px var(--shadow); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .cards { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+  .card { background: #fff8ee; border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .card .price { font-family: "Playfair Display", serif; font-size: 1.4rem; }
+  .toasts { display:grid; gap:10px; max-width: 420px; }
+  .toast { border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+  .t-ok { background: var(--palm); color:#fff; }
+  .t-err { background: var(--danger); color:#fff; }
+  .t-warn { background: var(--cream); color: var(--shadow); box-shadow: inset 0 0 0 2px var(--terra); }
+  .t-info { background: var(--shadow); color: var(--cream); }
+  .icons { display:flex; gap:20px; align-items:end; color: var(--shadow); }
+  .icons span { display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; }
+  table { width:100%; border-collapse: collapse; font-size: 14px; }
+  th,td { text-align:left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; letter-spacing:.04em; text-transform:uppercase; }
+  .fail { color: var(--danger); font-weight: 600; }
+  .ok { color: var(--palm); font-weight: 600; }
+  footer { font-size: 13px; color:#3D4A32; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="seal" viewBox="0 0 160 160" aria-label="Sello Yerba Xanaes recoloreado">
+      <circle cx="80" cy="80" r="78" fill="#FCE0C0"/>
+      <circle cx="80" cy="80" r="74" fill="none" stroke="#212C1B" stroke-width="3"/>
+      <circle cx="80" cy="80" r="62" fill="none" stroke="#212C1B" stroke-width="2"/>
+      <circle cx="80" cy="80" r="68" fill="none" stroke="#D57640" stroke-width="1.2" stroke-dasharray="4 5"/>
+      <path d="M68 88c0 14 6 24 12 24s12-10 12-24c0-8-4-18-12-18s-12 10-12 18z" fill="none" stroke="#212C1B" stroke-width="2.4"/>
+      <path d="M92 62l10-14" fill="none" stroke="#212C1B" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M76 74c2-10 8-14 12-8" fill="#657F38"/>
+      <path d="M84 76c3-9 10-12 12-6" fill="#9EAB57"/>
+      <path d="M70 90h20" stroke="#212C1B" stroke-width="1.2"/>
+      <path d="M71 96h18" stroke="#212C1B" stroke-width="1.2"/>
+      <text x="80" y="38" text-anchor="middle" font-size="8" font-family="Georgia, serif" fill="#212C1B" letter-spacing="1.4">YERBA XANA</text>
+      <text x="80" y="136" text-anchor="middle" font-size="6.2" font-family="sans-serif" fill="#212C1B" letter-spacing="1">YERBA AGROECOLÓGICA</text>
+    </svg>
+    <div class="lede">
+      <h1>YerbaXanaes v2</h1>
+      <p>Palm, Leaf, Shadow, Terra Cotta y Cream. Un solo sistema para tienda y backoffice. El sello no cambia de forma: cambia de campo.</p>
+    </div>
+  </header>
+
+  <div class="swatches">
+    <figure class="swatch"><div class="chip" style="background:#657F38"></div><figcaption>Palm<code>#657F38</code></figcaption></figure>
+    <figure class="swatch"><div class="chip" style="background:#9EAB57"></div><figcaption>Leaf<code>#9EAB57</code></figcaption></figure>
+    <figure class="swatch"><div class="chip" style="background:#212C1B"></div><figcaption>Shadow<code>#212C1B</code></figcaption></figure>
+    <figure class="swatch"><div class="chip" style="background:#D57640"></div><figcaption>Terra Cotta<code>#D57640</code></figcaption></figure>
+    <figure class="swatch"><div class="chip" style="background:#FCE0C0"></div><figcaption>Cream<code>#FCE0C0</code></figcaption></figure>
+  </div>
+
+  <section>
+    <h2>Botones</h2>
+    <div class="row">
+      <button class="btn-primary">Agregar al carrito</button>
+      <button class="btn-accent">Retiro en Villa del Rosario</button>
+      <button class="btn-ghost">Seguir comprando</button>
+      <button class="btn-danger">Pago rechazado</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Producto</h2>
+    <div class="cards">
+      <article class="card">
+        <div style="height:120px;border-radius:10px;background:linear-gradient(160deg,#9EAB57,#657F38);"></div>
+        <h3 style="margin-top:12px">Cedrón</h3>
+        <p style="margin:0 0 8px;color:#3D4A32;font-size:14px">Yerba compuesta. Foto real.</p>
+        <div class="price">Desde $—</div>
+      </article>
+      <article class="card">
+        <h3>Admin · pedido</h3>
+        <p style="margin:0;font-size:14px">PAID · sin tracking. Toast warning, no rojo.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Notificaciones</h2>
+    <div class="toasts">
+      <div class="toast t-ok">Cedrón 500 g — agregado. Deshacer</div>
+      <div class="toast t-err">Mercado Pago no confirmó el pago</div>
+      <div class="toast t-warn">3 pedidos PAID sin tracking</div>
+      <div class="toast t-info">Retiro en 25 de Mayo 1572</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Iconos — Lucide único</h2>
+    <p style="max-width:36rem;color:#3D4A32">No mezclar react-icons. Trazo 1.75. El mate del logo no es un icono de menú.</p>
+    <div class="icons" aria-hidden="true">
+      <span><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>16</span>
+      <span><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="5" width="14" height="12" rx="2"/><path d="M3 9h14"/></svg>20</span>
+      <span><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 7h16M4 12h16M4 17h10"/></svg>24</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Contraste</h2>
+    <table>
+      <tr><th>Par</th><th>Ratio</th><th>Uso</th></tr>
+      <tr><td>Shadow sobre Cream</td><td class="ok">11.50 AAA</td><td>Todo el texto</td></tr>
+      <tr><td>Blanco sobre Palm</td><td class="ok">4.52 AA</td><td>Botón primario</td></tr>
+      <tr><td>Terra sobre Cream</td><td class="fail">2.55 FAIL</td><td>Nunca como texto</td></tr>
+      <tr><td>Leaf sobre Cream</td><td class="fail">1.97 FAIL</td><td>Solo relleno / chart</td></tr>
+    </table>
+  </section>
+
+  <footer>YerbaXanaes design-system v2 · no deployar este HTML · tokens en design-tokens.json</footer>
+</div>
+</body>
+</html>

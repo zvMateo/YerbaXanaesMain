@@ -1,22 +1,21 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Instagram, Facebook, Mail, MapPin, Phone } from "lucide-react";
 import { brand, whatsappUrl } from "@/lib/brand";
+import { BrandSeal } from "@/components/brand-seal";
 
 export function Footer() {
   return (
-    <footer className="bg-stone-900 text-stone-300">
+    <footer className="bg-shadow text-cream/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
-          {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-2 mb-6">
-              <Image src="/brand/logo.png" alt="Yerba Xanaes" width={32} height={32} className="h-8 w-8 rounded-full object-cover" />
-              <span className="font-serif text-xl font-bold text-white">
+              <BrandSeal size={32} className="h-8 w-8" />
+              <span className="font-serif text-xl font-bold text-cream">
                 {brand.businessName}
               </span>
             </Link>
-            <p className="text-stone-400 mb-6">{brand.tagline}</p>
+            <p className="text-cream/60 mb-6">{brand.tagline}</p>
             {(brand.social.instagram || brand.social.facebook) && (
               <div className="flex gap-4">
                 {brand.social.instagram && (
@@ -24,7 +23,7 @@ export function Footer() {
                     href={brand.social.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-stone-400 hover:text-yerba-400 transition-colors"
+                    className="text-cream/60 hover:text-leaf transition-colors"
                     aria-label="Instagram"
                   >
                     <Instagram className="h-5 w-5" />
@@ -35,7 +34,7 @@ export function Footer() {
                     href={brand.social.facebook}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-stone-400 hover:text-yerba-400 transition-colors"
+                    className="text-cream/60 hover:text-leaf transition-colors"
                     aria-label="Facebook"
                   >
                     <Facebook className="h-5 w-5" />
@@ -45,14 +44,13 @@ export function Footer() {
             )}
           </div>
 
-          {/* Links */}
           <div>
-            <h3 className="text-white font-semibold mb-6">Productos</h3>
+            <h3 className="text-cream font-semibold mb-6">Productos</h3>
             <ul className="space-y-3">
               <li>
                 <Link
                   href="/productos"
-                  className="text-stone-400 hover:text-yerba-400 transition-colors"
+                  className="text-cream/60 hover:text-leaf transition-colors"
                 >
                   Ver catálogo
                 </Link>
@@ -60,14 +58,13 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Company */}
           <div>
-            <h3 className="text-white font-semibold mb-6">Empresa</h3>
+            <h3 className="text-cream font-semibold mb-6">Empresa</h3>
             <ul className="space-y-3">
               <li>
                 <Link
                   href="/nosotros"
-                  className="text-stone-400 hover:text-yerba-400 transition-colors"
+                  className="text-cream/60 hover:text-leaf transition-colors"
                 >
                   Sobre Nosotros
                 </Link>
@@ -75,7 +72,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/contacto"
-                  className="text-stone-400 hover:text-yerba-400 transition-colors"
+                  className="text-cream/60 hover:text-leaf transition-colors"
                 >
                   Contacto
                 </Link>
@@ -83,7 +80,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/faq"
-                  className="text-stone-400 hover:text-yerba-400 transition-colors"
+                  className="text-cream/60 hover:text-leaf transition-colors"
                 >
                   Preguntas Frecuentes
                 </Link>
@@ -91,7 +88,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/envios"
-                  className="text-stone-400 hover:text-yerba-400 transition-colors"
+                  className="text-cream/60 hover:text-leaf transition-colors"
                 >
                   Envíos
                 </Link>
@@ -99,30 +96,29 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Contact */}
           <div>
-            <h3 className="text-white font-semibold mb-6">Contacto</h3>
+            <h3 className="text-cream font-semibold mb-6">Contacto</h3>
             <ul className="space-y-3">
-              <li className="flex items-center gap-3 text-stone-400">
-                <MapPin className="h-5 w-5 text-yerba-400 shrink-0" />
+              <li className="flex items-center gap-3 text-cream/60">
+                <MapPin className="h-5 w-5 text-leaf shrink-0" />
                 <span>{brand.locationLabel}</span>
               </li>
-              <li className="flex items-center gap-3 text-stone-400">
-                <Phone className="h-5 w-5 text-yerba-400 shrink-0" />
+              <li className="flex items-center gap-3 text-cream/60">
+                <Phone className="h-5 w-5 text-leaf shrink-0" />
                 <a
                   href={whatsappUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-yerba-400 transition-colors"
+                  className="hover:text-leaf transition-colors"
                 >
                   {brand.whatsappDisplay}
                 </a>
               </li>
-              <li className="flex items-center gap-3 text-stone-400">
-                <Mail className="h-5 w-5 text-yerba-400 shrink-0" />
+              <li className="flex items-center gap-3 text-cream/60">
+                <Mail className="h-5 w-5 text-leaf shrink-0" />
                 <a
                   href={`mailto:${brand.email}`}
-                  className="hover:text-yerba-400 transition-colors"
+                  className="hover:text-leaf transition-colors"
                 >
                   {brand.email}
                 </a>
@@ -131,22 +127,21 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom */}
-        <div className="border-t border-stone-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-stone-500">
+        <div className="border-t border-cream/15 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-cream/45">
             © {new Date().getFullYear()} {brand.businessName}. Todos los
             derechos reservados.
           </p>
-          <div className="flex gap-6 text-sm text-stone-500">
+          <div className="flex gap-6 text-sm text-cream/45">
             <Link
               href="/terminos"
-              className="hover:text-yerba-400 transition-colors"
+              className="hover:text-leaf transition-colors"
             >
               Términos y Condiciones
             </Link>
             <Link
               href="/privacidad"
-              className="hover:text-yerba-400 transition-colors"
+              className="hover:text-leaf transition-colors"
             >
               Política de Privacidad
             </Link>
