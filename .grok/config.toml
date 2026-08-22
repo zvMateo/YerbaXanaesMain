@@ -13,7 +13,7 @@ command = "codegraph"
 args = ["serve", "--mcp"]
 enabled = true
 startup_timeout_sec = 15
-tool_timeout_sec = 120
+tool_timeout_sec = 20
 
 # ------------------------------------------------------------
 # Permisos del proyecto (merge con user config; deny > ask > allow)

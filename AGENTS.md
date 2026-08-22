@@ -21,6 +21,17 @@ Este repo se trabaja con Grok, no con Claude Code.
 
 ---
 
+## Dominio
+
+- Emprendimiento de **yerba mate** (Villa del Rosario, Córdoba). E-commerce + backoffice.
+- **Stock:** por receta (`VariantIngredient` → `InventoryItem`) o stock directo en la variante.
+  Siempre con locks en checkout.
+- **Canales de venta:** ONLINE, STORE, INSTAGRAM, WHATSAPP, FAIR.
+- Datos de marca y contacto: fuente única en `apps/ecommerce/lib/brand.ts`. No hardcodear
+  email, teléfono ni dirección en componentes.
+
+---
+
 ## Layout
 
 ```
@@ -108,6 +119,7 @@ docker compose up -d     # Postgres
 | Doc | Uso |
 |-----|-----|
 | `docs/go-live.md` | Checklist salida a producción |
+| `apps/api/AGENTS.md` | Reglas NestJS de la API — se cargan solas al trabajar en `apps/api` |
 | `MERCADOPAGO_INTEGRATION.md` | Flujo Brick + webhook |
 | `MICORREO_API.md` | Envíos Correo Argentino |
 | `apps/ecommerce/PAYMENTS_QA_MANUAL.md` | QA manual pagos |
