@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useCartStore } from "@/stores/cart-store";
+import { whatsappHref } from "@/lib/brand";
 
 // ============================================================
 // TIPOS
@@ -47,10 +48,9 @@ interface Agency {
   postalCode: string;
 }
 
-const MANUAL_SHIPPING_WHATSAPP_URL =
-  process.env.NEXT_PUBLIC_SHIPPING_WHATSAPP_URL ||
-  process.env.NEXT_PUBLIC_WHATSAPP_URL ||
-  "https://wa.me/541100000000?text=Hola%2C%20necesito%20cotizar%20el%20env%C3%ADo%20de%20mi%20pedido%20de%20YerbaXanaes";
+const MANUAL_SHIPPING_WHATSAPP_URL = whatsappHref(
+  "Hola, necesito cotizar el envío de mi pedido de YerbaXanaes",
+);
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -585,15 +585,17 @@ export function DeliveryDetailsStep() {
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
               <p>{ratesError}</p>
             </div>
-            <a
-              href={MANUAL_SHIPPING_WHATSAPP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Cotizar envío por WhatsApp
-            </a>
+            {MANUAL_SHIPPING_WHATSAPP_URL && (
+              <a
+                href={MANUAL_SHIPPING_WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Cotizar envío por WhatsApp
+              </a>
+            )}
           </div>
         )}
 

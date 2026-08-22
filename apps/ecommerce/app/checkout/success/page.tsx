@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { CheckoutSuccessCleanup } from "@/components/checkout/checkout-success-cleanup";
 import { StatusScreenBrick } from "@/components/checkout/status-screen-lazy";
+import { mailtoHref } from "@/lib/brand";
 
 interface SuccessPageProps {
   searchParams: Promise<{
@@ -232,16 +233,10 @@ export default async function CheckoutSuccessPage({
           <div className="text-left space-y-4 mb-8">
             <h2 className="font-semibold text-stone-900">¿Qué sigue?</h2>
             <InfoRow
-              icon={<Mail className="w-4 h-4 text-yerba-600" />}
-              color="yerba"
-              title="Confirmación por email"
-              text="Te enviamos un email con todos los detalles de tu pedido"
-            />
-            <InfoRow
               icon={<Clock className="w-4 h-4 text-yerba-600" />}
               color="yerba"
-              title="Procesamiento"
-              text="Prepararemos tu pedido en 24-48 horas hábiles"
+              title="Preparación"
+              text="Preparamos tu pedido y te contactamos si hace falta coordinar el envío o el retiro"
             />
             <InfoRow
               icon={<Package className="w-4 h-4 text-yerba-600" />}
@@ -322,7 +317,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
           <p className="text-center text-sm text-stone-500 mt-6">
             ¿Tenés alguna pregunta?{" "}
             <a
-              href="mailto:hola@yerbaxanaes.com"
+              href={mailtoHref()}
               className="text-yerba-600 hover:underline"
             >
               Contactanos

@@ -28,7 +28,11 @@ export const metadata: Metadata = {
     template: "%s | YerbaXanaes",
   },
   description:
-    "Yerba mate premium, mates artesanales y accesorios. Seleccionamos las mejores yerbas de Argentina y las llevamos directo a tu puerta. Envío a todo el país.",
+    "Yerba mate agroecológica desde Villa del Rosario, Córdoba. Calidad argentina directo a tu puerta. Envío a todo el país.",
+  icons: {
+    icon: "/brand/logo.png",
+    apple: "/brand/logo.png",
+  },
   keywords: [
     "yerba mate",
     "yerba mate premium",
@@ -50,7 +54,7 @@ export const metadata: Metadata = {
     siteName: "YerbaXanaes",
     title: "YerbaXanaes | Yerba Mate Premium Argentina",
     description:
-      "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu mesa.",
+      "Yerba mate agroecológica desde Villa del Rosario, Córdoba. Envío a todo el país.",
     images: [
       {
         url: "/og-image.jpg",
@@ -64,7 +68,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "YerbaXanaes | Yerba Mate Premium Argentina",
     description:
-      "Yerba mate premium, mates artesanales y accesorios. Calidad argentina directo a tu mesa.",
+      "Yerba mate agroecológica desde Villa del Rosario, Córdoba. Envío a todo el país.",
     images: ["/og-image.jpg"],
   },
   robots: {

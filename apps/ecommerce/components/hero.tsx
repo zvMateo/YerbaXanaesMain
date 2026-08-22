@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Truck, Leaf, Star } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, Truck, Leaf } from "lucide-react";
 import { HeroAnimations } from "@/components/hero-animations";
+import { brand } from "@/lib/brand";
 
 export function Hero() {
   return (
@@ -51,7 +53,7 @@ export function Hero() {
               </Link>
             </div>
 
-            {/* Stats */}
+            {/* Stats — solo hechos verificables, sin cifras inventadas */}
             <div className="mt-12 grid grid-cols-3 gap-8 border-t border-stone-200 pt-8">
               <div>
                 <div className="font-serif text-3xl font-bold text-yerba-600">
@@ -60,59 +62,31 @@ export function Hero() {
                 <div className="text-sm text-stone-600">Natural</div>
               </div>
               <div>
-                <div className="font-serif text-3xl font-bold text-yerba-600">
-                  500+
+                <div className="font-serif text-xl sm:text-2xl font-bold text-yerba-600 leading-tight">
+                  {brand.province}
                 </div>
-                <div className="text-sm text-stone-600">Clientes</div>
+                <div className="text-sm text-stone-600">{brand.city}</div>
               </div>
               <div>
-                <div className="font-serif text-3xl font-bold text-yerba-600">
-                  24h
+                <div className="font-serif text-xl sm:text-2xl font-bold text-yerba-600 leading-tight">
+                  Todo el país
                 </div>
-                <div className="text-sm text-stone-600">Envío</div>
+                <div className="text-sm text-stone-600">Envíos</div>
               </div>
             </div>
           </div>
 
-          {/* Visual — product showcase placeholder */}
+          {/* Visual — foto real de yerba agroecológica */}
           <HeroAnimations>
-            {/* Main card */}
-            <div className="aspect-square max-w-md mx-auto rounded-3xl bg-gradient-to-br from-yerba-100 via-white to-earth-100 border border-stone-200 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden p-8">
-              {/* Decorative leaf pattern background */}
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 opacity-[0.04]"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='3' fill='%234a7c3d'/%3E%3C/svg%3E")`,
-                }}
+            <div className="relative aspect-square max-w-md mx-auto rounded-3xl overflow-hidden shadow-2xl border border-stone-200">
+              <Image
+                src="/brand/hero.jpg"
+                alt="Yerba mate agroecológica de Yerba Xanaes, palta recién servida"
+                fill
+                priority
+                className="object-cover"
+                sizes="(max-width: 768px) 90vw, 28rem"
               />
-
-              {/* Central visual — space ready for real product photo */}
-              <div className="relative w-full h-full flex flex-col items-center justify-center gap-4">
-                <div className="w-32 h-32 rounded-full bg-gradient-to-br from-yerba-200 to-yerba-400 flex items-center justify-center shadow-xl">
-                  <Leaf className="h-16 w-16 text-white" aria-hidden="true" />
-                </div>
-                <div className="text-center">
-                  <p className="font-serif text-xl font-bold text-stone-800">
-                    Yerba Premium
-                  </p>
-                  <p className="text-stone-500 text-sm">
-                    Directa del productor
-                  </p>
-                </div>
-
-                {/* Stars */}
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star
-                      key={s}
-                      className="h-4 w-4 text-earth-500 fill-earth-500"
-                      aria-hidden="true"
-                    />
-                  ))}
-                  <span className="text-stone-600 text-sm ml-1">5.0</span>
-                </div>
-              </div>
 
               {/* Floating badge: envío gratis */}
               <div className="absolute top-6 left-6 bg-white rounded-xl px-4 py-3 shadow-lg border border-stone-100">

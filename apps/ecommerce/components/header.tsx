@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ShoppingCart, Menu, X, Leaf } from "lucide-react";
+import { ShoppingCart, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useCartStore } from "@/stores/cart-store";
@@ -33,7 +34,14 @@ export function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <Leaf className="h-8 w-8 text-yerba-600" aria-hidden="true" />
+            <Image
+              src="/brand/logo.png"
+              alt="Yerba Xanaes"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover"
+              sizes="40px"
+            />
             <span className="font-serif text-xl font-bold text-stone-900">
               YerbaXanaes
             </span>

@@ -386,9 +386,9 @@ function AddToCartSection({
         <div className="flex flex-col items-center gap-1">
           <Package className="h-5 w-5 text-yerba-600" />
           <span>
-            Entrega en
+            Correo
             <br />
-            24-48hs
+            Argentino
           </span>
         </div>
       </div>
@@ -520,8 +520,9 @@ function ProductTabs({ product }: { product: Product }) {
                     Envío a todo el país
                   </h4>
                   <p className="text-sm mt-1">
-                    Entregamos en 24-48hs hábiles en CABA y GBA. Al interior del
-                    país el tiempo varía según la zona.
+                    Enviamos a todo el país con Correo Argentino, a domicilio o
+                    sucursal. El plazo lo informa el correo al cotizar en el
+                    checkout. También podés retirar en el local.
                   </p>
                 </div>
               </div>

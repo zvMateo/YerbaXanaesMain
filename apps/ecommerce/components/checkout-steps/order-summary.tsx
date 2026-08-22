@@ -15,6 +15,7 @@ import {
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { MercadoPagoLogo } from "@/components/checkout/mercado-pago-logo";
+import { pickupAddress } from "@/lib/brand";
 
 interface OrderSummaryProps {
   items: CartItem[];
@@ -266,8 +267,7 @@ export function OrderSummary({
               <div className="flex justify-between">
                 <span className="text-stone-500">Dirección</span>
                 <span className="font-medium text-stone-900 text-right">
-                  {process.env.NEXT_PUBLIC_STORE_ADDRESS ||
-                    "Consultá la dirección por WhatsApp"}
+                  {pickupAddress()}
                 </span>
               </div>
             </>

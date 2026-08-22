@@ -191,6 +191,7 @@ export class CatalogService {
     const product = await this.prisma.product.findFirst({
       where: {
         isActive: true,
+        images: { isEmpty: false },
         OR: [{ id: idOrSlug }, { slug: idOrSlug }],
       },
       include: productInclude,
@@ -207,6 +208,7 @@ export class CatalogService {
 
     if (!filters.includeInactive) {
       where.isActive = true;
+      where.images = { isEmpty: false };
     }
 
     const category = filters.category?.trim();

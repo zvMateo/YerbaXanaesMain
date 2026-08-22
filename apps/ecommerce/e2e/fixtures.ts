@@ -95,7 +95,7 @@ export async function fillPersonalInfo(
 ): Promise<void> {
   await page.getByPlaceholder("Ej: María González").fill(info.name);
   await page.getByPlaceholder("Ej: maria@email.com").fill(info.email);
-  await page.getByPlaceholder("Ej: 11 1234-5678").fill(info.phone);
+  await page.getByPlaceholder("Ej: 351 555-1234").fill(info.phone);
 }
 
 /**

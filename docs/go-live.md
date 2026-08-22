@@ -10,7 +10,7 @@ Checklist de salida a producción (relevamiento 2026-08). Actualizar al cerrar �
 | Checkout MP Brick + webhook + cleanup PENDING | Alto |
 | Backoffice auth allowlist + AdminGuard | Alto |
 | Envíos MiCorreo | Alto (requiere credenciales PROD) |
-| Contenido/marca pública | **Bajo — bloqueante** |
+| Contenido/marca pública | Medio — fotos hero/nosotros listas; yerbas principales en Cloudinary; accesorios/blends sin foto ocultos al público |
 | Observabilidad (Sentry) | Ausente |
 | Emails transaccionales | Ausente |
 
@@ -18,14 +18,19 @@ Checklist de salida a producción (relevamiento 2026-08). Actualizar al cerrar �
 
 ## P0 — Contenido / confianza (antes de anunciar)
 
-- [ ] Unificar contacto real: **footer = `/contacto` = WhatsApp de envíos**
-  - Hoy inconsistente: footer con Buenos Aires / `+54 11 1234-5678` vs contacto Córdoba / WA real
-- [ ] Formulario de contacto: implementar envío real **o** quitar y dejar solo WhatsApp/email
-- [ ] Newsletter: implementar **o** quitar (hoy es toast simulado)
-- [ ] Testimonios inventados + “Miles de mates felices” + hero “500+” / “24h”: reales o fuera
-- [ ] Links muertos footer: Instagram, Facebook, FAQ, Envíos, Términos, Privacidad
-- [ ] Catálogo prod con productos/precios/fotos reales (no seeds Unsplash/placehold)
-- [ ] `og-image.jpg` y fotos hero/nosotros reales
+- [x] Unificar contacto real: **footer = `/contacto` = WhatsApp de envíos**
+  - Fuente única `apps/ecommerce/lib/brand.ts` (Villa del Rosario, Córdoba, CP 5963; email `hola@yerbaxanaes.com`; WA desde `NEXT_PUBLIC_SHIPPING_WHATSAPP_URL` / `NEXT_PUBLIC_WHATSAPP_URL`)
+- [x] Formulario de contacto: implementado envío real **o** quitar y dejar solo WhatsApp/email
+  - Quitado el form simulado; quedan WhatsApp + mailto
+- [x] Newsletter: implementado **o** quitar (hoy es toast simulado)
+  - Quitado de home (`NewsletterCta` desenganchado)
+- [x] Testimonios inventados + “Miles de mates felices” + hero “500+” / “24h”: reales o fuera
+- [x] Links footer FAQ, Envíos, Términos, Privacidad (páginas honestas; sin `href="#"`)
+- [x] Instagram real (`https://www.instagram.com/yerbaxanaes/`, default en `brand.ts`)
+- [ ] Facebook (icono solo si hay `NEXT_PUBLIC_FACEBOOK_URL`; aún sin URL del cliente)
+- [x] Catálogo prod: yerbas principales ya con fotos Cloudinary (no Unsplash); el GET público oculta productos sin imagen
+- [ ] Fotos pendientes (accesorios mates/yerbera y blends Frescura Herbal / Esencia Floral / Burrito) para volver a mostrarlos
+- [x] `og-image.jpg` y fotos hero/nosotros reales (`public/og-image.jpg`, `public/brand/hero.jpg`, `public/brand/nosotros.jpg`, logo circular en header/footer)
 
 ## P1 — Técnico (antes de tráfico real)
 

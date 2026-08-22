@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Leaf,
@@ -67,7 +68,7 @@ const FLOW_STEPS = [
     number: "04",
     title: "Lo llevamos a tu puerta",
     description:
-      "Despachamos a todo el país con envío rápido. Seguís tu pedido en tiempo real hasta que llega a tus manos.",
+      "Despachamos a todo el país con Correo Argentino, a domicilio o sucursal. También podés retirar en el local.",
   },
 ];
 
@@ -104,15 +105,16 @@ export default function NosotrosPage() {
         <section className="py-20 bg-white">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
-              {/* Placeholder imagen */}
+              {/* Foto real — mate y termo */}
               <div className="order-2 lg:order-1">
-                <div className="aspect-[4/3] rounded-3xl bg-gradient-to-br from-yerba-100 to-earth-100 border border-stone-200 flex flex-col items-center justify-center gap-4 shadow-lg">
-                  <div className="w-24 h-24 rounded-full bg-white shadow-md flex items-center justify-center">
-                    <Leaf className="h-12 w-12 text-yerba-500" aria-hidden="true" />
-                  </div>
-                  <p className="text-stone-500 text-sm">
-                    Foto del equipo próximamente
-                  </p>
+                <div className="relative aspect-[4/3] rounded-3xl overflow-hidden border border-stone-200 shadow-lg">
+                  <Image
+                    src="/brand/nosotros.jpg"
+                    alt="Mate y termo de Yerba Xanaes, yerba agroecológica de Villa del Rosario"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                  />
                 </div>
               </div>
 

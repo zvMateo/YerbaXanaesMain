@@ -1,7 +1,18 @@
 import Link from "next/link";
-import { Leaf, Instagram, Facebook, Mail, MapPin, Phone } from "lucide-react";
+import Image from "next/image";
+import { Instagram, Facebook, Mail, MapPin, Phone } from "lucide-react";
+import {
+  brand,
+  displayWhatsAppPhone,
+  locationLine,
+  mailtoHref,
+  whatsappHref,
+} from "@/lib/brand";
 
 export function Footer() {
+  const waHref = whatsappHref();
+  const waPhone = displayWhatsAppPhone();
+
   return (
     <footer className="bg-stone-900 text-stone-300">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -9,29 +20,48 @@ export function Footer() {
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-2 mb-6">
-              <Leaf className="h-8 w-8 text-yerba-400" />
+              <Image
+                src="/brand/logo.png"
+                alt="Yerba Xanaes"
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-full object-cover"
+                sizes="40px"
+              />
               <span className="font-serif text-xl font-bold text-white">
-                YerbaXanaes
+                {brand.name}
               </span>
             </Link>
             <p className="text-stone-400 mb-6">
-              Llevando la tradición del mate argentino a tu hogar con la mejor
-              calidad y sabor.
+              Yerba mate desde {brand.city}, {brand.province}. Calidad real,
+              sin inventos.
             </p>
-            <div className="flex gap-4">
-              <a
-                href="#"
-                className="text-stone-400 hover:text-yerba-400 transition-colors"
-              >
-                <Instagram className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="text-stone-400 hover:text-yerba-400 transition-colors"
-              >
-                <Facebook className="h-5 w-5" />
-              </a>
-            </div>
+            {(brand.instagramUrl || brand.facebookUrl) && (
+              <div className="flex gap-4">
+                {brand.instagramUrl && (
+                  <a
+                    href={brand.instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-stone-400 hover:text-yerba-400 transition-colors"
+                    aria-label="Instagram"
+                  >
+                    <Instagram className="h-5 w-5" />
+                  </a>
+                )}
+                {brand.facebookUrl && (
+                  <a
+                    href={brand.facebookUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-stone-400 hover:text-yerba-400 transition-colors"
+                    aria-label="Facebook"
+                  >
+                    <Facebook className="h-5 w-5" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Links */}
@@ -95,7 +125,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="#"
+                  href="/faq"
                   className="text-stone-400 hover:text-yerba-400 transition-colors"
                 >
                   Preguntas Frecuentes
@@ -103,7 +133,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="#"
+                  href="/envios"
                   className="text-stone-400 hover:text-yerba-400 transition-colors"
                 >
                   Envíos
@@ -118,15 +148,29 @@ export function Footer() {
             <ul className="space-y-3">
               <li className="flex items-center gap-3 text-stone-400">
                 <MapPin className="h-5 w-5 text-yerba-400" />
-                <span>Buenos Aires, Argentina</span>
+                <span>{locationLine()}</span>
               </li>
-              <li className="flex items-center gap-3 text-stone-400">
-                <Phone className="h-5 w-5 text-yerba-400" />
-                <span>+54 11 1234-5678</span>
-              </li>
+              {waHref && (
+                <li className="flex items-center gap-3 text-stone-400">
+                  <Phone className="h-5 w-5 text-yerba-400" />
+                  <a
+                    href={waHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-yerba-400 transition-colors"
+                  >
+                    {waPhone ?? "WhatsApp"}
+                  </a>
+                </li>
+              )}
               <li className="flex items-center gap-3 text-stone-400">
                 <Mail className="h-5 w-5 text-yerba-400" />
-                <span>hola@yerbaxanaes.com</span>
+                <a
+                  href={mailtoHref()}
+                  className="hover:text-yerba-400 transition-colors"
+                >
+                  {brand.email}
+                </a>
               </li>
             </ul>
           </div>
@@ -135,14 +179,20 @@ export function Footer() {
         {/* Bottom */}
         <div className="border-t border-stone-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-stone-500">
-            © {new Date().getFullYear()} YerbaXanaes. Todos los derechos
+            © {new Date().getFullYear()} {brand.name}. Todos los derechos
             reservados.
           </p>
           <div className="flex gap-6 text-sm text-stone-500">
-            <Link href="#" className="hover:text-yerba-400 transition-colors">
+            <Link
+              href="/terminos"
+              className="hover:text-yerba-400 transition-colors"
+            >
               Términos y Condiciones
             </Link>
-            <Link href="#" className="hover:text-yerba-400 transition-colors">
+            <Link
+              href="/privacidad"
+              className="hover:text-yerba-400 transition-colors"
+            >
               Política de Privacidad
             </Link>
           </div>

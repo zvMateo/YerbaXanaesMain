@@ -74,7 +74,7 @@ export function PersonalInfoStep() {
             <input
               {...register("customerPhone")}
               type="tel"
-              placeholder="Ej: 11 1234-5678"
+              placeholder="Ej: 351 555-1234"
               className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
             />
           </div>
