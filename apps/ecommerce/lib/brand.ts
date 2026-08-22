@@ -12,7 +12,7 @@ export const brand = {
   city: "Villa del Rosario",
   region: "Córdoba",
   country: "Argentina",
-  locationLabel: "Villa del Rosario, Córdoba, Argentina",
+  locationLabel: "25 de Mayo 1572, Villa del Rosario, Córdoba",
 
   // Contacto
   email: "yerbaxanaes@gmail.com",
@@ -24,7 +24,7 @@ export const brand = {
 
   // Redes: null = no mostrar en UI (evitar href="#")
   social: {
-    instagram: null as string | null,
+    instagram: "https://www.instagram.com/yerbaxanaes/" as string | null,
     facebook: null as string | null,
   },
 

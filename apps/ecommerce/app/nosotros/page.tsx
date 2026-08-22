@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
+import Image from "next/image";
 import { Footer } from "@/components/footer";
 import Link from "next/link";
 import {
@@ -104,15 +105,16 @@ export default function NosotrosPage() {
         <section className="py-20 bg-white">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
-              {/* Placeholder imagen */}
+              {/* Foto real */}
               <div className="order-2 lg:order-1">
-                <div className="aspect-[4/3] rounded-3xl bg-gradient-to-br from-yerba-100 to-earth-100 border border-stone-200 flex flex-col items-center justify-center gap-4 shadow-lg">
-                  <div className="w-24 h-24 rounded-full bg-white shadow-md flex items-center justify-center">
-                    <Leaf className="h-12 w-12 text-yerba-500" aria-hidden="true" />
-                  </div>
-                  <p className="text-stone-500 text-sm text-center px-6">
-                    Emprendimiento de yerba mate en Villa del Rosario, Córdoba
-                  </p>
+                <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-lg border border-stone-200">
+                  <Image
+                    src="/brand/nosotros.jpg"
+                    alt="Mate y termo de Yerba Xanaes en Villa del Rosario"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                  />
                 </div>
               </div>
 

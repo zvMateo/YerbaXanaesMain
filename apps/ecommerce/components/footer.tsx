@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Leaf, Instagram, Facebook, Mail, MapPin, Phone } from "lucide-react";
+import Image from "next/image";
+import { Instagram, Facebook, Mail, MapPin, Phone } from "lucide-react";
 import { brand, whatsappUrl } from "@/lib/brand";
 
 export function Footer() {
@@ -10,7 +11,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center gap-2 mb-6">
-              <Leaf className="h-8 w-8 text-yerba-400" />
+              <Image src="/brand/logo.png" alt="Yerba Xanaes" width={32} height={32} className="h-8 w-8 rounded-full object-cover" />
               <span className="font-serif text-xl font-bold text-white">
                 {brand.businessName}
               </span>
