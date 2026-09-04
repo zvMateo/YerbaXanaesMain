@@ -19,6 +19,7 @@ import { RatingsModule } from './ratings/ratings.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { SettingsModule } from './settings/settings.module';
+import { CheckoutModule } from './checkout/checkout.module';
 import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
@@ -52,6 +53,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     CouponsModule,
     CloudinaryModule,
     SettingsModule,
+    CheckoutModule,
   ],
   controllers: [AppController],
   providers: [
