@@ -609,11 +609,13 @@ function ProductTabs({ product }: { product: Product }) {
 
 // Main Component - Human-Core: Experiencia completa
 export function ProductDetail({ product }: ProductDetailProps) {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(
-    product.variants?.find((v) => v.stock > 0) || product.variants?.[0]!,
-  );
+  // Sin `!`: si el producto no tiene variantes esto es undefined de verdad, y
+  // el guard de abajo lo cubre. La asercion anterior mentia sobre el tipo.
+  const [selectedVariant, setSelectedVariant] = useState<
+    ProductVariant | undefined
+  >(product.variants?.find((v) => v.stock > 0) ?? product.variants?.[0]);
 
-  if (!product.variants || product.variants.length === 0) {
+  if (!product.variants || product.variants.length === 0 || !selectedVariant) {
     return (
       <div className="text-center py-12">
         <AlertCircle className="h-12 w-12 text-stone-400 mx-auto mb-4" />

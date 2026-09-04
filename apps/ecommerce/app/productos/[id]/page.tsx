@@ -122,7 +122,7 @@ function RatingsSection({ data }: { data: RatingResult }) {
             </div>
             {r.comment && (
               <p className="text-stone-700 text-sm leading-relaxed">
-                "{r.comment}"
+                &ldquo;{r.comment}&rdquo;
               </p>
             )}
           </div>

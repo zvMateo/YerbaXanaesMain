@@ -7,7 +7,7 @@ import { PaymentsSyncService } from './payments-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus } from '@prisma/client';
 
 /**
  * TESTS DE INTEGRACIÓN: Payments Service - Stock Recovery & Race Conditions
@@ -756,6 +756,7 @@ describe('PaymentsService - Integration Tests', () => {
     it('getTransferInfo sin env devuelve transferInstructions null', () => {
       expect(service.getTransferInfo()).toEqual({
         transferInstructions: null,
+        test: false,
       });
     });
   });

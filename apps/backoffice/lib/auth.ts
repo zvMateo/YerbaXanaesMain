@@ -117,7 +117,11 @@ export const auth = betterAuth({
         // En Vercel, waitUntil asegura que los emails se envíen
         // antes de que el serverless function termine
         if (typeof globalThis !== "undefined" && "waitUntil" in globalThis) {
-          (globalThis as any).waitUntil(promise);
+          (
+            globalThis as unknown as {
+              waitUntil: (p: Promise<unknown>) => void;
+            }
+          ).waitUntil(promise);
         }
       },
     },

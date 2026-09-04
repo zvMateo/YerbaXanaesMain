@@ -37,7 +37,7 @@ export async function getDashboardStats() {
     totalProducts: number;
     totalCustomers: number;
     lowStockItems: number;
-    recentOrders: any[];
+    recentOrders: unknown[];
   }>("/dashboard/stats");
 }
 
@@ -67,7 +67,7 @@ export async function getProducts() {
   return fetchAPI("/catalog");
 }
 
-export async function updateProduct(id: string, data: any) {
+export async function updateProduct(id: string, data: Record<string, unknown>) {
   return fetchAPI(`/catalog/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),

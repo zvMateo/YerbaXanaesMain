@@ -25,6 +25,7 @@ import {
   FolderOpen,
   Tag,
   Star,
+  type LucideIcon,
 } from "lucide-react";
 import {
   useState,
@@ -39,6 +40,7 @@ import { createPortal } from "react-dom";
 import { useOrders } from "@/hooks/use-orders";
 import { useInventory } from "@/hooks/use-inventory";
 import { useRatings } from "@/hooks/use-ratings";
+import { useMounted } from "@/hooks/use-mounted";
 
 // ============================================
 // HOOK PARA PERSISTIR ESTADO DE SIDEBAR
@@ -88,6 +90,16 @@ function useSidebarCollapsed() {
 // ============================================
 // CONFIGURACIÓN DE NAVEGACIÓN
 // ============================================
+/** Entrada del menu lateral. `description`, `shortcut` e `id` solo los trae
+ *  la navegacion principal; el menu secundario no. */
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  description?: string;
+  shortcut?: string;
+  id?: string;
+}
 
 const navigation = [
   {
@@ -165,7 +177,7 @@ function NavItem({
   badgeCount,
   onNavigate,
 }: {
-  item: any;
+  item: NavigationItem;
   isCollapsed: boolean;
   isActive: boolean;
   badgeCount?: number;
@@ -311,8 +323,7 @@ function UserAvatar({
   user: { name?: string | null; image?: string | null } | null;
   userInitials: string;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useMounted();
 
   if (mounted && user?.image) {
     return (
@@ -656,9 +667,15 @@ export function Sidebar() {
         .slice(0, 2)
     : "U";
 
-  useEffect(() => {
+  // Cerrar el menu al navegar. Va durante el render y no en un efecto: un
+  // efecto alcanza a pintar el menu abierto sobre la pagina nueva y recien
+  // despues lo cierra. El click en un item ya llama a closeMobileMenu; esto
+  // cubre los atajos de teclado y el boton atras del browser.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
     setIsMobileMenuOpen(false);
-  }, [pathname]);
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

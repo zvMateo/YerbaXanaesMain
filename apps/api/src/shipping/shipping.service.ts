@@ -226,7 +226,7 @@ export class ShippingService implements OnModuleInit {
   private async miCorreoFetch(
     path: string,
     options: RequestInit = {},
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{ ok: boolean; status: number; data: unknown }> {
     const envStr = this.config.get<string>('CA_ENVIRONMENT') || 'PROD';
     const baseUrl = MICORREO_BASE_URLS[envStr === 'TEST' ? 'TEST' : 'PROD'];
     const token = await this.getMiCorreoToken();

@@ -71,6 +71,19 @@ export interface CreateOrderInput {
   items: { variantId: string; quantity: number }[];
 }
 
+/** Forma del item de orden que consume el panel. El API devuelve mas campos;
+ *  aca solo se declaran los que se leen, con `variant` opcional porque los
+ *  listados no siempre lo incluyen. */
+export interface OrderItemSummary {
+  id?: string;
+  quantity?: number;
+  price?: number;
+  variant?: {
+    name?: string;
+    product?: { name?: string };
+  };
+}
+
 export interface Order {
   id: string;
   customerName?: string;
@@ -84,7 +97,7 @@ export interface Order {
   paymentProvider: string;
   mpPaymentId?: string;
   mpStatus?: string;
-  items: Array<any>; // Idealmente definir el tipo OrderItem
+  items: OrderItemSummary[];
   user?: {
     name?: string;
     email: string;

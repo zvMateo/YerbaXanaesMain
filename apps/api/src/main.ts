@@ -16,7 +16,7 @@ function installConsoleRedaction(): void {
           /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
           '[REDACTED_JWT]',
         )
-        .replace(/(Bearer\s+)[A-Za-z0-9._\-]+/gi, '$1[REDACTED_TOKEN]')
+        .replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1[REDACTED_TOKEN]')
         .replace(/(token["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi, '$1[REDACTED]');
     });
 

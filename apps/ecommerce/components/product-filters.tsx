@@ -29,15 +29,6 @@ export function ProductFilters({
   );
   const [showFilters, setShowFilters] = useState(false);
 
-  // Human-Core: Debounce natural para búsqueda
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      updateFilters();
-    }, 300); // 300ms delay feels organic
-
-    return () => clearTimeout(timer);
-  }, [search, selectedCategory, sortBy]);
-
   const updateFilters = () => {
     const params = new URLSearchParams();
 
@@ -48,6 +39,16 @@ export function ProductFilters({
     // Systems-Oriented: URL actualizada sin refresh
     router.push(`/productos?${params.toString()}`, { scroll: false });
   };
+
+  // Human-Core: Debounce natural para busqueda. updateFilters se declara
+  // arriba a proposito: si queda debajo, el efecto la lee antes de existir.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateFilters();
+    }, 300); // 300ms delay feels organic
+
+    return () => clearTimeout(timer);
+  }, [search, selectedCategory, sortBy]);
 
   const clearFilters = () => {
     setSearch("");

@@ -124,8 +124,8 @@ export function NoSearchResults({
         No se encontraron resultados
       </h3>
       <p className="text-stone-500 mb-2">
-        No hay coincidencias para "
-        <span className="font-medium text-stone-700">{query}</span>"
+        No hay coincidencias para &ldquo;
+        <span className="font-medium text-stone-700">{query}</span>&rdquo;
       </p>
       <p className="text-stone-400 text-sm mb-6">
         Probá con otros términos o verificá la ortografía

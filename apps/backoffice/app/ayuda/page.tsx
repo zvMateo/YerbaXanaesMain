@@ -225,6 +225,31 @@ function QuickGuide() {
   );
 }
 
+/** Fuera de SystemInfo a proposito: definido adentro se recreaba en cada
+ *  render y React remontaba el badge en vez de actualizarlo. */
+function StatusBadge({ status }: { status: string }) {
+  if (status === "healthy")
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+        <CheckCircle2 className="h-3 w-3" />
+        Operativo
+      </span>
+    );
+  if (status === "unhealthy")
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+        <XCircle className="h-3 w-3" />
+        Error
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+      <Loader2 className="h-3 w-3 animate-spin" />
+      Verificando...
+    </span>
+  );
+}
+
 function SystemInfo() {
   const [health, setHealth] = useState<HealthStatus>({
     api: { status: "checking", url: "" },
@@ -271,29 +296,6 @@ Base de datos: ${health.database.status}
     setCopied(true);
     toast.success("Info copiada al portapapeles");
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const StatusBadge = ({ status }: { status: string }) => {
-    if (status === "healthy")
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-          <CheckCircle2 className="h-3 w-3" />
-          Operativo
-        </span>
-      );
-    if (status === "unhealthy")
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
-          <XCircle className="h-3 w-3" />
-          Error
-        </span>
-      );
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Verificando...
-      </span>
-    );
   };
 
   return (

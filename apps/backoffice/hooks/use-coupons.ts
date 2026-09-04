@@ -44,7 +44,7 @@ async function createCoupon(data: CreateCouponDto): Promise<Coupon> {
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error((err as any).message || "Error al crear cupón");
+    throw new Error((err as { message?: string }).message || "Error al crear cupón");
   }
   return response.json();
 }

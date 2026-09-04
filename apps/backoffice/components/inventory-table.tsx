@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Filter,
   SlidersHorizontal,
+  type LucideIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AdjustStockModal } from "./adjust-stock-modal";
@@ -43,7 +44,15 @@ export function InventorySkeleton() {
 }
 
 // EMPTY STATE
-function EmptyState({ title, description, icon: Icon }: any) {
+function EmptyState({
+  title,
+  description,
+  icon: Icon,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
       <div className="bg-stone-50 p-4 rounded-full mb-4">
@@ -251,7 +260,7 @@ export function InventoryTable() {
           <Filter className="h-5 w-5 text-stone-400" />
           <select
             value={stockFilter}
-            onChange={(e) => setStockFilter(e.target.value as any)}
+            onChange={(e) => setStockFilter(e.target.value as "all" | "low" | "ok")}
             className="px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 bg-white"
           >
             <option value="all">Todos</option>

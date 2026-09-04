@@ -40,4 +40,17 @@ export default tseslint.config(
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
+  {
+    // En specs de Jest, `expect(service.metodo).toHaveBeenCalled()` es el
+    // patron normal y desreferencia el metodo a proposito. unbound-method no
+    // distingue ese caso de una desreferencia accidental en codigo real.
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+      // En un mock, `async` replica la firma del metodo real: hace que un
+      // throw sea promesa rechazada y no excepcion sincrona. No es un await
+      // olvidado.
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
 );

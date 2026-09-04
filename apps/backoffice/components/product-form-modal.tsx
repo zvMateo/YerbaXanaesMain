@@ -72,6 +72,11 @@ export function ProductFormModal({
   // Filtrar solo insumos a granel (GRAMS)
   const bulkItems = inventory.filter((item) => item.unit === "GRAMS");
 
+  // shortcut: sincronizar los 9 estados del form con la prop desde un efecto.
+  // El fix real es key={activeProduct?.id ?? "new"} donde products-manager
+  // renderiza el modal: React lo remonta y cada useState arranca derivado de
+  // activeProduct, sin este efecto. Se hace cuando la Fase 7 toque el archivo.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (activeProduct) {
       setName(activeProduct.name);
@@ -123,6 +128,7 @@ export function ProductFormModal({
       setCreatedProduct(null);
     }
   }, [activeProduct, open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!open) return null;
 

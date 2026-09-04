@@ -61,6 +61,7 @@ import {
 import { toast } from "sonner";
 import { CreateOrderModal } from "./create-order-modal";
 import { CreatePaymentLinkModal } from "./create-payment-link-modal";
+import { useMounted } from "@/hooks/use-mounted";
 import {
   copyPaymentLink,
   useCreatePaymentLink,
@@ -395,7 +396,7 @@ function StateHistoryModal({
                   </p>
                   {entry.reason && (
                     <p className="text-xs text-stone-500 italic">
-                      "{entry.reason}"
+                      &ldquo;{entry.reason}&rdquo;
                     </p>
                   )}
                 </div>
@@ -1780,10 +1781,10 @@ function OrderDetailDrawer({
     TRANSFER: "Transferencia",
   };
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
 
+  // Bloquea el scroll de fondo mientras el drawer esta abierto.
   useEffect(() => {
-    setMounted(true);
     const prevBody = document.body.style.overflow;
     const prevHtml = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";

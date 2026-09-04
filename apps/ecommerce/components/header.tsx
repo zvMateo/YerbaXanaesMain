@@ -10,6 +10,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { cn } from "@/lib/utils";
 import { BrandSeal } from "@/components/brand-seal";
 import { brand } from "@/lib/brand";
+import { useMounted } from "@/hooks/use-mounted";
 
 const NAV_LINKS = [
   { href: "/", label: "Inicio" },
@@ -21,7 +22,7 @@ const NAV_LINKS = [
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const { items, toggleCart } = useCartStore();
   const pathname = usePathname();
 
@@ -32,13 +33,13 @@ export function Header() {
     return pathname.startsWith(href);
   }
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
+  // Cerrar el menu al navegar. Va durante el render y no en un efecto: un
+  // efecto alcanza a pintar el menu abierto sobre la pagina nueva.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
     setIsMenuOpen(false);
-  }, [pathname]);
+  }
 
   useEffect(() => {
     if (!isMenuOpen) return;

@@ -815,7 +815,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
       // Método desconocido: dejamos la orden PENDING para reconciliación
       this.logger.warn(
-        `selectedPaymentMethod desconocido: ${dto.selectedPaymentMethod}`,
+        `selectedPaymentMethod desconocido: ${String(dto.selectedPaymentMethod)}`,
       );
       return { orderId: order.id, status: 'pending' };
     } catch (error) {
