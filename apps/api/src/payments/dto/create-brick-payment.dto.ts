@@ -194,6 +194,12 @@ export class CreateBrickPaymentDto {
   @IsString()
   shippingDeliveryType?: string;
 
+  // Nombre de la tarifa que eligio el comprador (ej. "Clasico Domicilio").
+  // El server la usa para cotizar la misma y no otra del mismo tipo.
+  @IsOptional()
+  @IsString()
+  shippingProductName?: string;
+
   // Código de sucursal de Correo (requerido si shippingDeliveryType=S)
   @IsOptional()
   @IsString()

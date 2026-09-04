@@ -27,6 +27,7 @@ import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { CouponsService } from '../coupons/coupons.service';
 import { PaymentsSyncService } from './payments-sync.service';
 import { ShippingService } from '../shipping/shipping.service';
+import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
 
 // MP corta el statement_descriptor a 13 caracteres (límite documentado
 // en Checkout Pro /checkout/preferences). Valores más largos pueden
@@ -78,6 +79,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private readonly coupons: CouponsService,
     private readonly paymentsSync: PaymentsSyncService,
     private readonly shipping: ShippingService,
+    private readonly pricing: CheckoutPricingService,
   ) {
     const client = new MercadoPagoConfig({
       accessToken: this.config.get<string>('MP_ACCESS_TOKEN')!,
@@ -161,14 +163,23 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       this.config.get<string>('API_URL') || 'http://localhost:3001'
     ).replace(/\/$/, '');
 
-    // 1. Calcular monto
-    const { finalAmount, shippingCost, couponValidation } =
-      await this.computeCheckoutTotals(
-        dto.orderItems,
-        dto.shippingCost,
-        dto.couponCode,
-        'brick-init',
-      );
+    // 1. Cotizar en el server. dto.shippingCost no se lee: el precio del envio
+    //    lo decide CheckoutPricingService, nunca el cliente.
+    const quote = await this.pricing.quote({
+      orderItems: dto.orderItems,
+      deliveryType: dto.deliveryType === 'pickup' ? 'pickup' : 'shipping',
+      shippingDeliveryType: dto.shippingDeliveryType as 'D' | 'S' | undefined,
+      shippingZip: dto.shippingZip,
+      shippingProductName: dto.shippingProductName,
+      couponCode: dto.couponCode,
+    });
+
+    if (quote.couponError) {
+      throw new BadRequestException(quote.couponError);
+    }
+
+    const finalAmount = quote.total;
+    const shippingCost = quote.shippingCost;
 
     // 2. Crear orden PENDING (decrementa stock con row locks)
     const order = await this.createPendingOrder({
@@ -194,15 +205,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       paymentProvider: PaymentProvider.MERCADOPAGO,
     });
 
-    // Aplicar cupón a la orden si corresponde
-    if (couponValidation) {
+    // Aplicar cupon a la orden si corresponde
+    if (quote.couponId) {
+      const { couponId, couponDiscount } = quote;
       await this.prisma.$transaction(async (tx) => {
-        await this.coupons.applyToOrder(
-          tx,
-          order.id,
-          couponValidation.couponId,
-          couponValidation.discountAmount,
-        );
+        await this.coupons.applyToOrder(tx, order.id, couponId, couponDiscount);
       });
     }
 
@@ -552,32 +559,26 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new InternalServerErrorException('Falta MP_ACCESS_TOKEN');
     }
 
-    // 1. Calcular monto real en backend (nunca confiar en transaction_amount del cliente)
-    const itemsSubtotal = await this.calculateOrderItemsSubtotal(
-      dto.orderItems,
-    );
-    const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
-    const grossAmount = itemsSubtotal + shippingCost;
+    // 1. Cotizar en el server. Ni el transaction_amount ni el shippingCost del
+    //    cliente entran en el calculo: solo se usan para detectar desfasajes.
+    const quote = await this.pricing.quote({
+      orderItems: dto.orderItems,
+      deliveryType: dto.deliveryType === 'pickup' ? 'pickup' : 'shipping',
+      shippingDeliveryType: dto.shippingDeliveryType as 'D' | 'S' | undefined,
+      shippingZip: dto.shippingZip,
+      shippingProductName: dto.shippingProductName,
+      couponCode: dto.couponCode,
+    });
 
-    let couponValidation: Awaited<
-      ReturnType<CouponsService['validate']>
-    > | null = null;
-
-    if (dto.couponCode) {
-      try {
-        couponValidation = await this.coupons.validate(
-          dto.couponCode,
-          grossAmount,
-        );
-      } catch {
-        this.logger.warn(
-          `Cupón ${dto.couponCode} inválido en brick — ignorado`,
-        );
-      }
+    if (quote.couponError) {
+      throw new BadRequestException(quote.couponError);
     }
 
-    const couponDiscount = couponValidation?.discountAmount ?? 0;
-    const finalAmount = Math.max(0, grossAmount - couponDiscount);
+    const shippingCost = quote.shippingCost;
+    const couponValidation = quote.couponId
+      ? { couponId: quote.couponId, discountAmount: quote.couponDiscount }
+      : null;
+    const finalAmount = quote.total;
 
     // Validar monto solo si el Brick envía formData (wallet_purchase no lo hace)
     const clientAmount = dto.formData
@@ -637,56 +638,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           notes: dto.notes,
         });
       } else {
-        /**
-         * RE-COTIZAR ENVÍO EN EL SERVER — Protege contra:
-         * a) CP modificado por el usuario entre delivery-step y brick-init
-         * b) Tarifas de Correo Argentino actualizadas desde la cotización original
-         * c) Manipulación del shippingCost en el payload del cliente
-         * Solo aplica para método "correo_argentino". Otros providers se ignoran.
-         */
-        let serverShippingCost = shippingCost;
-
-        if (dto.shippingProvider === 'correo_argentino' && dto.shippingZip) {
-          try {
-            const rateResponse = await this.shipping.getRates({
-              items: dto.orderItems,
-              postalCodeDestination: dto.shippingZip,
-            });
-
-            if (rateResponse.rates.length > 0) {
-              const cheapestRate = rateResponse.rates.reduce((a, b) =>
-                a.price <= b.price ? a : b,
-              );
-              serverShippingCost = cheapestRate.price;
-            }
-          } catch (error) {
-            // Correo falló — usar el shippingCost del cliente (no blockeamos el pago)
-            this.logger.warn(
-              `No se pudo re-cotizar envío para orden ${existing.id} — usando costo original`,
-              error,
-            );
-          }
-        }
-
-        // Si Correo nos da un costo distinto al enviado, rechazar el pago.
-        // El cliente debe volver al paso de envío para re-cotizar y confirmar el nuevo total.
-        // Cancelamos la orden y restauramos stock para no dejarla colgada.
-        if (Math.abs(serverShippingCost - shippingCost) > 0.5) {
-          this.logger.warn(
-            `Shipping cost mismatch en orden ${existing.id}: ` +
-              `client=${shippingCost} server=${serverShippingCost} — rechazando pago`,
-          );
-          await this.cancelPendingOrderWithStockRestore(
-            existing.id,
-            'shipping_cost_changed',
-            undefined,
-            'PAYMENT_REJECTED',
-          );
-          throw new BadRequestException(
-            'El costo de envío cambió desde tu última cotización. Volvé al paso de envío y cotizá nuevamente.',
-          );
-        }
-
+        // La cotizacion del server ya es la autoritativa: no hay nada que
+        // re-cotizar ni con que compararla. El bloque anterior tomaba el
+        // minimo global de las tarifas de Correo, que mezcla domicilio con
+        // sucursal, y cancelaba toda orden con envio a domicilio.
         // Aplicar cupón si viene en el submit y no fue aplicado en brick-init
         if (couponValidation) {
           try {
@@ -1906,14 +1861,25 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.assertPendingEmailRateLimit(dto.customerEmail);
+    // Cotizacion server-side, igual que los caminos de Mercado Pago.
+    const quote = await this.pricing.quote({
+      orderItems: dto.orderItems,
+      deliveryType: dto.deliveryType === 'pickup' ? 'pickup' : 'shipping',
+      shippingDeliveryType: dto.shippingDeliveryType as 'D' | 'S' | undefined,
+      shippingZip: dto.shippingZip,
+      shippingProductName: dto.shippingProductName,
+      couponCode: dto.couponCode,
+    });
 
-    const { finalAmount, shippingCost, couponValidation } =
-      await this.computeCheckoutTotals(
-        dto.orderItems,
-        dto.shippingCost,
-        dto.couponCode,
-        'offline-checkout',
-      );
+    if (quote.couponError) {
+      throw new BadRequestException(quote.couponError);
+    }
+
+    const finalAmount = quote.total;
+    const shippingCost = quote.shippingCost;
+    const couponValidation = quote.couponId
+      ? { couponId: quote.couponId, discountAmount: quote.couponDiscount }
+      : null;
 
     let order: { id: string; total: number | Prisma.Decimal } | null = null;
 
@@ -2050,39 +2016,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-  }
-
-  private async computeCheckoutTotals(
-    orderItems: { variantId: string; quantity: number }[],
-    shippingCostRaw: number | undefined,
-    couponCode: string | undefined,
-    couponLogContext: string,
-  ): Promise<{
-    shippingCost: number;
-    couponValidation: Awaited<ReturnType<CouponsService['validate']>> | null;
-    finalAmount: number;
-  }> {
-    const itemsSubtotal = await this.calculateOrderItemsSubtotal(orderItems);
-    const shippingCost = Math.max(0, Number(shippingCostRaw ?? 0));
-    const grossAmount = itemsSubtotal + shippingCost;
-
-    let couponValidation: Awaited<
-      ReturnType<CouponsService['validate']>
-    > | null = null;
-
-    if (couponCode) {
-      try {
-        couponValidation = await this.coupons.validate(couponCode, grossAmount);
-      } catch {
-        this.logger.warn(
-          `Cupón ${couponCode} inválido en ${couponLogContext} — ignorado`,
-        );
-      }
-    }
-
-    const couponDiscount = couponValidation?.discountAmount ?? 0;
-    const finalAmount = Math.max(0, grossAmount - couponDiscount);
-    return { shippingCost, couponValidation, finalAmount };
   }
 
   // -------------------------------------------------------

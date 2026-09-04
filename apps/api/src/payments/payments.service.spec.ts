@@ -7,6 +7,7 @@ import { PaymentsSyncService } from './payments-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
+import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
 import { OrderStatus } from '@prisma/client';
 
 /**
@@ -22,6 +23,7 @@ describe('PaymentsService - Integration Tests', () => {
   let service: PaymentsService;
   let prismaService: PrismaService;
   let paymentsSyncService: PaymentsSyncService;
+  let pricingService: { quote: jest.Mock };
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -92,12 +94,19 @@ describe('PaymentsService - Integration Tests', () => {
             getRates: jest.fn(),
           },
         },
+        {
+          provide: CheckoutPricingService,
+          useValue: {
+            quote: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<PaymentsService>(PaymentsService);
     prismaService = module.get<PrismaService>(PrismaService);
     paymentsSyncService = module.get<PaymentsSyncService>(PaymentsSyncService);
+    pricingService = module.get(CheckoutPricingService);
   });
 
   beforeEach(() => {
@@ -147,6 +156,18 @@ describe('PaymentsService - Integration Tests', () => {
     });
 
     it('rechaza processBrickPayment cuando el monto del cliente no coincide con el cálculo del servidor', async () => {
+      pricingService.quote.mockResolvedValue({
+        lines: [],
+        itemsSubtotal: 120,
+        shippingCost: 0,
+        shippingProvider: 'pickup',
+        freeShippingApplied: false,
+        couponCode: null,
+        couponId: null,
+        couponDiscount: 0,
+        couponError: null,
+        total: 120,
+      });
       jest
         .spyOn(prismaService.productVariant, 'findMany')
         .mockResolvedValue([{ id: 'var-1', price: 120 }] as any);
@@ -175,72 +196,67 @@ describe('PaymentsService - Integration Tests', () => {
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it('rechaza processBrickPayment cuando re-cotización detecta shipping cost distinto y cancela la orden', async () => {
-      // Setup: orden brick-init existente con shippingCost=100
+    it('no rechaza el pago a domicilio: la cotizacion del server es la unica', async () => {
+      // Antes, el server re-cotizaba y tomaba el minimo global de las tarifas
+      // de Correo. Como sucursal siempre sale mas barata que domicilio, todo
+      // pago a domicilio se rechazaba y la orden se cancelaba. Ahora la
+      // cotizacion sale de CheckoutPricingService, que filtra por tipo.
+      pricingService.quote.mockResolvedValue({
+        lines: [],
+        itemsSubtotal: 900,
+        shippingCost: 100,
+        shippingProvider: 'correo_argentino',
+        freeShippingApplied: false,
+        couponCode: null,
+        couponId: null,
+        couponDiscount: 0,
+        couponError: null,
+        total: 1000,
+      });
+
       jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
-        id: 'order-shipping-mismatch',
+        id: 'order-domicilio',
         total: 1000,
         status: OrderStatus.PENDING,
         deletedAt: null,
-      } as any);
+      } as never);
 
-      jest
-        .spyOn(prismaService.productVariant, 'findMany')
-        .mockResolvedValue([{ id: 'var-1', price: 900 }] as any);
-
-      // Mock: shipping.getRates devuelve un costo significativamente distinto (50 vs 100)
-      const shippingService = (service as any).shipping as {
-        getRates: jest.Mock;
-      };
-      shippingService.getRates.mockResolvedValue({
-        rates: [
-          {
-            deliveredType: 'D',
-            productName: 'Correo Argentino Clasico',
-            price: 50,
-            deliveryTimeMin: '2',
-            deliveryTimeMax: '5',
-            label: 'A domicilio — $50',
-          },
-        ],
-        source: 'correo_argentino',
-        packageWeightGrams: 600,
-      });
-
-      // Spy: verificar que la cancelación se invoca con los args correctos
       const cancelSpy = jest
-        .spyOn<any, any>(service as any, 'cancelPendingOrderWithStockRestore')
-        .mockResolvedValue(true);
+        .spyOn<
+          never,
+          never
+        >(service as never, 'cancelPendingOrderWithStockRestore' as never)
+        .mockResolvedValue(true as never);
 
-      await expect(
-        service.processBrickPayment({
+      // Falla al llamar a Mercado Pago, que es despues del punto que importa.
+      await service
+        .processBrickPayment({
           selectedPaymentMethod: 'credit_card',
-          existingOrderId: 'order-shipping-mismatch',
+          existingOrderId: 'order-domicilio',
           formData: {
             token: 'tok_test',
             payment_method_id: 'visa',
-            transaction_amount: 1000, // 900 items + 100 shipping (cliente)
+            transaction_amount: 1000,
             installments: 1,
             payer: { email: 'test@yerba.com' },
           },
           customerName: 'Test User',
           orderItems: [{ variantId: 'var-1', quantity: 1 }],
-          shippingCost: 100,
           shippingProvider: 'correo_argentino',
           shippingZip: '5000',
+          shippingDeliveryType: 'D',
           deliveryType: 'shipping',
-        }),
-      ).rejects.toThrow(BadRequestException);
+        } as never)
+        .catch(() => undefined);
 
-      expect(cancelSpy).toHaveBeenCalledWith(
-        'order-shipping-mismatch',
+      // Puede cancelarse por el fallo de Mercado Pago, pero nunca por el
+      // motivo del bug: el desfasaje de envio ya no existe.
+      expect(cancelSpy).not.toHaveBeenCalledWith(
+        expect.anything(),
         'shipping_cost_changed',
-        undefined,
-        'PAYMENT_REJECTED',
+        expect.anything(),
+        expect.anything(),
       );
-      expect(global.fetch).not.toHaveBeenCalled();
-
-      // Restaurar spy para no contaminar tests siguientes
       cancelSpy.mockRestore();
     });
 
@@ -769,6 +785,67 @@ describe('PaymentsService - Integration Tests', () => {
       // y se esperaría un 403 Forbidden
 
       expect(true).toBe(true); // Placeholder para verificación manual en e2e
+    });
+  });
+
+  describe('pricing centralizado', () => {
+    it('brickInit persiste el envio cotizado por el server, no el del cliente', async () => {
+      pricingService.quote.mockResolvedValue({
+        lines: [
+          {
+            variantId: 'var-1',
+            quantity: 1,
+            unitPrice: 10000,
+            lineTotal: 10000,
+            productName: 'Yerba',
+          },
+        ],
+        itemsSubtotal: 10000,
+        shippingCost: 9000,
+        shippingProvider: 'correo_argentino',
+        freeShippingApplied: false,
+        couponCode: null,
+        couponId: null,
+        couponDiscount: 0,
+        couponError: null,
+        total: 19000,
+      });
+
+      const createSpy = jest
+        .spyOn(
+          service as unknown as {
+            createPendingOrder: (p: unknown) => Promise<unknown>;
+          },
+          'createPendingOrder',
+        )
+        .mockResolvedValue({ id: 'order-1', total: 19000, status: 'PENDING' });
+
+      (prismaService.order.count as jest.Mock).mockResolvedValue(0);
+      (prismaService.productVariant.findMany as jest.Mock).mockResolvedValue(
+        [],
+      );
+
+      // La creacion de la preferencia en Mercado Pago falla sin credenciales
+      // reales; lo que verificamos ya ocurrio antes de ese punto.
+      await service
+        .brickInit({
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+          customerEmail: 'test@example.com',
+          deliveryType: 'shipping',
+          shippingDeliveryType: 'D',
+          shippingZip: '5000',
+          shippingCost: 0, // el cliente intenta envio gratis
+        } as never)
+        .catch(() => undefined);
+
+      const created = createSpy.mock.calls[0][0] as {
+        shippingCost: number;
+        totalAmount: number;
+      };
+      expect(created.shippingCost).toBe(9000);
+      expect(created.totalAmount).toBe(19000);
+
+      createSpy.mockRestore();
     });
   });
 });
