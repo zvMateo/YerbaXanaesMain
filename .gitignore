@@ -58,3 +58,9 @@ Img-claude/
 **/playwright-report/
 **/test-results/
 **/e2e/.auth/
+
+# Worktrees generados por Orca (herramienta local, no es codigo del proyecto)
+.orca/
+
+# Backups de configs ya versionadas
+*.bak
