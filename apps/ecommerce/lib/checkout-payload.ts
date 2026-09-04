@@ -26,6 +26,9 @@ export function buildPublicCheckoutPayload(
     shippingCost: form.shippingCost ?? 0,
     shippingProvider: form.shippingProvider || undefined,
     shippingDeliveryType: form.shippingDeliveryType || undefined,
+    // Sin esto el server cotiza la tarifa más barata del tipo elegido, no la
+    // que tocó el comprador, y el total del Brick no coincide con el resumen.
+    shippingProductName: form.shippingProductName || undefined,
     shippingAgencyCode: form.shippingAgencyCode || undefined,
     couponCode: form.couponCode || undefined,
     notes: form.notes || undefined,

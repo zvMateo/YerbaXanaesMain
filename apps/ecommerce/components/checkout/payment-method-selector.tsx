@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { CheckoutFormData } from "@/schemas/checkout-schema";
 import { useCartStore } from "@/stores/cart-store";
+import { useStoreSettings } from "@/hooks/use-store-settings";
 import { brand, shippingWhatsappUrl } from "@/lib/brand";
 import { buildPublicCheckoutPayload } from "@/lib/checkout-payload";
 import { ApiEnvelope, OfflineCheckoutResult, TransferInstructions } from "@repo/types";
@@ -136,6 +137,7 @@ export function PaymentMethodSelector({
 }: PaymentMethodSelectorProps) {
   const { setValue, watch, getValues } = useFormContext<CheckoutFormData>();
   const { items } = useCartStore();
+  const { data: settings } = useStoreSettings();
   const paymentMethod = watch("paymentMethod");
 
   const [transferInfo, setTransferInfo] = useState<TransferInstructions | null>(
@@ -236,14 +238,27 @@ export function PaymentMethodSelector({
   };
 
   const transferEnabled = Boolean(transferInfo);
+
+  // `!== false` en vez de `=== true`: mientras la configuración no cargó, el
+  // método se muestra. Si estuviera apagado el server lo rechaza igual
+  // (assertPaymentMethodEnabled), así que no hay riesgo de cobrar por un medio
+  // deshabilitado — solo se evita un checkout vacío durante el primer render.
+  const mercadoPagoEnabled = settings?.paymentMercadoPago !== false;
+  const cashEnabled = settings?.paymentCash !== false;
+  const transferToggleEnabled = settings?.paymentTransfer !== false;
+
   const methods = [
-    {
-      id: "mercadopago" as const,
-      label: "Mercado Pago",
-      copy: "Pago instantáneo con tarjeta, débito o dinero en cuenta.",
-      icon: Wallet,
-    },
-    ...(transferEnabled
+    ...(mercadoPagoEnabled
+      ? [
+          {
+            id: "mercadopago" as const,
+            label: "Mercado Pago",
+            copy: "Pago instantáneo con tarjeta, débito o dinero en cuenta.",
+            icon: Wallet,
+          },
+        ]
+      : []),
+    ...(transferEnabled && transferToggleEnabled
       ? [
           {
             id: "transfer" as const,
@@ -253,7 +268,7 @@ export function PaymentMethodSelector({
           },
         ]
       : []),
-    ...(isPickup
+    ...(isPickup && cashEnabled
       ? [
           {
             id: "cash" as const,
@@ -264,6 +279,17 @@ export function PaymentMethodSelector({
         ]
       : []),
   ];
+
+  // Si la clienta apaga el medio que estaba seleccionado, el formulario queda
+  // apuntando a una opción que ya no se dibuja. Los otros dos efectos caen a
+  // "mercadopago", que también puede estar apagado, así que acá se elige el
+  // primero que quede en pie.
+  const availableIds = methods.map((method) => method.id).join(",");
+  useEffect(() => {
+    const ids = availableIds ? availableIds.split(",") : [];
+    if (ids.length === 0 || ids.includes(paymentMethod)) return;
+    setValue("paymentMethod", ids[0] as CheckoutFormData["paymentMethod"]);
+  }, [availableIds, paymentMethod, setValue]);
 
   return (
     <div className="space-y-4">

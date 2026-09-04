@@ -9,6 +9,7 @@ import {
   CheckoutFormData,
 } from "@/schemas/checkout-schema";
 import { useCartStore } from "@/stores/cart-store";
+import { useCheckoutQuote } from "@/hooks/use-checkout-quote";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
@@ -191,7 +192,52 @@ export function CheckoutForm() {
     },
   });
 
-  const { trigger, watch, reset, getValues, register } = methods;
+  const { trigger, watch, reset, getValues, register, setValue } = methods;
+
+  // Cotización autoritativa. El server decide envío, descuento y total; acá
+  // solo se muestran. Los campos vacíos van como undefined porque el DTO
+  // valida formato en cuanto vienen presentes.
+  const watchedDeliveryType = watch("deliveryType");
+  const watchedShippingDeliveryType = watch("shippingDeliveryType");
+  const watchedZip = watch("zipCode");
+  const watchedShippingProductName = watch("shippingProductName");
+  const watchedCouponCode = watch("couponCode");
+
+  const quote = useCheckoutQuote(
+    items.length > 0
+      ? {
+          orderItems: items.map((item) => ({
+            variantId: item.variantId,
+            quantity: item.quantity,
+          })),
+          deliveryType:
+            watchedDeliveryType === "pickup" ? "pickup" : "shipping",
+          shippingDeliveryType:
+            watchedShippingDeliveryType === "D" ||
+            watchedShippingDeliveryType === "S"
+              ? watchedShippingDeliveryType
+              : undefined,
+          // Solo un CP completo: mandar "5" mientras el comprador tipea da
+          // 400 y dispara una cotización por tecla.
+          shippingZip: /^\d{4,8}$/.test(watchedZip ?? "")
+            ? watchedZip
+            : undefined,
+          shippingProductName: watchedShippingProductName || undefined,
+          couponCode: watchedCouponCode || undefined,
+        }
+      : null,
+  );
+
+  // El cupón lo valida el server dentro de la cotización. Si lo rechaza, se
+  // avisa y se limpia, en vez de dejar un descuento fantasma en pantalla que
+  // después hace fallar el cobro.
+  const quotedCouponError = quote.data?.couponError ?? null;
+  useEffect(() => {
+    if (!quotedCouponError) return;
+    toast.error("Cupón rechazado", { description: quotedCouponError });
+    setValue("couponCode", undefined);
+    setValue("couponDiscount", 0);
+  }, [quotedCouponError, setValue]);
 
   // Restaurar datos del localStorage
   useEffect(() => {
@@ -395,10 +441,12 @@ export function CheckoutForm() {
   }
 
   const selectedPaymentMethod = watch("paymentMethod");
-  const shippingCost = watch("shippingCost") ?? 0;
-  const couponDiscount = watch("couponDiscount") ?? 0;
-  // Monto final para el Payment Brick: items + envío - descuento
-  const brickAmount = Math.max(0, total + shippingCost - couponDiscount);
+  // Envío, descuento y total salen de la cotización del server. El formulario
+  // ya no suma nada: sumar acá y cobrar allá era lo que hacía que el Brick
+  // rechazara el pago por diferencia de centavos.
+  const shippingCost = quote.data?.shippingCost ?? 0;
+  const couponDiscount = quote.data?.couponDiscount ?? 0;
+  const brickAmount = quote.data?.total ?? 0;
 
   // Label del botón Continuar — cambia cuando es pickup en step 1
   const continueLabel =
@@ -486,7 +534,34 @@ export function CheckoutForm() {
               {currentStep === 0 && <PersonalInfoStep />}
               {currentStep === 1 && <DeliveryMethodStep />}
               {currentStep === 2 && <DeliveryDetailsStep />}
-              {currentStep === 3 && (
+              {/* Sin cotización no se cobra: el Brick arrancaría con monto 0
+                  y Mercado Pago rechazaría el pago. */}
+              {currentStep === 3 && !quote.data && (
+                <div className="py-12 text-center">
+                  {quote.isError ? (
+                    <div className="space-y-3">
+                      <AlertTriangle className="mx-auto h-6 w-6 text-red-600" />
+                      <p className="text-sm text-stone-700">
+                        No pudimos calcular el total de tu pedido.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void quote.refetch()}
+                        className="inline-flex min-h-11 items-center justify-center px-6 py-3 bg-terra text-shadow rounded-full hover:bg-terra/90"
+                      >
+                        Reintentar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 text-stone-500">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Calculando el total…
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {currentStep === 3 && quote.data && (
                 <div className="lg:grid lg:grid-cols-3 lg:gap-6">
                   {/* MOBILE: resumen colapsable arriba (hidden en lg+) */}
                   <div className="lg:hidden mb-6">
@@ -511,7 +586,7 @@ export function CheckoutForm() {
                           className="w-full min-h-11 px-3 py-2 text-base border border-stone-200 rounded-lg focus:ring-2 focus:ring-palm focus:border-transparent transition-all resize-none bg-white"
                         />
                       </div>
-                      <CouponInput total={total} />
+                      <CouponInput total={quote.data.itemsSubtotal} />
                     </div>
 
                     <PaymentMethodSelector
@@ -584,13 +659,13 @@ export function CheckoutForm() {
             {currentStep < steps.length - 1 ? (
               <button
                 onClick={handleNext}
-                disabled={isValidatingStock}
+                disabled={isValidatingStock || quote.isFetching}
                 className="inline-flex min-h-11 items-center justify-center gap-2 px-8 py-3 bg-terra text-shadow rounded-full hover:bg-terra/90 disabled:opacity-50"
               >
-                {isValidatingStock ? (
+                {isValidatingStock || quote.isFetching ? (
                   <>
                     <Loader2 className="animate-spin w-5 h-5" />
-                    Validando...
+                    {isValidatingStock ? "Validando..." : "Calculando..."}
                   </>
                 ) : (
                   continueLabel
@@ -623,7 +698,13 @@ export function CheckoutForm() {
             )}
             <div className="flex justify-between font-bold text-lg pt-2 border-t border-stone-200">
               <span>Total</span>
-              <span>${brickAmount.toLocaleString("es-AR")}</span>
+              {quote.data ? (
+                <span>${brickAmount.toLocaleString("es-AR")}</span>
+              ) : (
+                <span className="text-stone-400 font-normal text-base">
+                  Calculando…
+                </span>
+              )}
             </div>
           </div>
         )}

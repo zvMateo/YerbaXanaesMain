@@ -33,17 +33,16 @@ interface CartStore {
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
-
-  // Constants
-  freeShippingThreshold: number;
 }
 
 export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
+      // El umbral de envío gratis NO vive acá: lo decide la clienta desde el
+      // panel y llega por `useStoreSettings`. Hardcodearlo hacía que el
+      // carrito prometiera un envío gratis que el checkout no aplicaba.
       items: [],
       isOpen: false,
-      freeShippingThreshold: 15000,
 
       addItem: (product, variant, quantity = 1) => {
         const { items } = get();

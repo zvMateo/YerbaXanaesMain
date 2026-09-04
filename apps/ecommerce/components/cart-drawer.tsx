@@ -12,6 +12,7 @@ import {
   Package,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cart-store";
+import { useStoreSettings } from "@/hooks/use-store-settings";
 import Link from "next/link";
 import Image from "next/image";
 import { BrandBrick } from "@/components/checkout/brand-brick";
@@ -244,7 +245,11 @@ function FreeShippingProgress({
 
 // Main Drawer Component
 export function CartDrawer() {
-  const { items, isOpen, closeCart, freeShippingThreshold } = useCartStore();
+  const { items, isOpen, closeCart } = useCartStore();
+  const { data: settings } = useStoreSettings();
+  // Sin configuración cargada no se promete envío gratis: mostrar un umbral
+  // inventado y después cobrar el envío es peor que no mostrar nada.
+  const freeShippingThreshold = settings?.freeShippingThreshold ?? null;
 
   // Evita setState en effect para detectar hidratación cliente
   const isHydrated = useSyncExternalStore(
@@ -345,10 +350,12 @@ export function CartDrawer() {
               ) : (
                 <div className="p-4 space-y-4">
                   {/* Free Shipping Progress - Generative UI */}
-                  <FreeShippingProgress
-                    current={total}
-                    threshold={freeShippingThreshold}
-                  />
+                  {freeShippingThreshold !== null && (
+                    <FreeShippingProgress
+                      current={total}
+                      threshold={freeShippingThreshold}
+                    />
+                  )}
 
                   {/* Cart Items */}
                   <AnimatePresence mode="popLayout">
