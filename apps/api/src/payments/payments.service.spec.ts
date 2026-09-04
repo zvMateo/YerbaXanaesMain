@@ -8,7 +8,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
+import { SettingsService } from '../settings/settings.service';
 import { OrderStatus } from '@prisma/client';
+
+/** Todos los medios de pago habilitados — el estado por defecto de la tienda. */
+const ALL_PAYMENT_METHODS_ENABLED = {
+  paymentCash: true,
+  paymentTransfer: true,
+  paymentMercadoPago: true,
+  shippingEnabled: true,
+  shippingFlatRate: 1500,
+  freeShippingThreshold: 15000,
+};
 
 /**
  * TESTS DE INTEGRACIÓN: Payments Service - Stock Recovery & Race Conditions
@@ -24,6 +35,7 @@ describe('PaymentsService - Integration Tests', () => {
   let prismaService: PrismaService;
   let paymentsSyncService: PaymentsSyncService;
   let pricingService: { quote: jest.Mock };
+  let settingsService: { get: jest.Mock };
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -100,6 +112,12 @@ describe('PaymentsService - Integration Tests', () => {
             quote: jest.fn(),
           },
         },
+        {
+          provide: SettingsService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -107,11 +125,14 @@ describe('PaymentsService - Integration Tests', () => {
     prismaService = module.get<PrismaService>(PrismaService);
     paymentsSyncService = module.get<PaymentsSyncService>(PaymentsSyncService);
     pricingService = module.get(CheckoutPricingService);
+    settingsService = module.get(SettingsService);
   });
 
   beforeEach(() => {
     jest.clearAllMocks();
     global.fetch = jest.fn() as any;
+    // Sin toggles apagados salvo que el test diga lo contrario.
+    settingsService.get.mockResolvedValue(ALL_PAYMENT_METHODS_ENABLED);
   });
 
   describe('Phase 1 - Payment Hardening', () => {
@@ -774,6 +795,94 @@ describe('PaymentsService - Integration Tests', () => {
         transferInstructions: null,
         test: false,
       });
+    });
+  });
+
+  describe('toggles de medios de pago', () => {
+    const cashOrder = {
+      customerEmail: 'test@yerba.com',
+      customerName: 'Test',
+      orderItems: [{ variantId: 'var-1', quantity: 1 }],
+      paymentProvider: 'CASH',
+      deliveryType: 'pickup',
+    };
+
+    const transferOrder = { ...cashOrder, paymentProvider: 'TRANSFER' };
+
+    const brickOrder = {
+      customerEmail: 'test@yerba.com',
+      customerName: 'Test',
+      orderItems: [{ variantId: 'var-1', quantity: 1 }],
+      deliveryType: 'pickup',
+    };
+
+    it('rechaza efectivo cuando está deshabilitado en la configuración', async () => {
+      settingsService.get.mockResolvedValue({
+        ...ALL_PAYMENT_METHODS_ENABLED,
+        paymentCash: false,
+      });
+
+      await expect(service.offlineCheckout(cashOrder as any)).rejects.toThrow(
+        'El pago en efectivo no está disponible',
+      );
+
+      expect(prismaService.order.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza transferencia cuando está deshabilitada en la configuración', async () => {
+      settingsService.get.mockResolvedValue({
+        ...ALL_PAYMENT_METHODS_ENABLED,
+        paymentTransfer: false,
+      });
+
+      await expect(
+        service.offlineCheckout(transferOrder as any),
+      ).rejects.toThrow('El pago por transferencia no está disponible');
+
+      expect(prismaService.order.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza brick-init cuando Mercado Pago está deshabilitado', async () => {
+      settingsService.get.mockResolvedValue({
+        ...ALL_PAYMENT_METHODS_ENABLED,
+        paymentMercadoPago: false,
+      });
+
+      await expect(service.brickInit(brickOrder as any)).rejects.toThrow(
+        'El pago con Mercado Pago no está disponible',
+      );
+
+      expect(pricingService.quote).not.toHaveBeenCalled();
+      expect(prismaService.order.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza el Payment Brick cuando Mercado Pago está deshabilitado', async () => {
+      settingsService.get.mockResolvedValue({
+        ...ALL_PAYMENT_METHODS_ENABLED,
+        paymentMercadoPago: false,
+      });
+
+      await expect(
+        service.processBrickPayment({
+          ...brickOrder,
+          selectedPaymentMethod: 'credit_card',
+          formData: { transaction_amount: 1000 },
+        } as any),
+      ).rejects.toThrow('El pago con Mercado Pago no está disponible');
+
+      expect(pricingService.quote).not.toHaveBeenCalled();
+      expect(prismaService.order.create).not.toHaveBeenCalled();
+    });
+
+    it('deja pasar efectivo cuando está habilitado', async () => {
+      // Con el toggle en true el flujo avanza hasta la cotización, que en este
+      // test falla por otro motivo. Lo que importa es que el guard no cortó.
+      (prismaService.order.count as jest.Mock).mockResolvedValue(0);
+      pricingService.quote.mockRejectedValue(new Error('corte deliberado'));
+
+      await expect(service.offlineCheckout(cashOrder as any)).rejects.toThrow(
+        'corte deliberado',
+      );
     });
   });
 

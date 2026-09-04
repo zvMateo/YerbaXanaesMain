@@ -28,6 +28,7 @@ import { CouponsService } from '../coupons/coupons.service';
 import { PaymentsSyncService } from './payments-sync.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
+import { SettingsService } from '../settings/settings.service';
 
 // MP corta el statement_descriptor a 13 caracteres (límite documentado
 // en Checkout Pro /checkout/preferences). Valores más largos pueden
@@ -80,6 +81,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private readonly paymentsSync: PaymentsSyncService,
     private readonly shipping: ShippingService,
     private readonly pricing: CheckoutPricingService,
+    private readonly settings: SettingsService,
   ) {
     const client = new MercadoPagoConfig({
       accessToken: this.config.get<string>('MP_ACCESS_TOKEN')!,
@@ -147,11 +149,51 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
    * 3. Crea preferencia MP con external_reference = orderId y back_urls configurados
    * 4. Devuelve { preferenceId, orderId, amount }
    */
+  /**
+   * Los toggles de medios de pago del panel tienen que valer server-side.
+   * Apagar "Efectivo" en el backoffice bloquea el cobro, no solo la UI de la
+   * tienda: sin esto, un POST directo al API seguía creando la orden.
+   *
+   * Se llama desde los tres puntos de entrada públicos de cobro:
+   * `offlineCheckout`, `brickInit` y `processBrickPayment`.
+   */
+  private async assertPaymentMethodEnabled(
+    provider: PaymentProvider,
+  ): Promise<void> {
+    const storeSettings = await this.settings.get();
+
+    if (provider === PaymentProvider.CASH && !storeSettings.paymentCash) {
+      throw new BadRequestException(
+        'El pago en efectivo no está disponible en este momento.',
+      );
+    }
+
+    if (
+      provider === PaymentProvider.TRANSFER &&
+      !storeSettings.paymentTransfer
+    ) {
+      throw new BadRequestException(
+        'El pago por transferencia no está disponible en este momento.',
+      );
+    }
+
+    if (
+      provider === PaymentProvider.MERCADOPAGO &&
+      !storeSettings.paymentMercadoPago
+    ) {
+      throw new BadRequestException(
+        'El pago con Mercado Pago no está disponible en este momento.',
+      );
+    }
+  }
+
   async brickInit(dto: BrickInitDto): Promise<{
     preferenceId: string;
     orderId: string;
     amount: number;
   }> {
+    await this.assertPaymentMethodEnabled(PaymentProvider.MERCADOPAGO);
+
     // Rate-limit por email (complementa el throttle por IP del controller):
     // rechaza si el comprador ya tiene demasiadas órdenes PENDING activas.
     await this.assertPendingEmailRateLimit(dto.customerEmail);
@@ -533,6 +575,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(
       `Iniciando Payment Brick para ${dto.formData?.payer?.email ?? 'wallet_purchase'} — método: ${dto.selectedPaymentMethod}`,
     );
+
+    // El Brick es otra puerta de entrada a Mercado Pago, independiente de
+    // brick-init: si el toggle está apagado, tampoco cobra por acá.
+    await this.assertPaymentMethodEnabled(PaymentProvider.MERCADOPAGO);
 
     const supportedMethods = new Set([
       'credit_card',
@@ -1841,6 +1887,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     ) {
       throw new BadRequestException('Método de pago offline inválido');
     }
+
+    await this.assertPaymentMethodEnabled(dto.paymentProvider);
 
     if (
       dto.paymentProvider === PaymentProvider.CASH &&
