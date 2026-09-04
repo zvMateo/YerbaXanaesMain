@@ -349,6 +349,173 @@ describe('PaymentsService - Integration Tests', () => {
       ).toHaveBeenCalledTimes(1);
     });
 
+    it('procesa un reembolso de MP sobre una orden ya pagada', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-refund-1';
+      const dataIdUrl = 'mp-pay-refund-1';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'mp-pay-refund-1',
+          external_reference: 'order-refund-1',
+          status: 'refunded',
+          status_detail: 'refunded',
+        }),
+      });
+
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-refund-1',
+        status: OrderStatus.PAID,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
+        .mockReturnValue(OrderStatus.REFUNDED);
+
+      await service.handleWebhook({
+        body: {},
+        signature,
+        requestId,
+        dataIdUrl,
+        typeUrl: 'payment',
+      });
+
+      expect(
+        paymentsSyncService.updateOrderStatusWithAudit,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: 'order-refund-1',
+          newStatus: OrderStatus.REFUNDED,
+          source: 'WEBHOOK_MERCADOPAGO',
+        }),
+      );
+    });
+
+    it('procesa un reembolso que llega por el tópico order', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-refund-2';
+      const dataIdUrl = 'mp-order-refund-1';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          external_reference: 'order-refund-2',
+          status: 'refunded',
+          status_detail: 'refunded',
+          transactions: { payments: [{ id: 'mp-pay-refund-2' }] },
+        }),
+      });
+
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-refund-2',
+        status: OrderStatus.PAID,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
+        .mockReturnValue(OrderStatus.REFUNDED);
+
+      await service.handleWebhook({
+        body: {},
+        signature,
+        requestId,
+        dataIdUrl,
+        typeUrl: 'order',
+      });
+
+      expect(
+        paymentsSyncService.updateOrderStatusWithAudit,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: 'order-refund-2',
+          newStatus: OrderStatus.REFUNDED,
+        }),
+      );
+    });
+
+    it('sigue ignorando un webhook que confirma un pago ya registrado', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-approved-dup';
+      const dataIdUrl = 'mp-pay-approved-1';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'mp-pay-approved-1',
+          external_reference: 'order-approved-1',
+          status: 'approved',
+          status_detail: 'accredited',
+        }),
+      });
+
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-approved-1',
+        status: OrderStatus.PAID,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
+        .mockReturnValue(OrderStatus.PAID);
+
+      await service.handleWebhook({
+        body: {},
+        signature,
+        requestId,
+        dataIdUrl,
+        typeUrl: 'payment',
+      });
+
+      expect(
+        paymentsSyncService.updateOrderStatusWithAudit,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('ignora un reembolso sobre una orden que ya estaba cancelada', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-refund-cancelled';
+      const dataIdUrl = 'mp-pay-refund-3';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'mp-pay-refund-3',
+          external_reference: 'order-cancelled-1',
+          status: 'refunded',
+          status_detail: 'refunded',
+        }),
+      });
+
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-cancelled-1',
+        status: OrderStatus.CANCELLED,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
+        .mockReturnValue(OrderStatus.REFUNDED);
+
+      await service.handleWebhook({
+        body: {},
+        signature,
+        requestId,
+        dataIdUrl,
+        typeUrl: 'payment',
+      });
+
+      expect(
+        paymentsSyncService.updateOrderStatusWithAudit,
+      ).not.toHaveBeenCalled();
+    });
+
     it('ignora webhook viejo cuando la orden ya está en estado terminal', async () => {
       const ts = String(Math.floor(Date.now() / 1000));
       const requestId = 'req-old-1';
@@ -371,10 +538,9 @@ describe('PaymentsService - Integration Tests', () => {
         deletedAt: null,
       } as any);
 
-      const mapStatusSpy = jest.spyOn(
-        paymentsSyncService,
-        'mapMercadoPagoStatus',
-      );
+      jest
+        .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
+        .mockReturnValue(OrderStatus.CANCELLED);
 
       await service.handleWebhook({
         body: {},
@@ -384,7 +550,8 @@ describe('PaymentsService - Integration Tests', () => {
         typeUrl: 'order',
       });
 
-      expect(mapStatusSpy).not.toHaveBeenCalled();
+      // Un pago aprobado en MP no se cancela: si llega un 'cancelled' sobre una
+      // orden que ya cobramos, es un evento viejo o de otro intento de pago.
       expect(
         paymentsSyncService.updateOrderStatusWithAudit,
       ).not.toHaveBeenCalled();

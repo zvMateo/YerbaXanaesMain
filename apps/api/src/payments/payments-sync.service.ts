@@ -277,12 +277,31 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
       return { reconciled: 0, updated: 0, errors: 0 };
     }
 
+    // Los reembolsos llegan sobre órdenes que ya están PAID, así que la pasada
+    // periódica también las mira: es la red que recupera un webhook perdido.
+    // Van acotadas por fecha porque las pagadas se acumulan para siempre y sin
+    // ventana terminarían llenando el batch, dejando sin reconciliar justo las
+    // PENDING, que son las urgentes.
+    const paidLookbackDays = Math.max(
+      1,
+      Number(this.config.get('MP_PAID_RECONCILIATION_DAYS') ?? 30),
+    );
+    const paidCutoff = new Date(
+      Date.now() - paidLookbackDays * 24 * 60 * 60_000,
+    );
+
     // Buscar órdenes que necesitan reconciliar
+    // shortcut: un solo batch para los dos grupos; si el volumen de pagadas
+    // dentro de la ventana llegara a superar el take, hay que partirlo en dos
+    // queries (pendientes primero) para que no se coman el lote.
     const ordersToReconcile = await this.prisma.order.findMany({
       where: {
-        status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
         deletedAt: null,
         mpPaymentId: { not: null },
+        OR: [
+          { status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] } },
+          { status: OrderStatus.PAID, createdAt: { gte: paidCutoff } },
+        ],
       },
       select: {
         id: true,
@@ -290,6 +309,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
         mpPaymentId: true,
         manualOverrideAt: true,
       },
+      orderBy: { createdAt: 'desc' },
       take: 100, // Procesar en batches para no sobrecargar
     });
 

@@ -412,6 +412,32 @@ describe('PaymentsSyncService - Unit Tests', () => {
       expect(result).toEqual({ reconciled: 0, updated: 0, errors: 0 });
     });
 
+    it('incluye las órdenes pagadas recientes para recuperar un reembolso perdido', async () => {
+      jest.spyOn(prismaService.order, 'findMany').mockResolvedValue([] as any);
+
+      await service.reconcileOrdersWithMercadoPago();
+
+      const where = (prismaService.order.findMany as jest.Mock).mock.calls[0][0]
+        .where;
+      const paidBranch = where.OR.find(
+        (branch: any) => branch.status === OrderStatus.PAID,
+      );
+
+      expect(paidBranch).toBeDefined();
+      // Acotadas por fecha: las pagadas se acumulan para siempre y sin ventana
+      // llenarían el batch, dejando sin reconciliar las PENDING.
+      expect(paidBranch.createdAt.gte).toBeInstanceOf(Date);
+      expect(where.OR).toEqual(
+        expect.arrayContaining([
+          {
+            status: {
+              in: [OrderStatus.PENDING, OrderStatus.PROCESSING],
+            },
+          },
+        ]),
+      );
+    });
+
     it('actualiza órdenes donde el estado de MP difiere del local', async () => {
       const pendingOrder = {
         id: 'order-pending',

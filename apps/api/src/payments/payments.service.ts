@@ -1211,15 +1211,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           return { status: 'ok' };
         }
 
-        const isTerminal =
-          existing.status === OrderStatus.PAID ||
-          existing.status === OrderStatus.CANCELLED;
-
-        if (isTerminal) {
-          this.logger.log(`Order ${extRef} ya terminal (${existing.status})`);
-          return { status: 'ok' };
-        }
-
         const newStatus = this.paymentsSync.mapMercadoPagoStatus(
           mpPayment.status,
           mpPayment.status_detail,
@@ -1229,6 +1220,23 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           this.logger.warn(
             `Webhook payment: estado MP desconocido '${mpPayment.status}' para orden ${extRef} — ignorado`,
           );
+          return { status: 'ok' };
+        }
+
+        // Un reembolso sobre una orden ya pagada SÍ tiene que procesarse: es
+        // plata que vuelve al comprador y mercadería que vuelve al inventario.
+        // Antes el guard cortaba antes de mapear el estado y los descartaba a
+        // todos. Una cancelación no entra: un pago aprobado en MP no se
+        // cancela, así que un 'cancelled' sobre algo ya cobrado es un evento
+        // viejo o de otro intento de pago.
+        const isReversal = newStatus === OrderStatus.REFUNDED;
+        const alreadySettled =
+          existing.status === OrderStatus.CANCELLED ||
+          existing.status === OrderStatus.REFUNDED ||
+          (existing.status === OrderStatus.PAID && !isReversal);
+
+        if (alreadySettled) {
+          this.logger.log(`Order ${extRef} sin cambios (${existing.status})`);
           return { status: 'ok' };
         }
 
@@ -1302,15 +1310,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           return { status: 'ok' };
         }
 
-        const isTerminal =
-          existing.status === OrderStatus.PAID ||
-          existing.status === OrderStatus.CANCELLED;
-
-        if (isTerminal) {
-          this.logger.log(`Order ${extRef} ya terminal (${existing.status})`);
-          return { status: 'ok' };
-        }
-
         // Mapear estado MP → nuestro OrderStatus
         const webhookMpPaymentId = mpOrder.transactions?.payments?.[0]?.id;
         const newStatus = this.paymentsSync.mapMercadoPagoStatus(
@@ -1322,6 +1321,23 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           this.logger.warn(
             `Webhook: estado MP desconocido '${mpOrder.status}' para orden ${extRef} — ignorado`,
           );
+          return { status: 'ok' };
+        }
+
+        // Un reembolso sobre una orden ya pagada SÍ tiene que procesarse: es
+        // plata que vuelve al comprador y mercadería que vuelve al inventario.
+        // Antes el guard cortaba antes de mapear el estado y los descartaba a
+        // todos. Una cancelación no entra: un pago aprobado en MP no se
+        // cancela, así que un 'cancelled' sobre algo ya cobrado es un evento
+        // viejo o de otro intento de pago.
+        const isReversal = newStatus === OrderStatus.REFUNDED;
+        const alreadySettled =
+          existing.status === OrderStatus.CANCELLED ||
+          existing.status === OrderStatus.REFUNDED ||
+          (existing.status === OrderStatus.PAID && !isReversal);
+
+        if (alreadySettled) {
+          this.logger.log(`Order ${extRef} sin cambios (${existing.status})`);
           return { status: 'ok' };
         }
 
