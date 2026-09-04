@@ -1,0 +1,8 @@
+FROM oven/bun:1.3.8-slim
+
+# System packages needed for Prisma (openssl) + common dev tools
+RUN apt-get update -y && \
+    apt-get install -y openssl ca-certificates git curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
