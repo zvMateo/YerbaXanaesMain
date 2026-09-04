@@ -12,7 +12,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
 import { BrickInitDto } from './dto/brick-init.dto';
 import { OfflineCheckoutDto } from './dto/offline-checkout.dto';
@@ -29,6 +28,7 @@ import { PaymentsSyncService } from './payments-sync.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
 import { SettingsService } from '../settings/settings.service';
+import { InventoryReservationService } from '../inventory/inventory-reservation.service';
 
 // MP corta el statement_descriptor a 13 caracteres (límite documentado
 // en Checkout Pro /checkout/preferences). Valores más largos pueden
@@ -82,6 +82,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     private readonly shipping: ShippingService,
     private readonly pricing: CheckoutPricingService,
     private readonly settings: SettingsService,
+    private readonly reservation: InventoryReservationService,
   ) {
     const client = new MercadoPagoConfig({
       accessToken: this.config.get<string>('MP_ACCESS_TOKEN')!,
@@ -327,216 +328,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // -------------------------------------------------------
-  // PAGO DIRECTO CON TARJETA (Checkout API - /v1/orders)
-  // -------------------------------------------------------
-  async processCardPayment(dto: CreateOrderPaymentDto) {
-    this.logger.log(
-      `Iniciando pago para ${dto.payer.email} - $${dto.transaction_amount}`,
-    );
-
-    const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
-    if (!accessToken) {
-      throw new InternalServerErrorException('Falta MP_ACCESS_TOKEN');
-    }
-
-    try {
-      const orderItems = dto.orderItems || [];
-      const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
-
-      let finalAmount = dto.transaction_amount;
-      let couponValidation: Awaited<
-        ReturnType<CouponsService['validate']>
-      > | null = null;
-
-      // Si llega contexto de carrito, recalculamos monto en backend.
-      if (orderItems.length > 0) {
-        const itemsSubtotal =
-          await this.calculateOrderItemsSubtotal(orderItems);
-        const grossAmount = itemsSubtotal + shippingCost;
-
-        if (dto.couponCode) {
-          try {
-            couponValidation = await this.coupons.validate(
-              dto.couponCode,
-              grossAmount,
-            );
-          } catch {
-            this.logger.warn(
-              `Cupón ${dto.couponCode} inválido en processCardPayment — ignorado`,
-            );
-          }
-        }
-
-        const discount = couponValidation?.discountAmount ?? 0;
-        finalAmount = Math.max(0, grossAmount - discount);
-
-        if (Math.abs(dto.transaction_amount - finalAmount) > 0.01) {
-          this.logger.warn(
-            `Monto inconsistente en processCardPayment: client=${dto.transaction_amount.toFixed(2)} server=${finalAmount.toFixed(2)}`,
-          );
-          throw new BadRequestException(
-            'El monto del pago cambió. Reintentá para recalcular el total.',
-          );
-        }
-      }
-
-      // 1. Crear la Order en nuestra base de datos en estado PENDING y descontar stock
-      const order = await this.createPendingOrder({
-        customerEmail: dto.payer.email,
-        customerName: dto.customerName,
-        customerPhone: dto.customerPhone,
-        orderItems,
-        totalAmount: finalAmount,
-        deliveryType: dto.deliveryType,
-        shippingAddress: dto.shippingAddress,
-        shippingCity: dto.shippingCity,
-        shippingProvinceCode: dto.shippingProvinceCode,
-        shippingZip: dto.shippingZip,
-        shippingCost,
-        shippingProvider: dto.shippingProvider,
-      });
-
-      if (couponValidation) {
-        await this.prisma.$transaction(async (tx) => {
-          await this.coupons.applyToOrder(
-            tx,
-            order.id,
-            couponValidation.couponId,
-            couponValidation.discountAmount,
-          );
-        });
-      }
-
-      this.logger.log(`Orden local creada: ${order.id}`);
-
-      // 2. Construir el payload exacto para la API de MP
-      // IMPORTANTE: En API v1/orders, total_amount y amount DEBEN ser strings con formato "00.00"
-      const amountStr = finalAmount.toFixed(2);
-
-      const mpPayload = {
-        type: 'online',
-        processing_mode: 'automatic',
-        total_amount: amountStr,
-        external_reference: order.id,
-        payer: {
-          email: dto.payer.email,
-        },
-        transactions: {
-          payments: [
-            {
-              amount: amountStr,
-              payment_method: {
-                id: dto.payment_method_id,
-                // Si la tarjeta de test falla por falta de tipo, asumimos credit_card
-                type: 'credit_card',
-                token: dto.token,
-                installments: dto.installments || 1,
-                ...(dto.issuer_id && dto.issuer_id !== '0'
-                  ? { issuer_id: dto.issuer_id }
-                  : {}),
-              },
-            },
-          ],
-        },
-      };
-
-      const idempotencyKey = crypto
-        .createHash('sha256')
-        .update(
-          JSON.stringify({
-            orderId: order.id,
-            amount: amountStr,
-            paymentMethodId: dto.payment_method_id,
-            installments: dto.installments || 1,
-            payerEmail: dto.payer.email,
-          }),
-        )
-        .digest('hex');
-
-      // 3. Ejecutar POST a Mercado Pago vía fetch nativo
-      this.logger.log(`Enviando POST a /v1/orders para order ${order.id}`);
-      const response = await fetch('https://api.mercadopago.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-          'X-Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify(mpPayload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        this.logger.error('Error de MP al procesar Order', data);
-        // Hacer rollback de la orden local y restaurar stock
-        await this.cancelPendingOrderWithStockRestore(
-          order.id,
-          'direct_payment_error',
-          undefined,
-          'PAYMENT_REJECTED',
-        );
-
-        throw new BadRequestException({
-          message: 'Error de MercadoPago al procesar el pago',
-          cause: data.cause || data,
-        });
-      }
-
-      // 4. Analizar respuesta de la transacción
-      // En "automatic", el pago se procesa asíncronamente o retorna el status final
-      const mpStatus = data.status; // ej: "processed", "action_required"
-      const paymentStatus = data.transactions?.payments?.[0]?.status; // "processed", "rejected", "pending"
-      const paymentStatusDetail =
-        data.transactions?.payments?.[0]?.status_detail; // "accredited"
-
-      this.logger.log(
-        `MP Order ${data.id} - Status: ${mpStatus} - Payment: ${paymentStatus}`,
-      );
-
-      // Si se acreditó inmediatamente, actualizamos la orden
-      if (mpStatus === 'processed' && paymentStatusDetail === 'accredited') {
-        const cardMpPaymentId = data.transactions.payments[0].id;
-        await this.prisma.order.update({
-          where: { id: order.id },
-          data: {
-            paymentProvider: PaymentProvider.MERCADOPAGO,
-            mpPaymentId: cardMpPaymentId,
-          },
-        });
-        await this.paymentsSync.updateOrderStatusWithAudit({
-          orderId: order.id,
-          newStatus: OrderStatus.PAID,
-          source: 'CARD_PAYMENT_API',
-          mpPaymentId: cardMpPaymentId,
-          mpRawStatus: paymentStatusDetail,
-        });
-
-        return {
-          id: data.transactions.payments[0].id,
-          status: 'approved',
-          detail: paymentStatusDetail,
-          orderId: order.id,
-        };
-      }
-
-      // Si quedó en pendiente (o rechazado), devolvemos el estado correspondiente
-      return {
-        id: data.id,
-        status: mpStatus,
-        detail: paymentStatusDetail || data.status_detail,
-        orderId: order.id,
-      };
-    } catch (error: any) {
-      this.logger.error('Excepción en processCardPayment', error);
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Error interno al procesar pago');
-    }
-  }
-
   async getOrderPaymentStatus(orderId: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -605,16 +396,78 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new InternalServerErrorException('Falta MP_ACCESS_TOKEN');
     }
 
-    // 1. Cotizar en el server. Ni el transaction_amount ni el shippingCost del
+    // 1. Resolver primero que orden se esta pagando. Si brick-init ya la creo,
+    //    esa orden manda: sus items y su envio quedaron congelados y el body
+    //    del cliente no puede redefinir que se esta comprando.
+    const existing = dto.existingOrderId
+      ? await this.prisma.order.findUnique({
+          where: { id: dto.existingOrderId },
+          select: {
+            id: true,
+            total: true,
+            status: true,
+            deletedAt: true,
+            customerEmail: true,
+            shippingCost: true,
+            items: {
+              select: { variantId: true, quantity: true, price: true },
+            },
+          },
+        })
+      : null;
+
+    const reusable =
+      existing && !existing.deletedAt && existing.status === OrderStatus.PENDING
+        ? existing
+        : null;
+
+    if (dto.existingOrderId && !reusable) {
+      this.logger.warn(
+        `brick-init order ${dto.existingOrderId} no disponible — creando nueva orden`,
+      );
+    }
+
+    // El que paga tiene que ser el que creo la orden. Sin este chequeo,
+    // conociendo un id ajeno se podia pagar la orden de otro comprador.
+    // Va antes del try que cancela la orden: un rechazo no puede destruirla.
+    const submittedEmail = dto.formData?.payer?.email?.trim().toLowerCase();
+    if (
+      reusable &&
+      submittedEmail &&
+      reusable.customerEmail.trim().toLowerCase() !== submittedEmail
+    ) {
+      this.logger.warn(
+        `Intento de reutilizar la orden ${reusable.id} con otro email`,
+      );
+      throw new BadRequestException(
+        'La orden no corresponde a este comprador.',
+      );
+    }
+
+    // 2. Cotizar en el server. Ni el transaction_amount ni el shippingCost del
     //    cliente entran en el calculo: solo se usan para detectar desfasajes.
-    const quote = await this.pricing.quote({
-      orderItems: dto.orderItems,
-      deliveryType: dto.deliveryType === 'pickup' ? 'pickup' : 'shipping',
-      shippingDeliveryType: dto.shippingDeliveryType as 'D' | 'S' | undefined,
-      shippingZip: dto.shippingZip,
-      shippingProductName: dto.shippingProductName,
-      couponCode: dto.couponCode,
-    });
+    //    Para una orden ya persistida, los items y el envio salen de la base;
+    //    lo unico que el paso de pago todavia puede agregar es el cupon.
+    const quote = reusable
+      ? await this.pricing.quoteExistingOrder({
+          items: reusable.items.map((item) => ({
+            quantity: item.quantity,
+            price: Number(item.price),
+          })),
+          shippingCost: Number(reusable.shippingCost ?? 0),
+          couponCode: dto.couponCode,
+        })
+      : await this.pricing.quote({
+          orderItems: dto.orderItems,
+          deliveryType: dto.deliveryType === 'pickup' ? 'pickup' : 'shipping',
+          shippingDeliveryType: dto.shippingDeliveryType as
+            | 'D'
+            | 'S'
+            | undefined,
+          shippingZip: dto.shippingZip,
+          shippingProductName: dto.shippingProductName,
+          couponCode: dto.couponCode,
+        });
 
     if (quote.couponError) {
       throw new BadRequestException(quote.couponError);
@@ -635,97 +488,57 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         `Monto inconsistente en Brick: client=${clientAmount.toFixed(2)} server=${finalAmount.toFixed(2)}`,
       );
       throw new BadRequestException(
-        'El monto del pago cambió. Reintentá para recalcular el total.',
+        reusable
+          ? 'El total de tu pedido cambió. Recargá la página para volver a cotizarlo.'
+          : 'El monto del pago cambió. Reintentá para recalcular el total.',
       );
     }
 
     const amountStr = finalAmount.toFixed(2);
 
-    // 2. Obtener o crear orden PENDING
-    // Si el frontend ya llamó a brick-init (con preferenceId), reutilizamos esa orden.
-    // Si no, creamos una nueva (backward compat con métodos sin preferenceId).
+    // 3. Reutilizar la orden de brick-init o crear una nueva
+    //    (backward compat con métodos sin preferenceId).
     let order: { id: string; total: number | Prisma.Decimal; status: string };
 
-    if (dto.existingOrderId) {
-      // Reutilizar orden pre-creada por brick-init
-      const existing = await this.prisma.order.findUnique({
-        where: { id: dto.existingOrderId },
-        select: { id: true, total: true, status: true, deletedAt: true },
+    if (reusable) {
+      // Aplicar cupón si viene en el submit y no fue aplicado en brick-init.
+      // Es el caso normal: el input de cupón vive en el paso de pago, o sea
+      // después de que brick-init ya creó la orden.
+      if (couponValidation) {
+        try {
+          await this.prisma.$transaction(async (tx) => {
+            await this.coupons.applyToOrder(
+              tx,
+              reusable.id,
+              couponValidation.couponId,
+              couponValidation.discountAmount,
+            );
+          });
+        } catch (error) {
+          // El cupón ya puede estar aplicado desde brick-init — loggear pero no fallar
+          this.logger.warn(
+            `Cupón ya aplicado o falla aplicándolo en orden ${reusable.id}`,
+            error,
+          );
+        }
+      }
+
+      // El total se recalcula desde los items y el envio persistidos, asi que
+      // solo puede moverse por el cupón. Notas y proveedor cambian porque el
+      // cliente pudo pasar por transferencia o efectivo y volver a Mercado Pago.
+      await this.prisma.order.update({
+        where: { id: reusable.id },
+        data: {
+          total: finalAmount,
+          ...(dto.notes ? { notes: dto.notes } : {}),
+          paymentProvider: PaymentProvider.MERCADOPAGO,
+        },
       });
 
-      if (
-        !existing ||
-        existing.deletedAt ||
-        existing.status !== OrderStatus.PENDING
-      ) {
-        this.logger.warn(
-          `brick-init order ${dto.existingOrderId} no disponible — creando nueva orden`,
-        );
-        // Fallback: crear nueva orden si la pre-creada ya no está disponible
-        order = await this.createPendingOrder({
-          customerEmail: dto.formData?.payer?.email ?? '',
-          customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
-          orderItems: dto.orderItems,
-          totalAmount: finalAmount,
-          deliveryType: dto.deliveryType,
-          shippingStreetName: dto.shippingStreetName,
-          shippingStreetNumber: dto.shippingStreetNumber,
-          shippingFloor: dto.shippingFloor,
-          shippingApartment: dto.shippingApartment,
-          shippingAddress: dto.shippingAddress,
-          shippingCity: dto.shippingCity,
-          shippingProvinceCode: dto.shippingProvinceCode,
-          shippingZip: dto.shippingZip,
-          shippingCost,
-          shippingProvider: dto.shippingProvider,
-          shippingDeliveryType: dto.shippingDeliveryType,
-          shippingAgencyCode: dto.shippingAgencyCode,
-          notes: dto.notes,
-        });
-      } else {
-        // La cotizacion del server ya es la autoritativa: no hay nada que
-        // re-cotizar ni con que compararla. El bloque anterior tomaba el
-        // minimo global de las tarifas de Correo, que mezcla domicilio con
-        // sucursal, y cancelaba toda orden con envio a domicilio.
-        // Aplicar cupón si viene en el submit y no fue aplicado en brick-init
-        if (couponValidation) {
-          try {
-            await this.prisma.$transaction(async (tx) => {
-              await this.coupons.applyToOrder(
-                tx,
-                existing.id,
-                couponValidation.couponId,
-                couponValidation.discountAmount,
-              );
-            });
-          } catch (error) {
-            // El cupón ya puede estar aplicado desde brick-init — loggear pero no fallar
-            this.logger.warn(
-              `Cupón ya aplicado o falla aplicándolo en orden ${existing.id}`,
-              error,
-            );
-          }
-        }
-
-        // Total / notas / proveedor: el cliente pudo haber pasado por
-        // transferencia o efectivo y volver a Mercado Pago.
-        await this.prisma.order.update({
-          where: { id: existing.id },
-          data: {
-            ...(Math.abs(Number(existing.total) - finalAmount) > 0.01
-              ? { total: finalAmount }
-              : {}),
-            ...(dto.notes ? { notes: dto.notes } : {}),
-            paymentProvider: PaymentProvider.MERCADOPAGO,
-          },
-        });
-
-        order = existing;
-        this.logger.log(
-          `Reutilizando orden brick-init: ${order.id} — método: ${dto.selectedPaymentMethod}`,
-        );
-      }
+      order = reusable;
+      this.logger.log(
+        `Reutilizando orden brick-init: ${order.id} — método: ${dto.selectedPaymentMethod}`,
+      );
     } else {
       // Crear orden nueva (flujo sin brick-init / backward compat)
       order = await this.createPendingOrder({
@@ -1574,7 +1387,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         return false;
       }
 
-      await this.restoreOrderStockInTransaction(tx, order.items);
+      await this.reservation.release(tx, orderId, reason);
 
       await tx.order.update({
         where: { id: orderId },
@@ -1602,66 +1415,6 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
       return true;
     });
-  }
-
-  private async restoreOrderStockInTransaction(
-    tx: Prisma.TransactionClient,
-    orderItems: { variantId: string; quantity: number }[],
-  ) {
-    for (const item of orderItems) {
-      const variant = await tx.productVariant.findUnique({
-        where: { id: item.variantId },
-        include: { ingredients: true },
-      });
-
-      if (!variant) continue;
-
-      if (variant.ingredients && variant.ingredients.length > 0) {
-        for (const ingredient of variant.ingredients) {
-          const totalQuantityToRestore =
-            ingredient.quantityRequired * item.quantity;
-          await tx.inventoryItem.update({
-            where: { id: ingredient.inventoryItemId },
-            data: { currentStock: { increment: totalQuantityToRestore } },
-          });
-        }
-      } else {
-        await tx.productVariant.update({
-          where: { id: variant.id },
-          data: { stock: { increment: item.quantity } },
-        });
-      }
-    }
-  }
-
-  private async calculateOrderItemsSubtotal(
-    orderItems: { variantId: string; quantity: number }[],
-  ): Promise<number> {
-    if (orderItems.length === 0) {
-      throw new BadRequestException('La orden no tiene items para cobrar');
-    }
-
-    const variantIds = [...new Set(orderItems.map((item) => item.variantId))];
-    const variants = await this.prisma.productVariant.findMany({
-      where: { id: { in: variantIds } },
-      select: { id: true, price: true },
-    });
-
-    const priceByVariant = new Map<string, number>();
-    for (const variant of variants) {
-      priceByVariant.set(variant.id, Number(variant.price));
-    }
-
-    let subtotal = 0;
-    for (const item of orderItems) {
-      const unitPrice = priceByVariant.get(item.variantId);
-      if (unitPrice == null) {
-        throw new NotFoundException(`Variante ${item.variantId} no encontrada`);
-      }
-      subtotal += unitPrice * item.quantity;
-    }
-
-    return subtotal;
   }
 
   private validateBrickFormDataByMethod(dto: CreateBrickPaymentDto) {
@@ -1909,15 +1662,55 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.assertPendingEmailRateLimit(dto.customerEmail);
+
+    // Igual que el camino de Mercado Pago: si la orden ya existe, sus items y
+    // su envio mandan sobre el body. El email tiene que coincidir.
+    const existing = dto.existingOrderId
+      ? await this.prisma.order.findUnique({
+          where: { id: dto.existingOrderId },
+          select: {
+            id: true,
+            total: true,
+            status: true,
+            deletedAt: true,
+            customerEmail: true,
+            shippingCost: true,
+            items: {
+              select: { variantId: true, quantity: true, price: true },
+            },
+          },
+        })
+      : null;
+
+    const reusable =
+      existing &&
+      !existing.deletedAt &&
+      existing.status === OrderStatus.PENDING &&
+      existing.customerEmail === dto.customerEmail
+        ? existing
+        : null;
+
     // Cotizacion server-side, igual que los caminos de Mercado Pago.
-    const quote = await this.pricing.quote({
-      orderItems: dto.orderItems,
-      deliveryType: dto.deliveryType === 'pickup' ? 'pickup' : 'shipping',
-      shippingDeliveryType: dto.shippingDeliveryType as 'D' | 'S' | undefined,
-      shippingZip: dto.shippingZip,
-      shippingProductName: dto.shippingProductName,
-      couponCode: dto.couponCode,
-    });
+    const quote = reusable
+      ? await this.pricing.quoteExistingOrder({
+          items: reusable.items.map((item) => ({
+            quantity: item.quantity,
+            price: Number(item.price),
+          })),
+          shippingCost: Number(reusable.shippingCost ?? 0),
+          couponCode: dto.couponCode,
+        })
+      : await this.pricing.quote({
+          orderItems: dto.orderItems,
+          deliveryType: dto.deliveryType === 'pickup' ? 'pickup' : 'shipping',
+          shippingDeliveryType: dto.shippingDeliveryType as
+            | 'D'
+            | 'S'
+            | undefined,
+          shippingZip: dto.shippingZip,
+          shippingProductName: dto.shippingProductName,
+          couponCode: dto.couponCode,
+        });
 
     if (quote.couponError) {
       throw new BadRequestException(quote.couponError);
@@ -1931,55 +1724,37 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
     let order: { id: string; total: number | Prisma.Decimal } | null = null;
 
-    if (dto.existingOrderId) {
-      const existing = await this.prisma.order.findUnique({
-        where: { id: dto.existingOrderId },
-        select: {
-          id: true,
-          total: true,
-          status: true,
-          deletedAt: true,
-          customerEmail: true,
+    if (reusable) {
+      order = await this.prisma.order.update({
+        where: { id: reusable.id },
+        data: {
+          paymentProvider: dto.paymentProvider,
+          total: finalAmount,
+          ...(dto.notes ? { notes: dto.notes } : {}),
         },
       });
 
-      if (
-        existing &&
-        !existing.deletedAt &&
-        existing.status === OrderStatus.PENDING &&
-        existing.customerEmail === dto.customerEmail
-      ) {
-        order = await this.prisma.order.update({
-          where: { id: existing.id },
-          data: {
-            paymentProvider: dto.paymentProvider,
-            total: finalAmount,
-            ...(dto.notes ? { notes: dto.notes } : {}),
-          },
-        });
-
-        if (couponValidation) {
-          try {
-            await this.prisma.$transaction(async (tx) => {
-              await this.coupons.applyToOrder(
-                tx,
-                existing.id,
-                couponValidation.couponId,
-                couponValidation.discountAmount,
-              );
-            });
-          } catch (error) {
-            this.logger.warn(
-              `Cupón ya aplicado o falla aplicándolo en orden ${existing.id}`,
-              error,
+      if (couponValidation) {
+        try {
+          await this.prisma.$transaction(async (tx) => {
+            await this.coupons.applyToOrder(
+              tx,
+              reusable.id,
+              couponValidation.couponId,
+              couponValidation.discountAmount,
             );
-          }
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Cupón ya aplicado o falla aplicándolo en orden ${reusable.id}`,
+            error,
+          );
         }
-
-        this.logger.log(
-          `Offline checkout reutiliza orden ${order.id} → ${dto.paymentProvider}`,
-        );
       }
+
+      this.logger.log(
+        `Offline checkout reutiliza orden ${order.id} → ${dto.paymentProvider}`,
+      );
     }
 
     if (!order) {
@@ -2095,74 +1870,13 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     paymentProvider?: PaymentProvider;
   }) {
     return this.prisma.$transaction(async (tx) => {
-      const orderItemsData: {
-        variantId: string;
-        quantity: number;
-        price: number;
-      }[] = [];
-
-      for (const item of params.orderItems) {
-        const variant = await tx.productVariant.findUnique({
-          where: { id: item.variantId },
-          include: {
-            ingredients: { include: { inventoryItem: true } },
-            product: { select: { name: true } },
-          },
-        });
-
-        if (!variant) {
-          throw new NotFoundException(
-            `Variante ${item.variantId} no encontrada`,
-          );
-        }
-
-        orderItemsData.push({
-          variantId: item.variantId,
-          quantity: item.quantity,
-          price: Number(variant.price),
-        });
-
-        // Descontar stock
-        if (variant.ingredients && variant.ingredients.length > 0) {
-          for (const ingredient of variant.ingredients) {
-            const totalNeeded = ingredient.quantityRequired * item.quantity;
-
-            // SELECT FOR UPDATE: bloquea la fila hasta que la transacción termine
-            await tx.$queryRaw`SELECT id FROM "InventoryItem" WHERE id = ${ingredient.inventoryItemId} FOR UPDATE`;
-            const lockedItem = await tx.inventoryItem.findUnique({
-              where: { id: ingredient.inventoryItemId },
-            });
-            const currentStock = lockedItem!.currentStock;
-
-            if (currentStock < totalNeeded) {
-              throw new BadRequestException(
-                `Stock insuficiente de '${ingredient.inventoryItem.name}'.`,
-              );
-            }
-            await tx.inventoryItem.update({
-              where: { id: ingredient.inventoryItemId },
-              data: { currentStock: { decrement: totalNeeded } },
-            });
-          }
-        } else {
-          // SELECT FOR UPDATE: bloquea la fila de la variante
-          await tx.$queryRaw`SELECT id FROM "ProductVariant" WHERE id = ${variant.id} FOR UPDATE`;
-          const lockedVariant = await tx.productVariant.findUnique({
-            where: { id: variant.id },
-          });
-          const available = lockedVariant!.stock || 0;
-
-          if (available < item.quantity) {
-            throw new BadRequestException(
-              `Stock insuficiente de '${variant.product.name}'.`,
-            );
-          }
-          await tx.productVariant.update({
-            where: { id: variant.id },
-            data: { stock: { decrement: item.quantity } },
-          });
-        }
-      }
+      // La reserva vive en InventoryReservationService, junto a su liberacion:
+      // decrementar y devolver stock son la misma logica en dos direcciones y
+      // antes estaban escritas por separado en dos lugares de este archivo.
+      const orderItemsData = await this.reservation.reserve(
+        tx,
+        params.orderItems,
+      );
 
       return tx.order.create({
         data: {

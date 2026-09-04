@@ -172,4 +172,70 @@ describe('CheckoutPricingService', () => {
     expect(quote.itemsSubtotal).toBe(20000);
     expect(quote.lines[0].unitPrice).toBe(10000);
   });
+
+  describe('quoteExistingOrder', () => {
+    it('suma el snapshot de items y el envio congelado, sin tocar Correo', async () => {
+      const quote = await service.quoteExistingOrder({
+        items: [{ quantity: 10, price: 10000 }],
+        shippingCost: 9000,
+      });
+
+      expect(quote.itemsSubtotal).toBe(100000);
+      expect(quote.shippingCost).toBe(9000);
+      expect(quote.total).toBe(109000);
+      // El envio ya esta decidido: no se vuelve a cotizar.
+      expect(shipping.getRates).not.toHaveBeenCalled();
+      // Los precios salen del snapshot, no de la variante actual.
+      expect(prisma.productVariant.findMany).not.toHaveBeenCalled();
+    });
+
+    it('aplica el cupon del paso de pago sobre el subtotal de productos', async () => {
+      coupons.validate.mockResolvedValue({
+        couponId: 'cup-1',
+        discountAmount: 10000,
+      });
+
+      const quote = await service.quoteExistingOrder({
+        items: [{ quantity: 10, price: 10000 }],
+        shippingCost: 9000,
+        couponCode: 'BIENVENIDO',
+      });
+
+      // El cupon descuenta sobre productos, nunca sobre el envio.
+      expect(coupons.validate).toHaveBeenCalledWith('BIENVENIDO', 100000);
+      expect(quote.couponDiscount).toBe(10000);
+      expect(quote.total).toBe(99000);
+    });
+
+    it('devuelve el error del cupon sin romper la cotizacion', async () => {
+      coupons.validate.mockRejectedValue(
+        new BadRequestException('Cupón vencido'),
+      );
+
+      const quote = await service.quoteExistingOrder({
+        items: [{ quantity: 1, price: 10000 }],
+        shippingCost: 0,
+        couponCode: 'VENCIDO',
+      });
+
+      expect(quote.couponError).toBe('Cupón vencido');
+      expect(quote.couponDiscount).toBe(0);
+      expect(quote.total).toBe(10000);
+    });
+
+    it('nunca devuelve un total negativo', async () => {
+      coupons.validate.mockResolvedValue({
+        couponId: 'cup-1',
+        discountAmount: 99999,
+      });
+
+      const quote = await service.quoteExistingOrder({
+        items: [{ quantity: 1, price: 10000 }],
+        shippingCost: 0,
+        couponCode: 'ENORME',
+      });
+
+      expect(quote.total).toBe(0);
+    });
+  });
 });

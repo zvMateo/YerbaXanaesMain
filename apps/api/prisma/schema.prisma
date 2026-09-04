@@ -293,6 +293,10 @@ model Order {
   // Notificaciones: evita reenviar email al reintentar webhooks
   notifiedPaidAt  DateTime?       // Cuándo se envió email de "pedido pagado"
 
+  // Marca cuándo se devolvió el stock al inventario. Null = sigue reservado.
+  // Hace idempotente la liberación: cancelar dos veces no duplica la devolución.
+  stockReleasedAt DateTime?
+
   // Auditoría y Soft Delete
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

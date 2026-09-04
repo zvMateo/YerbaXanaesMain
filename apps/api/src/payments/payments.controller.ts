@@ -23,7 +23,6 @@ import {
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { PaymentsSyncService } from './payments-sync.service';
-import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
 import { BrickInitDto } from './dto/brick-init.dto';
 import { OfflineCheckoutDto } from './dto/offline-checkout.dto';
@@ -41,22 +40,6 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly paymentsSyncService: PaymentsSyncService,
   ) {}
-
-  @Post('process')
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({
-    summary: 'Procesar pago vía Checkout API',
-    description:
-      'Crea una orden PENDING y dispara POST /v1/orders en MercadoPago',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Pago procesado',
-  })
-  async processCardPayment(@Body() dto: CreateOrderPaymentDto) {
-    return this.paymentsService.processCardPayment(dto);
-  }
 
   @Post('brick-init')
   @HttpCode(HttpStatus.OK)

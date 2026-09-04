@@ -10,6 +10,7 @@ import { ShippingService } from '../shipping/shipping.service';
 import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
 import { SettingsService } from '../settings/settings.service';
 import { OrderStatus } from '@prisma/client';
+import { InventoryReservationService } from '../inventory/inventory-reservation.service';
 
 /** Todos los medios de pago habilitados — el estado por defecto de la tienda. */
 const ALL_PAYMENT_METHODS_ENABLED = {
@@ -34,13 +35,14 @@ describe('PaymentsService - Integration Tests', () => {
   let service: PaymentsService;
   let prismaService: PrismaService;
   let paymentsSyncService: PaymentsSyncService;
-  let pricingService: { quote: jest.Mock };
+  let pricingService: { quote: jest.Mock; quoteExistingOrder: jest.Mock };
   let settingsService: { get: jest.Mock };
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PaymentsService,
+        InventoryReservationService,
         {
           provide: PrismaService,
           useValue: {
@@ -110,6 +112,7 @@ describe('PaymentsService - Integration Tests', () => {
           provide: CheckoutPricingService,
           useValue: {
             quote: jest.fn(),
+            quoteExistingOrder: jest.fn(),
           },
         },
         {
@@ -149,32 +152,6 @@ describe('PaymentsService - Integration Tests', () => {
 
       return `ts=${ts},v1=${hash}`;
     };
-
-    it('rechaza processCardPayment cuando el monto del cliente no coincide con el cálculo del servidor', async () => {
-      jest
-        .spyOn(prismaService.productVariant, 'findMany')
-        .mockResolvedValue([{ id: 'var-1', price: 100 }] as any);
-
-      const createPendingOrderSpy = jest
-        .spyOn<any, any>(service as any, 'createPendingOrder')
-        .mockResolvedValue({ id: 'order-1' });
-
-      await expect(
-        service.processCardPayment({
-          transaction_amount: 50,
-          token: 'tok_test',
-          description: 'Pago test',
-          installments: 1,
-          payment_method_id: 'visa',
-          payer: { email: 'test@yerba.com' },
-          orderItems: [{ variantId: 'var-1', quantity: 1 }],
-          shippingCost: 0,
-        }),
-      ).rejects.toThrow(BadRequestException);
-
-      expect(createPendingOrderSpy).not.toHaveBeenCalled();
-      expect(global.fetch).not.toHaveBeenCalled();
-    });
 
     it('rechaza processBrickPayment cuando el monto del cliente no coincide con el cálculo del servidor', async () => {
       pricingService.quote.mockResolvedValue({
@@ -790,6 +767,45 @@ describe('PaymentsService - Integration Tests', () => {
       expect(prismaService.order.update).not.toHaveBeenCalled();
     });
 
+    it('cobra el total de los items persistidos al reutilizar una orden', async () => {
+      (prismaService.order.count as jest.Mock).mockResolvedValue(0);
+      (prismaService.order.findUnique as jest.Mock).mockResolvedValue({
+        id: 'order-1',
+        total: 109000,
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+        customerEmail: 'cliente@yerba.com',
+        shippingCost: 9000,
+        items: [{ variantId: 'var-1', quantity: 10, price: 10000 }],
+      });
+      (prismaService.order.update as jest.Mock).mockResolvedValue({
+        id: 'order-1',
+        total: 109000,
+      });
+      pricingService.quoteExistingOrder.mockResolvedValue({
+        itemsSubtotal: 100000,
+        shippingCost: 9000,
+        couponId: null,
+        couponDiscount: 0,
+        couponError: null,
+        total: 109000,
+      });
+
+      await service.offlineCheckout({
+        existingOrderId: 'order-1',
+        customerEmail: 'cliente@yerba.com',
+        customerName: 'Cliente',
+        // Intento de fraude: un solo item en el body.
+        orderItems: [{ variantId: 'var-1', quantity: 1 }],
+        paymentProvider: 'CASH',
+        deliveryType: 'pickup',
+      } as any);
+
+      expect(pricingService.quote).not.toHaveBeenCalled();
+      const update = (prismaService.order.update as jest.Mock).mock.calls[0][0];
+      expect(update.data.total).toBe(109000);
+    });
+
     it('getTransferInfo sin env devuelve transferInstructions null', () => {
       expect(service.getTransferInfo()).toEqual({
         transferInstructions: null,
@@ -955,6 +971,180 @@ describe('PaymentsService - Integration Tests', () => {
       expect(created.totalAmount).toBe(19000);
 
       createSpy.mockRestore();
+    });
+  });
+
+  describe('existingOrderId — orden ya persistida', () => {
+    /** Orden creada por brick-init: 10 unidades a $10.000 + $9.000 de envio. */
+    const persistedOrder = {
+      id: 'order-1',
+      total: 109000,
+      status: OrderStatus.PENDING,
+      deletedAt: null,
+      customerEmail: 'cliente@example.com',
+      shippingCost: 9000,
+      items: [{ variantId: 'var-1', quantity: 10, price: 10000 }],
+    };
+
+    /** Cotizacion de la orden persistida, sin cupon. */
+    const persistedQuote = {
+      itemsSubtotal: 100000,
+      shippingCost: 9000,
+      couponId: null,
+      couponDiscount: 0,
+      couponError: null,
+      total: 109000,
+    };
+
+    /** Body del Brick con un solo item: el intento de fraude. */
+    const tamperedDto = (overrides: Record<string, unknown> = {}) => ({
+      selectedPaymentMethod: 'credit_card',
+      existingOrderId: 'order-1',
+      orderItems: [{ variantId: 'var-1', quantity: 1 }],
+      deliveryType: 'shipping',
+      formData: {
+        token: 'card-token',
+        payment_method_id: 'visa',
+        installments: 1,
+        transaction_amount: 109000,
+        payer: { email: 'cliente@example.com' },
+      },
+      ...overrides,
+    });
+
+    const mockApprovedPayment = () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 123456,
+          status: 'approved',
+          status_detail: 'accredited',
+        }),
+      });
+    };
+
+    beforeEach(() => {
+      (prismaService.order.findUnique as jest.Mock).mockResolvedValue(
+        persistedOrder,
+      );
+      (prismaService.order.update as jest.Mock).mockResolvedValue(
+        persistedOrder,
+      );
+      pricingService.quoteExistingOrder.mockResolvedValue(persistedQuote);
+      // Si el body llegara a cotizarse, el total seria el de un solo item.
+      pricingService.quote.mockResolvedValue({
+        lines: [],
+        itemsSubtotal: 10000,
+        shippingCost: 9000,
+        shippingProvider: 'correo_argentino',
+        freeShippingApplied: false,
+        couponCode: null,
+        couponId: null,
+        couponDiscount: 0,
+        couponError: null,
+        total: 19000,
+      });
+    });
+
+    it('rechaza reutilizar la orden de otro comprador', async () => {
+      const cancelSpy = jest
+        .spyOn(service, 'cancelPendingOrderWithStockRestore')
+        .mockResolvedValue(undefined as never);
+
+      await expect(
+        service.processBrickPayment(
+          tamperedDto({
+            formData: {
+              token: 'card-token',
+              payment_method_id: 'visa',
+              installments: 1,
+              transaction_amount: 109000,
+              payer: { email: 'atacante@example.com' },
+            },
+          }) as never,
+        ),
+      ).rejects.toThrow(/no corresponde/i);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      // Rechazar no puede destruir la orden de la victima.
+      expect(cancelSpy).not.toHaveBeenCalled();
+      cancelSpy.mockRestore();
+    });
+
+    it('cobra el total de los items persistidos, ignorando los del body', async () => {
+      mockApprovedPayment();
+
+      await service.processBrickPayment(tamperedDto() as never);
+
+      const mpCall = (global.fetch as jest.Mock).mock.calls.find((c) =>
+        String(c[0]).includes('/v1/payments'),
+      );
+      const body = JSON.parse(mpCall[1].body);
+      expect(body.transaction_amount).toBe(109000);
+      // El body del cliente no puede redefinir que se esta comprando.
+      expect(pricingService.quote).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si el monto confirmado por el comprador no coincide con la orden', async () => {
+      const cancelSpy = jest
+        .spyOn(service, 'cancelPendingOrderWithStockRestore')
+        .mockResolvedValue(undefined as never);
+
+      await expect(
+        service.processBrickPayment(
+          tamperedDto({
+            formData: {
+              token: 'card-token',
+              payment_method_id: 'visa',
+              installments: 1,
+              transaction_amount: 19000,
+              payer: { email: 'cliente@example.com' },
+            },
+          }) as never,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(cancelSpy).not.toHaveBeenCalled();
+      cancelSpy.mockRestore();
+    });
+
+    it('aplica el cupon del paso de pago sobre el total persistido', async () => {
+      pricingService.quoteExistingOrder.mockResolvedValue({
+        ...persistedQuote,
+        couponId: 'cup-1',
+        couponDiscount: 10000,
+        total: 99000,
+      });
+      (prismaService.$transaction as jest.Mock).mockImplementation(
+        async (cb: (tx: unknown) => Promise<unknown>) => cb({}),
+      );
+      mockApprovedPayment();
+
+      await service.processBrickPayment(
+        tamperedDto({
+          couponCode: 'BIENVENIDO',
+          orderItems: [{ variantId: 'var-1', quantity: 10 }],
+          formData: {
+            token: 'card-token',
+            payment_method_id: 'visa',
+            installments: 1,
+            transaction_amount: 99000,
+            payer: { email: 'cliente@example.com' },
+          },
+        }) as never,
+      );
+
+      const mpCall = (global.fetch as jest.Mock).mock.calls.find((c) =>
+        String(c[0]).includes('/v1/payments'),
+      );
+      expect(JSON.parse(mpCall[1].body).transaction_amount).toBe(99000);
+
+      // La orden queda con el total que se cobro, no con el previo al cupon.
+      const totalUpdate = (
+        prismaService.order.update as jest.Mock
+      ).mock.calls.find((c) => c[0]?.data?.total !== undefined);
+      expect(totalUpdate[0].data.total).toBe(99000);
     });
   });
 });

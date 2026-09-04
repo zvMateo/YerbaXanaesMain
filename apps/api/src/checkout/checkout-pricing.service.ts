@@ -25,6 +25,23 @@ export interface CheckoutQuote {
   total: number;
 }
 
+export interface ExistingOrderQuoteInput {
+  /** Snapshot de items tal como quedo persistido en la orden. */
+  items: { quantity: number; price: number }[];
+  /** Envio ya cotizado y congelado cuando se creo la orden. */
+  shippingCost: number;
+  couponCode?: string;
+}
+
+export interface ExistingOrderQuote {
+  itemsSubtotal: number;
+  shippingCost: number;
+  couponId: string | null;
+  couponDiscount: number;
+  couponError: string | null;
+  total: number;
+}
+
 export interface QuoteInput {
   orderItems: { variantId: string; quantity: number }[];
   deliveryType: 'shipping' | 'pickup';
@@ -86,6 +103,47 @@ export class CheckoutPricingService {
       shippingProvider,
       freeShippingApplied,
       couponCode: input.couponCode ?? null,
+      couponId,
+      couponDiscount,
+      couponError,
+      total,
+    };
+  }
+
+  /**
+   * Cotizacion de una orden que ya existe.
+   *
+   * Los items y el envio no se recalculan: quedaron congelados cuando se creo
+   * la orden y el comprador ya los confirmo. Lo unico que el paso de pago
+   * todavia puede agregar es un cupon, que solo baja el precio y se valida
+   * contra el subtotal real de productos.
+   *
+   * Existe para que ningun camino tenga que re-cotizar desde el body del
+   * cliente una orden que ya esta persistida.
+   */
+  async quoteExistingOrder(
+    input: ExistingOrderQuoteInput,
+  ): Promise<ExistingOrderQuote> {
+    const itemsSubtotal = round2(
+      input.items.reduce(
+        (sum, item) => sum + Number(item.price) * item.quantity,
+        0,
+      ),
+    );
+    const shippingCost = round2(Number(input.shippingCost) || 0);
+
+    const { couponId, couponDiscount, couponError } = await this.resolveCoupon(
+      input.couponCode,
+      itemsSubtotal,
+    );
+
+    const total = round2(
+      Math.max(0, itemsSubtotal + shippingCost - couponDiscount),
+    );
+
+    return {
+      itemsSubtotal,
+      shippingCost,
       couponId,
       couponDiscount,
       couponError,
