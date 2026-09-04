@@ -1,5 +1,18 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
+
+/**
+ * Estados en los que la mercadería vuelve al inventario.
+ *
+ * Vive acá y no en cada servicio porque hoy lo consultan tres caminos
+ * distintos (backoffice, borrado de orden y webhook de MP); duplicar la lista
+ * es la forma segura de que uno se olvide de un estado.
+ */
+export const STOCK_RELEASING_STATUSES: OrderStatus[] = [
+  OrderStatus.CANCELLED,
+  OrderStatus.REFUNDED,
+  OrderStatus.REJECTED,
+];
 
 /** Línea de orden con el precio congelado al momento de reservar. */
 export interface ReservedLine {

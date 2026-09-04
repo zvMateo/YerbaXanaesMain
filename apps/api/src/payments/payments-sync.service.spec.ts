@@ -4,6 +4,7 @@ import { OrderStatus } from '@prisma/client';
 import { PaymentsSyncService } from './payments-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { InventoryReservationService } from '../inventory/inventory-reservation.service';
 
 /**
  * TESTS UNITARIOS: PaymentsSyncService
@@ -18,6 +19,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 describe('PaymentsSyncService - Unit Tests', () => {
   let service: PaymentsSyncService;
   let prismaService: jest.Mocked<PrismaService>;
+  let reservation: { reserve: jest.Mock; release: jest.Mock };
 
   const buildMockTx = (orderOverrides: Record<string, any> = {}) => ({
     $queryRaw: jest.fn().mockResolvedValue(null),
@@ -66,11 +68,19 @@ describe('PaymentsSyncService - Unit Tests', () => {
             notifyOrderPaidIfNeeded: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: InventoryReservationService,
+          useValue: {
+            reserve: jest.fn(),
+            release: jest.fn().mockResolvedValue(true),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<PaymentsSyncService>(PaymentsSyncService);
     prismaService = module.get(PrismaService);
+    reservation = module.get(InventoryReservationService);
 
     // Evitar que onModuleInit arrange intervals en los tests
     jest.useFakeTimers();
@@ -220,6 +230,79 @@ describe('PaymentsSyncService - Unit Tests', () => {
           }),
         }),
       );
+    });
+
+    it('devuelve el stock cuando el webhook lleva la orden a REFUNDED', async () => {
+      const mockTx = buildMockTx({ status: OrderStatus.PAID });
+
+      jest
+        .spyOn(prismaService, '$transaction')
+        .mockImplementation(async (fn: any) => fn(mockTx));
+
+      await service.updateOrderStatusWithAudit({
+        orderId: 'order-1',
+        newStatus: OrderStatus.REFUNDED,
+        source: 'WEBHOOK_MERCADOPAGO',
+      });
+
+      expect(reservation.release).toHaveBeenCalledWith(
+        mockTx,
+        'order-1',
+        OrderStatus.REFUNDED,
+      );
+    });
+
+    it('devuelve el stock cuando la orden se cancela desde el backoffice', async () => {
+      const mockTx = buildMockTx({ status: OrderStatus.PAID });
+
+      jest
+        .spyOn(prismaService, '$transaction')
+        .mockImplementation(async (fn: any) => fn(mockTx));
+
+      await service.updateOrderStatusWithAudit({
+        orderId: 'order-1',
+        newStatus: OrderStatus.CANCELLED,
+        source: 'MANUAL_OVERRIDE',
+        changedByEmail: 'luz@yerbaxanaes.com',
+      });
+
+      expect(reservation.release).toHaveBeenCalled();
+    });
+
+    it('no devuelve stock en una transicion que no es terminal', async () => {
+      const mockTx = buildMockTx({ status: OrderStatus.PAID });
+
+      jest
+        .spyOn(prismaService, '$transaction')
+        .mockImplementation(async (fn: any) => fn(mockTx));
+
+      await service.updateOrderStatusWithAudit({
+        orderId: 'order-1',
+        newStatus: OrderStatus.SHIPPED,
+        source: 'MANUAL_OVERRIDE',
+      });
+
+      expect(reservation.release).not.toHaveBeenCalled();
+    });
+
+    it('no devuelve stock si el webhook fue ignorado por manual override', async () => {
+      const mockTx = buildMockTx({
+        status: OrderStatus.PAID,
+        manualOverrideAt: new Date(),
+      });
+
+      jest
+        .spyOn(prismaService, '$transaction')
+        .mockImplementation(async (fn: any) => fn(mockTx));
+
+      const result = await service.updateOrderStatusWithAudit({
+        orderId: 'order-1',
+        newStatus: OrderStatus.REFUNDED,
+        source: 'WEBHOOK_MERCADOPAGO',
+      });
+
+      expect(result).toBe(false);
+      expect(reservation.release).not.toHaveBeenCalled();
     });
 
     it('MANUAL_OVERRIDE: setea manualOverrideAt y manualOverrideReason', async () => {

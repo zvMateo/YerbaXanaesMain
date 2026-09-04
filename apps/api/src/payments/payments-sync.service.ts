@@ -8,6 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  InventoryReservationService,
+  STOCK_RELEASING_STATUSES,
+} from '../inventory/inventory-reservation.service';
 
 /**
  * PAYMENTS SYNC SERVICE
@@ -25,6 +29,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
+    private readonly reservation: InventoryReservationService,
   ) {}
 
   onModuleInit() {
@@ -184,7 +189,15 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
         return false;
       }
 
-      // 5. UPDATE: Actualiza estado + metadata
+      // 5. STOCK: Los estados terminales devuelven la mercadería al inventario.
+      //    Va después de las guardas (idempotencia y manual override) para no
+      //    liberar en un cambio que se va a descartar, y dentro de la misma
+      //    transacción que el update para que sea atómico con el estado.
+      if (STOCK_RELEASING_STATUSES.includes(params.newStatus)) {
+        await this.reservation.release(tx, params.orderId, params.newStatus);
+      }
+
+      // 6. UPDATE: Actualiza estado + metadata
       await tx.order.update({
         where: { id: params.orderId },
         data: {
@@ -201,7 +214,7 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      // 6. AUDIT: Registra en tabla OrderStateChange
+      // 7. AUDIT: Registra en tabla OrderStateChange
       await tx.orderStateChange.create({
         data: {
           orderId: params.orderId,

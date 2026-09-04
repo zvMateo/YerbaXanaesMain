@@ -9,6 +9,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  InventoryReservationService,
+  STOCK_RELEASING_STATUSES,
+} from '../inventory/inventory-reservation.service';
 import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 
 function composeShippingAddressDisplay(dto: CreateOrderDto): string | null {
@@ -39,6 +43,7 @@ export class OrdersService {
     private readonly coupons: CouponsService,
     private readonly payments: PaymentsService,
     private readonly notifications: NotificationsService,
+    private readonly reservation: InventoryReservationService,
   ) {}
 
   async create(dto: CreateOrderDto) {
@@ -326,26 +331,93 @@ export class OrdersService {
       return this.findOne(id);
     }
 
-    // Cambio de status libre (PAID, REJECTED, REFUNDED, etc.) — actualización plana
-    const patch: Prisma.OrderUpdateInput = {};
-    if (status) {
-      patch.status = status as OrderStatus;
-      patch.manualOverrideAt = new Date();
-    }
-    if (note !== undefined) {
-      patch.notes = note;
-    }
+    // Cambio de status libre (PAID, REJECTED, REFUNDED, etc.).
+    // Va en transacción porque llevar una orden a un estado terminal devuelve
+    // mercadería al inventario, y eso tiene que ser atómico con el cambio de
+    // estado: si falla el update, el stock no puede quedar devuelto.
+    return this.prisma.$transaction(async (tx) => {
+      // Relectura bajo lock: `existing` se leyó fuera de la transacción y para
+      // la auditoría hace falta el estado real de origen.
+      await tx.$queryRaw`
+        SELECT id
+        FROM "Order"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
 
-    return this.prisma.order.update({
-      where: { id },
-      data: patch,
+      const current = await tx.order.findUnique({
+        where: { id },
+        select: { id: true, status: true },
+      });
+
+      if (!current) {
+        throw new NotFoundException(`Orden ${id} no encontrada`);
+      }
+
+      if (status && STOCK_RELEASING_STATUSES.includes(status as OrderStatus)) {
+        await this.reservation.release(tx, id, status);
+      }
+
+      const patch: Prisma.OrderUpdateInput = {};
+      if (status) {
+        patch.status = status as OrderStatus;
+        patch.manualOverrideAt = new Date();
+      }
+      if (note !== undefined) {
+        patch.notes = note;
+      }
+
+      const updated = await tx.order.update({ where: { id }, data: patch });
+
+      if (status) {
+        await tx.orderStateChange.create({
+          data: {
+            orderId: id,
+            fromStatus: current.status,
+            toStatus: status as OrderStatus,
+            source: 'MANUAL_OVERRIDE',
+            reason: note?.trim() || 'backoffice_status_change',
+          },
+        });
+      }
+
+      return updated;
     });
   }
 
+  /**
+   * Soft delete. Devuelve el stock antes de archivar la orden: una orden
+   * borrada no la va a liberar nadie después. `release()` es idempotente, así
+   * que borrar algo ya cancelado no duplica la devolución.
+   */
   remove(id: string) {
-    return this.prisma.order.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id
+        FROM "Order"
+        WHERE id = ${id}
+        FOR UPDATE
+      `;
+
+      const current = await tx.order.findUnique({
+        where: { id },
+        select: { id: true, deletedAt: true },
+      });
+
+      if (!current) {
+        throw new NotFoundException(`Orden ${id} no encontrada`);
+      }
+
+      if (current.deletedAt) {
+        return tx.order.findUnique({ where: { id } });
+      }
+
+      await this.reservation.release(tx, id, 'ORDER_DELETED');
+
+      return tx.order.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
   }
 
