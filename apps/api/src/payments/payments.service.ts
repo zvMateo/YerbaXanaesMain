@@ -986,7 +986,14 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
             paymentProvider: PaymentProvider.MERCADOPAGO,
             mpPaymentId: null,
             createdAt: { lte: cartCutoff },
-            NOT: { notes: { startsWith: PAYMENT_LINK_NOTES } },
+            // notes es nullable y el carrito abandonado normal no trae nota.
+            // Un NOT pelado se traduce a NOT (notes LIKE 'Link de pago%'),
+            // que en Postgres da NULL cuando notes es NULL y descarta la fila.
+            // Hay que admitir el NULL explicitamente.
+            OR: [
+              { notes: null },
+              { NOT: { notes: { startsWith: PAYMENT_LINK_NOTES } } },
+            ],
           },
           {
             paymentProvider: PaymentProvider.MERCADOPAGO,

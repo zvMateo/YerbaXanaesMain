@@ -9,7 +9,7 @@ import { CouponsService } from '../coupons/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
 import { SettingsService } from '../settings/settings.service';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, PaymentProvider } from '@prisma/client';
 import { InventoryReservationService } from '../inventory/inventory-reservation.service';
 
 /** Todos los medios de pago habilitados — el estado por defecto de la tienda. */
@@ -552,6 +552,36 @@ describe('PaymentsService - Integration Tests', () => {
 
       expect(result.data.failed).toBeGreaterThan(0);
       expect(result.data.checked).toBe(2);
+    });
+
+    it('incluye los carritos con notes en null al buscar ordenes abandonadas', async () => {
+      jest
+        .spyOn(prismaService.order, 'findMany')
+        .mockResolvedValueOnce([] as any);
+
+      await service.cleanupExpiredPendingOrders();
+
+      const where = (prismaService.order.findMany as jest.Mock).mock.calls[0][0]
+        .where;
+      // La rama del carrito abandonado: MP sin pago asociado y sin exigir que
+      // notes empiece con el prefijo de los links de pago.
+      const cartBranch = where.OR.find(
+        (branch: any) =>
+          branch.paymentProvider === PaymentProvider.MERCADOPAGO &&
+          branch.mpPaymentId === null &&
+          branch.notes === undefined,
+      );
+
+      expect(cartBranch).toBeDefined();
+      // notes es nullable. Un NOT pelado se traduce a NOT (notes LIKE '...'),
+      // que Postgres evalua como NULL cuando notes es NULL y descarta la fila:
+      // justo el carrito abandonado normal, que nunca trae nota.
+      expect(cartBranch.OR).toEqual(
+        expect.arrayContaining([
+          { notes: null },
+          { NOT: { notes: { startsWith: 'Link de pago' } } },
+        ]),
+      );
     });
   });
 
