@@ -106,6 +106,54 @@ describe('ShippingService', () => {
       expect(result.rates[0].deliveredType).toBe('D');
     });
 
+    it('devuelve las tarifas de ambos tipos, sin filtrar por deliveredType', async () => {
+      mockCreds();
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              token: 'jwt-test',
+              expires: new Date(Date.now() + 3600_000).toISOString(),
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              rates: [
+                {
+                  deliveredType: 'S',
+                  productType: 'CP',
+                  productName: 'Clasico Sucursal',
+                  price: 1800,
+                  deliveryTimeMin: '2',
+                  deliveryTimeMax: '5',
+                },
+                {
+                  deliveredType: 'D',
+                  productType: 'CP',
+                  productName: 'Clasico Domicilio',
+                  price: 2500,
+                  deliveryTimeMin: '2',
+                  deliveryTimeMax: '5',
+                },
+              ],
+            }),
+        });
+
+      const result = await service.getRates({
+        postalCodeDestination: '5000',
+        items: [{ variantId: 'v1', quantity: 1 }],
+      });
+
+      // Contrato: getRates NO filtra. El consumidor esta obligado a hacerlo.
+      expect(result.rates.map((r) => r.deliveredType).sort()).toEqual([
+        'D',
+        'S',
+      ]);
+    });
+
     it('lanza ServiceUnavailable si MiCorreo rates falla', async () => {
       mockCreds();
       (global.fetch as jest.Mock)

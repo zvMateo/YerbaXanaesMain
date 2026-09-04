@@ -312,10 +312,18 @@ export class ShippingService implements OnModuleInit {
   }
 
   // ============================================================
-  // COTIZAR ENVÍO — HTTP directo a /rates
-  // Sin deliveredType → MiCorreo devuelve ambas tarifas (domicilio + sucursal)
+  // COTIZAR ENVIO — HTTP directo a /rates
   // ============================================================
 
+  /**
+   * Cotiza sin `deliveredType`, asi que MiCorreo devuelve domicilio (D) y
+   * sucursal (S) juntas, para que el checkout las muestre y el comprador elija.
+   *
+   * Quien consuma esto DEBE filtrar por el tipo que eligio el cliente antes de
+   * comparar precios. Tomar el minimo global mezcla D con S, y como sucursal
+   * siempre sale mas barata, rompe el pago a domicilio. El filtrado correcto
+   * vive en CheckoutPricingService.
+   */
   async getRates(dto: GetShippingRatesDto): Promise<ShippingRatesResponse> {
     // 1. Obtener el peso total del paquete desde las variantes del carrito
     const packageWeightGrams = await this.calculatePackageWeight(dto.items);
