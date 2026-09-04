@@ -30,7 +30,9 @@ describe('ShippingService', () => {
 
     service = module.get(ShippingService);
     // Evitar onModuleInit real
-    jest.spyOn(service as any, 'initializeCorreoApi').mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'initializeCorreoApi')
+      .mockResolvedValue(undefined);
     global.fetch = jest.fn() as unknown as typeof fetch;
   });
 

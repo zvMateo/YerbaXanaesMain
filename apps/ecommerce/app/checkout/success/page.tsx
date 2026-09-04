@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { CheckoutSuccessCleanup } from "@/components/checkout/checkout-success-cleanup";
 import { StatusScreenBrick } from "@/components/checkout/status-screen-lazy";
+import { brand } from "@/lib/brand";
 
 interface SuccessPageProps {
   searchParams: Promise<{
@@ -23,6 +24,7 @@ interface SuccessPageProps {
     merchant_order_id?: string; // param que agrega MP al redirigir
     mpPaymentId?: string; // ID del pago en MP (para StatusScreen Brick)
     ticketUrl?: string; // URL del comprobante para pagos offline
+    method?: string; // transfer | cash | (vacio = Mercado Pago)
   }>;
 }
 
@@ -36,8 +38,15 @@ export default async function CheckoutSuccessPage({
   searchParams,
 }: SuccessPageProps) {
   const params = await searchParams;
-  const { orderId, paymentId, status, payment_id, mpPaymentId, ticketUrl } =
-    params;
+  const {
+    orderId,
+    paymentId,
+    status,
+    payment_id,
+    mpPaymentId,
+    ticketUrl,
+    method,
+  } = params;
 
   // Normalizar: MP puede volver con ?payment_id=xxx o ?paymentId=xxx
   const resolvedPaymentId = paymentId || payment_id;
@@ -56,6 +65,7 @@ export default async function CheckoutSuccessPage({
   ).replace(/\/$/, "");
 
   let backendOrderStatus: string | null = null;
+  let backendPaymentProvider: string | null = null;
 
   if (orderId) {
     try {
@@ -68,14 +78,25 @@ export default async function CheckoutSuccessPage({
 
       if (response.ok) {
         const payload = (await response.json()) as {
-          data?: { status?: string };
+          data?: {
+            status?: string;
+            paymentProvider?: string;
+            deliveryType?: string;
+          };
         };
         backendOrderStatus = payload.data?.status ?? null;
+        backendPaymentProvider = payload.data?.paymentProvider ?? null;
       }
     } catch {
       // Si falla la consulta, dejamos fallback conservador a estado pendiente.
     }
   }
+
+  const methodParam = (method || "").toLowerCase();
+  const isTransfer =
+    backendPaymentProvider === "TRANSFER" || methodParam === "transfer";
+  const isCash =
+    backendPaymentProvider === "CASH" || methodParam === "cash";
 
   const queryStatus = (status || "").toLowerCase();
 
@@ -111,6 +132,83 @@ export default async function CheckoutSuccessPage({
                 <ArrowRight className="w-5 h-5" />
               </a>
             )}
+            <ActionButtons />
+          </div>
+        </PageShell>
+      );
+    }
+
+    if (isTransfer) {
+      return (
+        <PageShell>
+          <CheckoutSuccessCleanup shouldClearCart={Boolean(orderId)} />
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <div className="mb-6">
+              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+                <Clock className="w-12 h-12 text-amber-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-stone-900 mb-2">
+              Pedido pendiente de acreditación
+            </h1>
+            <p className="text-stone-600 mb-6">
+              Recibimos tu pedido. Queda pendiente hasta que se acredite la
+              transferencia.
+            </p>
+            <OrderIdBox id={resolvedId} label="Número de pedido" />
+            <div className="text-left space-y-4 mb-8">
+              <h2 className="font-semibold text-stone-900">¿Qué sigue?</h2>
+              <InfoRow
+                icon={<Clock className="w-4 h-4 text-amber-600" />}
+                color="amber"
+                title="Acreditación"
+                text="Luz confirma la transferencia y el pedido pasa a pagado"
+              />
+              <InfoRow
+                icon={<Package className="w-4 h-4 text-amber-600" />}
+                color="amber"
+                title="Preparación"
+                text="Cuando se acredite, preparamos tu yerba"
+              />
+            </div>
+            <ActionButtons />
+          </div>
+        </PageShell>
+      );
+    }
+
+    if (isCash) {
+      return (
+        <PageShell>
+          <CheckoutSuccessCleanup shouldClearCart={Boolean(orderId)} />
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <div className="mb-6">
+              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+                <Clock className="w-12 h-12 text-amber-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-stone-900 mb-2">
+              Pedido para retirar
+            </h1>
+            <p className="text-stone-600 mb-6">
+              Pagás en efectivo al retirar en {brand.locationLabel}.
+            </p>
+            <OrderIdBox id={resolvedId} label="Número de pedido" />
+            <div className="text-left space-y-4 mb-8">
+              <h2 className="font-semibold text-stone-900">¿Qué sigue?</h2>
+              <InfoRow
+                icon={<Package className="w-4 h-4 text-amber-600" />}
+                color="amber"
+                title="Retiro"
+                text={`Te esperamos en ${brand.locationLabel}`}
+              />
+              <InfoRow
+                icon={<Clock className="w-4 h-4 text-amber-600" />}
+                color="amber"
+                title="Pago"
+                text="El pedido queda pendiente hasta que pagues al retirar"
+              />
+            </div>
             <ActionButtons />
           </div>
         </PageShell>

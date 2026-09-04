@@ -16,14 +16,8 @@ function installConsoleRedaction(): void {
           /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
           '[REDACTED_JWT]',
         )
-        .replace(
-          /(Bearer\s+)[A-Za-z0-9._\-]+/gi,
-          '$1[REDACTED_TOKEN]',
-        )
-        .replace(
-          /(token["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi,
-          '$1[REDACTED]',
-        );
+        .replace(/(Bearer\s+)[A-Za-z0-9._\-]+/gi, '$1[REDACTED_TOKEN]')
+        .replace(/(token["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi, '$1[REDACTED]');
     });
 
   const wrap =
@@ -31,13 +25,12 @@ function installConsoleRedaction(): void {
     (...args: unknown[]) =>
       fn(...redact(args));
 
-  // eslint-disable-next-line no-console
   console.log = wrap(console.log.bind(console));
-  // eslint-disable-next-line no-console
+
   console.info = wrap(console.info.bind(console));
-  // eslint-disable-next-line no-console
+
   console.warn = wrap(console.warn.bind(console));
-  // eslint-disable-next-line no-console
+
   console.error = wrap(console.error.bind(console));
 }
 

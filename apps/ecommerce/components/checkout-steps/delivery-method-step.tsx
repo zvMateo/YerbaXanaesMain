@@ -5,6 +5,8 @@ import { CheckoutFormData } from "@/schemas/checkout-schema";
 import { Truck, Store, Home, Building2, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect } from "react";
+import { brand } from "@/lib/brand";
+import Link from "next/link";
 
 /**
  * Paso 2 del checkout — solo elige el método de entrega.
@@ -12,7 +14,7 @@ import { useEffect } from "react";
  * que se saltea si el cliente elige "Retiro en local".
  */
 export function DeliveryMethodStep() {
-  const { register, setValue, control } =
+  const { register, setValue, control, getValues } =
     useFormContext<CheckoutFormData>();
 
   const deliveryType = useWatch({ control, name: "deliveryType" });
@@ -39,7 +41,11 @@ export function DeliveryMethodStep() {
       setValue("shippingAgencyName", "");
       setValue("shippingProductName", "");
     }
-  }, [deliveryType, setValue]);
+    // Efectivo solo aplica a retiro en local
+    if (deliveryType === "shipping" && getValues("paymentMethod") === "cash") {
+      setValue("paymentMethod", "mercadopago");
+    }
+  }, [deliveryType, getValues, setValue]);
 
   return (
     <div className="space-y-6">
@@ -118,9 +124,9 @@ export function DeliveryMethodStep() {
             <div>
               <p className="font-semibold text-stone-900">Retiro en local</p>
               <p className="text-sm text-stone-600 mt-1">
-                Sin costo adicional
+                {brand.locationLabel}
               </p>
-              <p className="text-xs text-yerba-600 font-semibold mt-2">
+              <p className="text-xs text-palm font-semibold mt-2">
                 Gratis
               </p>
             </div>
@@ -220,8 +226,11 @@ export function DeliveryMethodStep() {
                 Listo, no necesitás cargar más datos
               </p>
               <p className="text-xs text-emerald-700 mt-1">
-                Coordinamos el retiro al confirmar el pago. Vas directo al pago
-                en el siguiente paso.
+                Coordinamos el retiro en {brand.locationLabel} al confirmar el
+                pago.{" "}
+                <Link href="/envios" className="font-semibold underline-offset-2 hover:underline">
+                  Ver envíos
+                </Link>
               </p>
             </div>
           </motion.div>

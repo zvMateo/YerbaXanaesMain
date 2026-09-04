@@ -737,6 +737,29 @@ describe('PaymentsService - Integration Tests', () => {
     });
   });
 
+  describe('offlineCheckout', () => {
+    it('rechaza CASH si deliveryType no es pickup', async () => {
+      await expect(
+        service.offlineCheckout({
+          customerEmail: 'test@yerba.com',
+          customerName: 'Test',
+          orderItems: [{ variantId: 'var-1', quantity: 1 }],
+          paymentProvider: 'CASH',
+          deliveryType: 'shipping',
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaService.order.create).not.toHaveBeenCalled();
+      expect(prismaService.order.update).not.toHaveBeenCalled();
+    });
+
+    it('getTransferInfo sin env devuelve transferInstructions null', () => {
+      expect(service.getTransferInfo()).toEqual({
+        transferInstructions: null,
+      });
+    });
+  });
+
   describe('AdminGuard Integration', () => {
     it('debería rechazar requests sin admin role', () => {
       // Este test se ejecutaría en el nivel del controller

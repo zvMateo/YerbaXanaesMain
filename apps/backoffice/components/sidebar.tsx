@@ -163,11 +163,13 @@ function NavItem({
   isCollapsed,
   isActive,
   badgeCount,
+  onNavigate,
 }: {
   item: any;
   isCollapsed: boolean;
   isActive: boolean;
   badgeCount?: number;
+  onNavigate?: () => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
@@ -194,6 +196,7 @@ function NavItem({
     >
       <Link
         href={item.href}
+        onClick={onNavigate}
         className={`
           relative flex items-center gap-3 px-3 py-2.5 rounded-xl
           transition-all duration-200 group
@@ -334,6 +337,7 @@ function SidebarContent({
   setIsCollapsed,
   user,
   userInitials,
+  onNavigate,
 }: {
   isCollapsed: boolean;
   logout: () => void;
@@ -346,6 +350,7 @@ function SidebarContent({
     image?: string;
   } | null;
   userInitials: string;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -417,7 +422,7 @@ function SidebarContent({
                 YerbaXanaes
               </h1>
               <p className="text-[10px] text-stone-500 uppercase tracking-wider font-medium truncate">
-                Admin Panel
+                Administración
               </p>
             </div>
           )}
@@ -457,6 +462,7 @@ function SidebarContent({
               pathname === item.href || pathname.startsWith(`${item.href}/`)
             }
             badgeCount={getBadgeCount(item.id)}
+            onNavigate={onNavigate}
           />
         ))}
       </nav>
@@ -474,6 +480,7 @@ function SidebarContent({
             <Link
               key={item.name}
               href={item.href}
+              onClick={onNavigate}
               className={`
                 flex items-center gap-3 px-3 py-2.5 rounded-xl
                 text-stone-600 hover:bg-stone-50 hover:text-stone-900
@@ -613,7 +620,7 @@ function SidebarContent({
         <button
           onClick={logout}
           className={`
-            flex items-center gap-3 mt-3 px-3 py-2.5 w-full
+            flex items-center gap-3 mt-3 px-3 min-h-11 py-2.5 w-full
             text-stone-600 hover:text-red-600 hover:bg-red-50 
             rounded-xl transition-colors
             ${isCollapsed ? "justify-center" : ""}
@@ -636,10 +643,10 @@ function SidebarContent({
 
 export function Sidebar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useSidebarCollapsed(); // Hook persistente
+  const [isCollapsed, setIsCollapsed] = useSidebarCollapsed();
   const { logout, user } = useAuth();
+  const pathname = usePathname();
 
-  // Iniciales del usuario para el avatar fallback
   const userInitials = user?.name
     ? user.name
         .split(" ")
@@ -649,7 +656,10 @@ export function Sidebar() {
         .slice(0, 2)
     : "U";
 
-  // Keyboard shortcuts
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey) {
@@ -667,18 +677,54 @@ export function Sidebar() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isMobileMenuOpen]);
+
+  const pageTitle =
+    [...navigation, ...secondaryNavigation].find((item) =>
+      item.href === "/"
+        ? pathname === "/"
+        : pathname === item.href || pathname.startsWith(`${item.href}/`),
+    )?.name ?? "YerbaXanaes";
+
+  const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
   return (
     <>
-      {/* MOBILE TRIGGER */}
-      <button
-        onClick={() => setIsMobileMenuOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 bg-white rounded-xl shadow-lg border border-stone-200 hover:bg-stone-50 transition-colors"
-        aria-label="Abrir menú"
-      >
-        <Menu className="h-5 w-5 text-stone-700" />
-      </button>
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-1 border-b border-stone-200 bg-white px-2 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-700 hover:bg-stone-50"
+          aria-label="Abrir menú"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-stone-900">
+            {pageTitle}
+          </p>
+          <p className="truncate text-[10px] font-medium uppercase tracking-wider text-stone-500">
+            YerbaXanaes
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={logout}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-600 hover:bg-red-50 hover:text-red-600"
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión"
+        >
+          <LogOut className="h-5 w-5" />
+        </button>
+      </header>
 
-      {/* MOBILE OVERLAY & DRAWER */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <>
@@ -686,20 +732,22 @@ export function Sidebar() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              onClick={closeMobileMenu}
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
             />
             <motion.aside
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl lg:hidden"
+              className="fixed inset-y-0 left-0 z-50 w-[min(18rem,100vw)] bg-white shadow-2xl lg:hidden"
             >
               <div className="relative h-full">
                 <button
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="absolute top-4 right-4 p-1 text-stone-400 hover:text-stone-600"
+                  type="button"
+                  onClick={closeMobileMenu}
+                  className="absolute top-3 right-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 hover:bg-stone-50 hover:text-stone-600"
+                  aria-label="Cerrar menú"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -709,6 +757,7 @@ export function Sidebar() {
                   setIsCollapsed={setIsCollapsed}
                   user={user}
                   userInitials={userInitials}
+                  onNavigate={closeMobileMenu}
                 />
               </div>
             </motion.aside>
@@ -716,13 +765,12 @@ export function Sidebar() {
         )}
       </AnimatePresence>
 
-      {/* DESKTOP SIDEBAR (Sticky) */}
       <motion.aside
         animate={{ width: isCollapsed ? 80 : 280 }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="hidden lg:flex flex-col sticky top-0 h-screen bg-white border-r border-stone-200 shadow-sm z-40"
+        className="sticky top-0 z-40 hidden h-screen flex-col border-r border-stone-200 bg-white shadow-sm lg:flex"
       >
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="relative flex flex-1 flex-col overflow-hidden">
           <SidebarContent
             isCollapsed={isCollapsed}
             logout={logout}
@@ -731,11 +779,10 @@ export function Sidebar() {
             userInitials={userInitials}
           />
 
-          {/* Collapse Button - Floating (Only when expanded) */}
           {!isCollapsed && (
             <button
               onClick={() => setIsCollapsed(true)}
-              className="absolute top-6 right-2 z-50 flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-stone-200 shadow-md text-stone-500 hover:text-yerba-600 hover:border-yerba-300 hover:bg-yerba-50 transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yerba-500/20"
+              className="absolute top-6 right-2 z-50 flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 shadow-md transition-all duration-200 hover:scale-105 hover:border-yerba-300 hover:bg-yerba-50 hover:text-yerba-600 focus:outline-none focus:ring-2 focus:ring-yerba-500/20"
               aria-label="Colapsar menú"
               title="Colapsar menú"
             >
@@ -758,6 +805,8 @@ export function QuickActions() {
     { icon: Package, label: "Nuevo Producto", color: "bg-yerba-500" },
     { icon: Sparkles, label: "Campaña", color: "bg-purple-500" },
   ];
+
+  return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 lg:hidden">

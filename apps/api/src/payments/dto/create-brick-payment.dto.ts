@@ -203,6 +203,10 @@ export class CreateBrickPaymentDto {
   @IsString()
   couponCode?: string;
 
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BrickOrderItemDto)

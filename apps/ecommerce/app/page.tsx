@@ -1,6 +1,8 @@
 import { Header } from "@/components/header";
 import { Hero } from "@/components/hero";
+import { OriginStrip } from "@/components/origin-strip";
 import { Footer } from "@/components/footer";
+import { RevealItem, SectionReveal } from "@/components/section-reveal";
 import { getProducts, getCategories } from "@/lib/api";
 import { brand } from "@/lib/brand";
 import type { Product, Category } from "@repo/types";
@@ -10,7 +12,7 @@ import {
   ArrowRight,
   Package,
   Truck,
-  Shield,
+  MapPin,
   Leaf,
   Coffee,
   Blend,
@@ -114,28 +116,28 @@ function FeaturedProducts({ products }: { products: Product[] }) {
   return (
     <section className="py-20 bg-cream">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-12">
+        <SectionReveal variant="rise" className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-10 md:mb-12">
           <div>
-            <p className="text-yerba-600 font-semibold text-sm uppercase tracking-wider mb-2">
+            <p className="text-palm font-semibold text-sm uppercase tracking-wider mb-2">
               Lo más elegido
             </p>
-            <h2 className="font-serif text-3xl md:text-4xl font-bold text-stone-900 mb-4">
+            <h2 className="font-serif text-3xl md:text-4xl font-bold text-shadow mb-4">
               Productos Destacados
             </h2>
-            <p className="text-stone-600 max-w-xl">
+            <p className="text-shadow/70 max-w-xl">
               Nuestra selección de yerbas y accesorios listos para tu mate
             </p>
           </div>
           <Link
             href="/productos"
-            className="hidden md:inline-flex items-center gap-2 text-yerba-600 font-semibold hover:text-yerba-700 transition-colors"
+            className="hidden md:inline-flex items-center gap-2 text-palm font-semibold hover:text-shadow transition-colors"
           >
             Ver todos
             <ArrowRight className="h-5 w-5" />
           </Link>
-        </div>
+        </SectionReveal>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {products.map((product, index) => {
             const firstVariant = product.variants?.[0];
             const price = firstVariant ? Number(firstVariant.price) : 0;
@@ -145,58 +147,64 @@ function FeaturedProducts({ products }: { products: Product[] }) {
               Boolean(imageUrl) && !isKnownBrokenImage(imageUrl);
 
             return (
-              <Link
+              <RevealItem
                 key={product.id}
-                href={`/productos/${product.slug}`}
-                className="group bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl hover:border-palm/40 transition-all duration-300 cursor-pointer"
+                index={index}
+                variant="rise"
+                className="h-full"
               >
-                <div className="aspect-square bg-stone-100 relative overflow-hidden">
-                  {shouldRenderImage ? (
-                    <Image
-                      src={imageUrl}
-                      alt={`${product.name} — YerbaXanaes`}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      priority={isPriority}
-                      unoptimized={isUnsplashImage(imageUrl)}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-yerba-50 to-earth-50">
-                      <Leaf className="h-16 w-16 text-yerba-300" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-5">
-                  {product.category && (
-                    <p className="text-xs text-yerba-600 font-semibold uppercase tracking-wider mb-1">
-                      {product.category.name}
-                    </p>
-                  )}
-                  <h3 className="font-semibold text-stone-900 mb-1 line-clamp-1">
-                    {product.name}
-                  </h3>
-                  <p className="text-sm text-stone-500 mb-4 line-clamp-2">
-                    {product.description}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-serif text-2xl font-bold text-yerba-600">
-                        ${price.toLocaleString("es-AR")}
-                      </span>
-                      {firstVariant && (
-                        <span className="text-sm text-stone-400 ml-1">
-                          /{firstVariant.name}
-                        </span>
-                      )}
-                    </div>
-                    <span className="bg-stone-100 group-hover:bg-yerba-600 group-hover:text-white text-stone-700 p-3 rounded-full transition-colors duration-200">
-                      <ArrowRight className="h-5 w-5" />
-                    </span>
+                <Link
+                  href={`/productos/${product.slug}`}
+                  className="group bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl hover:border-palm/40 transition-all duration-300 cursor-pointer h-full block"
+                >
+                  <div className="aspect-square bg-muted relative overflow-hidden">
+                    {shouldRenderImage ? (
+                      <Image
+                        src={imageUrl}
+                        alt={`${product.name} — YerbaXanaes`}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-500 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                        priority={isPriority}
+                        unoptimized={isUnsplashImage(imageUrl)}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-muted">
+                        <Leaf className="h-16 w-16 text-leaf" />
+                      </div>
+                    )}
                   </div>
-                </div>
-              </Link>
+
+                  <div className="p-4 sm:p-5">
+                    {product.category && (
+                      <p className="text-xs text-palm font-semibold uppercase tracking-wider mb-1">
+                        {product.category.name}
+                      </p>
+                    )}
+                    <h3 className="font-semibold text-shadow mb-1 line-clamp-1">
+                      {product.name}
+                    </h3>
+                    <p className="text-sm text-shadow/60 mb-4 line-clamp-2">
+                      {product.description}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-serif text-2xl font-bold text-palm">
+                          ${price.toLocaleString("es-AR")}
+                        </span>
+                        {firstVariant && (
+                          <span className="text-sm text-shadow/50 ml-1">
+                            /{firstVariant.name}
+                          </span>
+                        )}
+                      </div>
+                      <span className="inline-flex h-11 w-11 items-center justify-center bg-terra text-shadow rounded-full transition-colors duration-200 group-hover:bg-terra/90">
+                        <ArrowRight className="h-5 w-5" />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </RevealItem>
             );
           })}
         </div>
@@ -204,7 +212,7 @@ function FeaturedProducts({ products }: { products: Product[] }) {
         <div className="mt-8 text-center md:hidden">
           <Link
             href="/productos"
-            className="inline-flex items-center gap-2 text-yerba-600 font-semibold hover:text-yerba-700 transition-colors"
+            className="inline-flex min-h-11 items-center gap-2 text-palm font-semibold hover:text-shadow transition-colors"
           >
             Ver todos los productos
             <ArrowRight className="h-5 w-5" />
@@ -217,62 +225,75 @@ function FeaturedProducts({ products }: { products: Product[] }) {
 
 // --- Benefits ---
 function Benefits() {
+  const freeShip = `$${brand.freeShippingFromArs.toLocaleString("es-AR")}`;
   const benefits = [
     {
       icon: Leaf,
       title: "100% Natural",
       description:
-        "Productos seleccionados de la más alta calidad, sin aditivos ni conservantes.",
+        "Sin conservantes. Yerba mate seleccionada, como ya lo decimos en la tienda.",
+      href: "/nosotros",
     },
     {
       icon: Truck,
-      title: "Envío Rápido",
+      title: "Envío a todo el país",
       description:
-        "Entregamos en 24-48hs a todo el país. Gratis en compras mayores a $15.000.",
+        "Cotizamos con Correo Argentino en el checkout. Si no hay tarifa, coordinamos por WhatsApp.",
+      href: "/envios",
     },
     {
-      icon: Shield,
-      title: "Garantía de Calidad",
-      description:
-        "Si no estás satisfecho, te devolvemos tu dinero. Sin preguntas.",
+      icon: MapPin,
+      title: "Retiro en origen",
+      description: `Retiro en ${brand.locationLabel}.`,
+      href: "/envios",
     },
     {
       icon: Package,
-      title: "Packaging Premium",
-      description:
-        "Envases diseñados para mantener la frescura y calidad del producto.",
+      title: "Envío gratis",
+      description: `En compras desde ${freeShip}. Se confirma en el checkout.`,
+      href: "/envios",
     },
   ];
 
   return (
-    <section className="py-20 bg-yerba-50">
+    <section className="py-20 bg-muted">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <p className="text-yerba-600 font-semibold text-sm uppercase tracking-wider mb-2">
+        <SectionReveal variant="soft" className="text-center mb-16">
+          <p className="text-palm font-semibold text-sm uppercase tracking-wider mb-2">
             Por qué elegirnos
           </p>
-          <h2 className="font-serif text-3xl md:text-4xl font-bold text-stone-900 mb-4">
+          <h2 className="font-serif text-3xl md:text-4xl font-bold text-shadow mb-4">
             Calidad que se siente en cada sorbo
           </h2>
-          <p className="text-stone-600 max-w-2xl mx-auto">
+          <p className="text-shadow/70 max-w-2xl mx-auto">
             Nos apasiona el mate y eso se nota en cada detalle. Desde la
             selección de productos hasta tu puerta.
           </p>
-        </div>
+        </SectionReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {benefits.map((benefit, index) => (
-            <div key={index} className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-md mb-6">
-                <benefit.icon className="h-8 w-8 text-yerba-600" />
-              </div>
-              <h3 className="font-semibold text-stone-900 text-lg mb-2">
-                {benefit.title}
-              </h3>
-              <p className="text-stone-600 text-sm leading-relaxed">
-                {benefit.description}
-              </p>
-            </div>
+            <RevealItem
+              key={benefit.title}
+              index={index}
+              variant="soft"
+              className="text-center h-full"
+            >
+              <Link
+                href={benefit.href}
+                className="block h-full rounded-xl p-2 -m-2 hover:bg-card/60 transition-colors"
+              >
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-card border border-border mb-6">
+                  <benefit.icon className="h-8 w-8 text-palm" />
+                </div>
+                <h3 className="font-semibold text-shadow text-lg mb-2">
+                  {benefit.title}
+                </h3>
+                <p className="text-shadow/70 text-sm leading-relaxed">
+                  {benefit.description}
+                </p>
+              </Link>
+            </RevealItem>
           ))}
         </div>
       </div>
@@ -287,41 +308,47 @@ function CategoriesSection({ categories }: { categories: Category[] }) {
   return (
     <section className="py-20 bg-cream">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <p className="text-yerba-600 font-semibold text-sm uppercase tracking-wider mb-2">
+        <SectionReveal variant="slide" className="text-center mb-12">
+          <p className="text-palm font-semibold text-sm uppercase tracking-wider mb-2">
             Nuestros productos
           </p>
-          <h2 className="font-serif text-3xl md:text-4xl font-bold text-stone-900 mb-4">
+          <h2 className="font-serif text-3xl md:text-4xl font-bold text-shadow mb-4">
             Explorá por Categoría
           </h2>
-          <p className="text-stone-600 max-w-2xl mx-auto">
+          <p className="text-shadow/70 max-w-2xl mx-auto">
             Encontrá todo lo que necesitás para tu ritual del mate
           </p>
-        </div>
+        </SectionReveal>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {categories.map((category) => {
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          {categories.map((category, index) => {
             const Icon = getCategoryIcon(category.slug);
             const productCount = category._count?.products ?? 0;
 
             return (
-              <Link
+              <RevealItem
                 key={category.id}
-                href={`/productos?category=${category.slug}`}
-                className="group relative overflow-hidden rounded-2xl bg-stone-50 border border-stone-200 aspect-square flex flex-col items-center justify-center hover:bg-yerba-50 hover:border-yerba-200 transition-all duration-300 cursor-pointer p-6 text-center"
+                index={index}
+                variant="slide"
+                className="h-full"
               >
-                <div className="w-16 h-16 rounded-xl bg-white shadow-sm flex items-center justify-center mb-4 group-hover:bg-yerba-100 transition-colors">
-                  <Icon className="h-8 w-8 text-yerba-600" />
-                </div>
-                <h3 className="font-semibold text-stone-900 text-base">
-                  {category.name}
-                </h3>
-                {productCount > 0 && (
-                  <p className="text-sm text-stone-500 mt-1">
-                    {productCount} producto{productCount !== 1 ? "s" : ""}
-                  </p>
-                )}
-              </Link>
+                <Link
+                  href={`/productos?category=${category.slug}`}
+                  className="group relative overflow-hidden bg-card border border-border aspect-square flex flex-col items-center justify-center hover:bg-muted hover:border-palm/40 transition-all duration-300 cursor-pointer p-6 text-center h-full"
+                >
+                  <div className="w-16 h-16 bg-cream border border-border flex items-center justify-center mb-4 group-hover:border-palm/40 transition-colors">
+                    <Icon className="h-8 w-8 text-palm" />
+                  </div>
+                  <h3 className="font-semibold text-shadow text-base">
+                    {category.name}
+                  </h3>
+                  {productCount > 0 && (
+                    <p className="text-sm text-shadow/60 mt-1">
+                      {productCount} producto{productCount !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </Link>
+              </RevealItem>
             );
           })}
         </div>
@@ -343,11 +370,12 @@ export default async function Home() {
       : allProducts.slice(0, 4);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-x-clip">
       <OrganizationSchema />
       <Header />
       <main className="flex-1">
         <Hero />
+        <OriginStrip />
         <FeaturedProducts products={featured} />
         <Benefits />
         <CategoriesSection categories={categories} />

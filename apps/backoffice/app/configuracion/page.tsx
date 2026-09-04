@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sidebar } from "@/components/sidebar";
+import { AppShell } from "@/components/app-shell";
 import {
   Store,
   Truck,
@@ -420,11 +420,8 @@ export default function ConfiguracionPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-stone-50/50">
-      <Sidebar />
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto py-8 px-6">
+    <AppShell>
+        <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 sm:py-8">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-stone-900">Configuración</h1>
@@ -509,7 +506,6 @@ export default function ConfiguracionPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

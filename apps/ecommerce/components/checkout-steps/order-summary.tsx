@@ -15,6 +15,7 @@ import {
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { MercadoPagoLogo } from "@/components/checkout/mercado-pago-logo";
+import { brand } from "@/lib/brand";
 
 interface OrderSummaryProps {
   items: CartItem[];
@@ -81,7 +82,7 @@ export function OrderSummary({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="w-full bg-yerba-600 text-white rounded-xl p-4 flex items-center justify-between gap-3 hover:bg-yerba-700 transition-colors text-left"
+          className="w-full min-h-11 bg-palm text-white rounded-xl p-4 flex items-center justify-between gap-3 hover:bg-palm/90 transition-colors text-left"
           aria-expanded={expanded}
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -266,8 +267,7 @@ export function OrderSummary({
               <div className="flex justify-between">
                 <span className="text-stone-500">Dirección</span>
                 <span className="font-medium text-stone-900 text-right">
-                  {process.env.NEXT_PUBLIC_STORE_ADDRESS ||
-                    "Consultá la dirección por WhatsApp"}
+                  {brand.locationLabel}
                 </span>
               </div>
             </>

@@ -15,7 +15,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
 import { BrickInitDto } from './dto/brick-init.dto';
-import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
+import { OfflineCheckoutDto } from './dto/offline-checkout.dto';
+import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
+import {
+  OrderStatus,
+  PaymentProvider,
+  Prisma,
+  SalesChannel,
+} from '@prisma/client';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { CouponsService } from '../coupons/coupons.service';
 import { PaymentsSyncService } from './payments-sync.service';
@@ -35,6 +42,17 @@ const MAX_PENDING_ORDERS_PER_EMAIL = 5;
 /**
  * Métricas devueltas por el cleanup de órdenes PENDING
  */
+export type TransferInstructions = {
+  alias: string | null;
+  cbu: string | null;
+  holder: string | null;
+  bank: string | null;
+  test?: boolean;
+};
+
+const PAYMENT_LINK_NOTES = 'Link de pago';
+const DEFAULT_PAYMENT_LINK_TITLE = 'Pago YerbaXanaes';
+
 export interface CleanupMetrics {
   checked: number; // Órdenes PENDING encontradas
   cancelled: number; // Órdenes canceladas exitosamente
@@ -134,20 +152,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   }> {
     // Rate-limit por email (complementa el throttle por IP del controller):
     // rechaza si el comprador ya tiene demasiadas órdenes PENDING activas.
-    const activePending = await this.prisma.order.count({
-      where: {
-        customerEmail: dto.customerEmail,
-        status: OrderStatus.PENDING,
-        deletedAt: null,
-      },
-    });
-    if (activePending >= MAX_PENDING_ORDERS_PER_EMAIL) {
-      throw new HttpException(
-        'Demasiadas órdenes pendientes de pago para este email. ' +
-          'Completá el pago de una o esperá a que expiren.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    await this.assertPendingEmailRateLimit(dto.customerEmail);
 
     const frontendUrl = (
       this.config.get<string>('FRONTEND_URL') || 'http://localhost:3000'
@@ -157,31 +162,13 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     ).replace(/\/$/, '');
 
     // 1. Calcular monto
-    const itemsSubtotal = await this.calculateOrderItemsSubtotal(
-      dto.orderItems,
-    );
-    const shippingCost = Math.max(0, Number(dto.shippingCost ?? 0));
-    const grossAmount = itemsSubtotal + shippingCost;
-
-    let couponValidation: Awaited<
-      ReturnType<CouponsService['validate']>
-    > | null = null;
-
-    if (dto.couponCode) {
-      try {
-        couponValidation = await this.coupons.validate(
-          dto.couponCode,
-          grossAmount,
-        );
-      } catch {
-        this.logger.warn(
-          `Cupón ${dto.couponCode} inválido en brick-init — ignorado`,
-        );
-      }
-    }
-
-    const couponDiscount = couponValidation?.discountAmount ?? 0;
-    const finalAmount = Math.max(0, grossAmount - couponDiscount);
+    const { finalAmount, shippingCost, couponValidation } =
+      await this.computeCheckoutTotals(
+        dto.orderItems,
+        dto.shippingCost,
+        dto.couponCode,
+        'brick-init',
+      );
 
     // 2. Crear orden PENDING (decrementa stock con row locks)
     const order = await this.createPendingOrder({
@@ -203,6 +190,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       shippingProvider: dto.shippingProvider,
       shippingDeliveryType: dto.shippingDeliveryType,
       shippingAgencyCode: dto.shippingAgencyCode,
+      notes: dto.notes,
+      paymentProvider: PaymentProvider.MERCADOPAGO,
     });
 
     // Aplicar cupón a la orden si corresponde
@@ -507,6 +496,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         status: true,
         mpStatus: true,
         mpPaymentId: true,
+        paymentProvider: true,
+        deliveryType: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -643,6 +634,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           shippingProvider: dto.shippingProvider,
           shippingDeliveryType: dto.shippingDeliveryType,
           shippingAgencyCode: dto.shippingAgencyCode,
+          notes: dto.notes,
         });
       } else {
         /**
@@ -715,13 +707,18 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           }
         }
 
-        // Actualizar total si cambió (ej: cupón aplicado después de brick-init)
-        if (Math.abs(Number(existing.total) - finalAmount) > 0.01) {
-          await this.prisma.order.update({
-            where: { id: existing.id },
-            data: { total: finalAmount },
-          });
-        }
+        // Total / notas / proveedor: el cliente pudo haber pasado por
+        // transferencia o efectivo y volver a Mercado Pago.
+        await this.prisma.order.update({
+          where: { id: existing.id },
+          data: {
+            ...(Math.abs(Number(existing.total) - finalAmount) > 0.01
+              ? { total: finalAmount }
+              : {}),
+            ...(dto.notes ? { notes: dto.notes } : {}),
+            paymentProvider: PaymentProvider.MERCADOPAGO,
+          },
+        });
 
         order = existing;
         this.logger.log(
@@ -749,6 +746,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         shippingProvider: dto.shippingProvider,
         shippingDeliveryType: dto.shippingDeliveryType,
         shippingAgencyCode: dto.shippingAgencyCode,
+        notes: dto.notes,
       });
 
       // Aplicar cupón a la orden si corresponde
@@ -1157,13 +1155,42 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const cartCutoff = new Date(now - cartAbandonedTtl * 60_000);
     const paymentCutoff = new Date(now - pendingPaymentTtl * 60_000);
 
+    // Transferencia / efectivo online: Luz confirma a mano. No usar el TTL
+    // corto de carritos MP abandonados (sin mpPaymentId).
+    const offlinePendingTtl = Math.max(
+      1,
+      Number(this.config.get('OFFLINE_PENDING_TTL_MINUTES') ?? 10080),
+    );
+    const offlineCutoff = new Date(now - offlinePendingTtl * 60_000);
+
     const expiredOrders = await this.prisma.order.findMany({
       where: {
         status: OrderStatus.PENDING,
         deletedAt: null,
         OR: [
-          { mpPaymentId: null, createdAt: { lte: cartCutoff } },
-          { mpPaymentId: { not: null }, createdAt: { lte: paymentCutoff } },
+          {
+            paymentProvider: PaymentProvider.MERCADOPAGO,
+            mpPaymentId: null,
+            createdAt: { lte: cartCutoff },
+            NOT: { notes: { startsWith: PAYMENT_LINK_NOTES } },
+          },
+          {
+            paymentProvider: PaymentProvider.MERCADOPAGO,
+            mpPaymentId: { not: null },
+            createdAt: { lte: paymentCutoff },
+          },
+          {
+            paymentProvider: PaymentProvider.MERCADOPAGO,
+            mpPaymentId: null,
+            notes: { startsWith: PAYMENT_LINK_NOTES },
+            createdAt: { lte: paymentCutoff },
+          },
+          {
+            paymentProvider: {
+              in: [PaymentProvider.TRANSFER, PaymentProvider.CASH],
+            },
+            createdAt: { lte: offlineCutoff },
+          },
         ],
       },
       select: { id: true, items: true, mpPaymentId: true },
@@ -1680,6 +1707,385 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   }
 
   // -------------------------------------------------------
+  // CHECKOUT OFFLINE (transferencia / efectivo en retiro)
+  // -------------------------------------------------------
+  getTransferInfo(): {
+    transferInstructions: TransferInstructions | null;
+    test: boolean;
+  } {
+    const transferInstructions = this.getTransferInstructions();
+    const test = Boolean(transferInstructions?.test);
+    return {
+      transferInstructions: test ? null : transferInstructions,
+      test,
+    };
+  }
+
+  async createPaymentLink(dto: CreatePaymentLinkDto): Promise<{
+    initPoint: string;
+    sandboxInitPoint: string | null;
+    preferenceId: string;
+    amount: number;
+    title: string;
+  }> {
+    const frontendUrl = (
+      this.config.get<string>('FRONTEND_URL') ||
+      this.config.get<string>('NEXT_PUBLIC_SITE_URL') ||
+      ''
+    ).replace(/\/$/, '');
+    const apiUrl = (
+      this.config.get<string>('API_URL') || 'http://localhost:3001'
+    ).replace(/\/$/, '');
+
+    let orderId: string;
+    let amount: number;
+    let title: string;
+    let payerEmail = dto.payerEmail?.trim() || undefined;
+    let createdStandalone = false;
+
+    if (dto.orderId) {
+      const order = await this.prisma.order.findUnique({
+        where: { id: dto.orderId },
+        include: {
+          items: {
+            include: {
+              variant: { include: { product: { select: { name: true } } } },
+            },
+          },
+        },
+      });
+      if (!order || order.deletedAt) {
+        throw new NotFoundException(`Orden #${dto.orderId} no encontrada`);
+      }
+      if (order.status === OrderStatus.PAID) {
+        throw new BadRequestException('La orden ya está pagada');
+      }
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BadRequestException(
+          'Solo se puede generar un link para órdenes pendientes',
+        );
+      }
+      amount = Number(order.total);
+      if (!Number.isFinite(amount) || amount < 1) {
+        throw new BadRequestException('El monto de la orden no es válido');
+      }
+      orderId = order.id;
+      title =
+        dto.title?.trim() ||
+        order.items[0]?.variant?.product?.name ||
+        DEFAULT_PAYMENT_LINK_TITLE;
+      payerEmail = payerEmail || order.customerEmail || undefined;
+    } else {
+      amount = Number(dto.amount);
+      if (!Number.isFinite(amount) || amount < 1) {
+        throw new BadRequestException(
+          'Indicá un monto en ARS o una orden pendiente',
+        );
+      }
+      title = dto.title?.trim() || DEFAULT_PAYMENT_LINK_TITLE;
+      const order = await this.prisma.order.create({
+        data: {
+          customerEmail: payerEmail || 'pago@yerbaxanaes.local',
+          customerName: title,
+          total: amount,
+          status: OrderStatus.PENDING,
+          paymentProvider: PaymentProvider.MERCADOPAGO,
+          channel: SalesChannel.STORE,
+          notes: PAYMENT_LINK_NOTES,
+          deliveryType: 'pickup',
+        },
+      });
+      orderId = order.id;
+      createdStandalone = true;
+    }
+
+    try {
+      const preference = await this.preferenceClient.create({
+        body: {
+          items: [
+            {
+              id: orderId,
+              title,
+              quantity: 1,
+              unit_price: amount,
+              currency_id: 'ARS',
+            },
+          ],
+          ...(payerEmail ? { payer: { email: payerEmail } } : {}),
+          ...(frontendUrl
+            ? {
+                back_urls: {
+                  success: `${frontendUrl}/checkout/success?orderId=${orderId}`,
+                  failure: `${frontendUrl}/checkout/failure?orderId=${orderId}`,
+                  pending: `${frontendUrl}/checkout/success?orderId=${orderId}&status=pending`,
+                },
+                ...(frontendUrl.startsWith('https')
+                  ? { auto_return: 'approved' as const }
+                  : {}),
+              }
+            : {}),
+          external_reference: orderId,
+          notification_url: `${apiUrl}/payments/webhook`,
+          statement_descriptor: this.getStatementDescriptor(),
+          binary_mode: false,
+          expires: true,
+          expiration_date_from: new Date().toISOString(),
+          expiration_date_to: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        },
+        requestOptions: { idempotencyKey: `payment-link-${orderId}` },
+      });
+
+      const initPoint = preference.init_point ?? null;
+      const sandboxInitPoint = preference.sandbox_init_point ?? null;
+      const link = initPoint || sandboxInitPoint;
+      if (!preference.id || !link) {
+        throw new InternalServerErrorException(
+          'Mercado Pago no devolvió un link de pago',
+        );
+      }
+
+      this.logger.log(
+        `Payment link OK: orden=${orderId} preferenceId=${preference.id} amount=${amount}`,
+      );
+
+      return {
+        initPoint: link,
+        sandboxInitPoint,
+        preferenceId: preference.id,
+        amount,
+        title,
+      };
+    } catch (error) {
+      this.logger.error('Error creando link de pago MP', error);
+      if (createdStandalone) {
+        await this.cancelPendingOrderWithStockRestore(
+          orderId,
+          'payment_link_preference_error',
+          undefined,
+          'PAYMENT_REJECTED',
+        );
+      }
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(
+        'Error al generar el link de Mercado Pago',
+      );
+    }
+  }
+
+  async offlineCheckout(dto: OfflineCheckoutDto): Promise<{
+    orderId: string;
+    total: number;
+    paymentProvider: PaymentProvider;
+    transferInstructions: TransferInstructions | null;
+  }> {
+    if (
+      dto.paymentProvider !== PaymentProvider.CASH &&
+      dto.paymentProvider !== PaymentProvider.TRANSFER
+    ) {
+      throw new BadRequestException('Método de pago offline inválido');
+    }
+
+    if (
+      dto.paymentProvider === PaymentProvider.CASH &&
+      dto.deliveryType !== 'pickup'
+    ) {
+      throw new BadRequestException(
+        'El pago en efectivo solo está disponible para retiro en el local',
+      );
+    }
+
+    if (dto.paymentProvider === PaymentProvider.TRANSFER) {
+      const transfer = this.getTransferInstructions();
+      if (!transfer || transfer.test) {
+        throw new BadRequestException(
+          'La transferencia no está disponible por ahora. Pagá con Mercado Pago o efectivo en el local.',
+        );
+      }
+    }
+
+    await this.assertPendingEmailRateLimit(dto.customerEmail);
+
+    const { finalAmount, shippingCost, couponValidation } =
+      await this.computeCheckoutTotals(
+        dto.orderItems,
+        dto.shippingCost,
+        dto.couponCode,
+        'offline-checkout',
+      );
+
+    let order: { id: string; total: number | Prisma.Decimal } | null = null;
+
+    if (dto.existingOrderId) {
+      const existing = await this.prisma.order.findUnique({
+        where: { id: dto.existingOrderId },
+        select: {
+          id: true,
+          total: true,
+          status: true,
+          deletedAt: true,
+          customerEmail: true,
+        },
+      });
+
+      if (
+        existing &&
+        !existing.deletedAt &&
+        existing.status === OrderStatus.PENDING &&
+        existing.customerEmail === dto.customerEmail
+      ) {
+        order = await this.prisma.order.update({
+          where: { id: existing.id },
+          data: {
+            paymentProvider: dto.paymentProvider,
+            total: finalAmount,
+            ...(dto.notes ? { notes: dto.notes } : {}),
+          },
+        });
+
+        if (couponValidation) {
+          try {
+            await this.prisma.$transaction(async (tx) => {
+              await this.coupons.applyToOrder(
+                tx,
+                existing.id,
+                couponValidation.couponId,
+                couponValidation.discountAmount,
+              );
+            });
+          } catch (error) {
+            this.logger.warn(
+              `Cupón ya aplicado o falla aplicándolo en orden ${existing.id}`,
+              error,
+            );
+          }
+        }
+
+        this.logger.log(
+          `Offline checkout reutiliza orden ${order.id} → ${dto.paymentProvider}`,
+        );
+      }
+    }
+
+    if (!order) {
+      order = await this.createPendingOrder({
+        customerEmail: dto.customerEmail,
+        customerName: dto.customerName,
+        customerPhone: dto.customerPhone,
+        orderItems: dto.orderItems,
+        totalAmount: finalAmount,
+        deliveryType: dto.deliveryType,
+        shippingStreetName: dto.shippingStreetName,
+        shippingStreetNumber: dto.shippingStreetNumber,
+        shippingFloor: dto.shippingFloor,
+        shippingApartment: dto.shippingApartment,
+        shippingAddress: dto.shippingAddress,
+        shippingCity: dto.shippingCity,
+        shippingProvinceCode: dto.shippingProvinceCode,
+        shippingZip: dto.shippingZip,
+        shippingCost,
+        shippingProvider: dto.shippingProvider,
+        shippingDeliveryType: dto.shippingDeliveryType,
+        shippingAgencyCode: dto.shippingAgencyCode,
+        notes: dto.notes,
+        paymentProvider: dto.paymentProvider,
+      });
+
+      if (couponValidation) {
+        await this.prisma.$transaction(async (tx) => {
+          await this.coupons.applyToOrder(
+            tx,
+            order!.id,
+            couponValidation.couponId,
+            couponValidation.discountAmount,
+          );
+        });
+      }
+
+      this.logger.log(
+        `Offline checkout creó orden ${order.id} → ${dto.paymentProvider} PENDING`,
+      );
+    }
+
+    return {
+      orderId: order.id,
+      total: Number(order.total),
+      paymentProvider: dto.paymentProvider,
+      transferInstructions:
+        dto.paymentProvider === PaymentProvider.TRANSFER
+          ? this.getTransferInstructions()
+          : null,
+    };
+  }
+
+  private getTransferInstructions(): TransferInstructions | null {
+    const alias = this.config.get<string>('TRANSFER_ALIAS')?.trim() || null;
+    const cbu = this.config.get<string>('TRANSFER_CBU')?.trim() || null;
+    const holder = this.config.get<string>('TRANSFER_HOLDER')?.trim() || null;
+    const bank = this.config.get<string>('TRANSFER_BANK')?.trim() || null;
+    if (!alias && !cbu && !holder && !bank) return null;
+    const blob = `${holder ?? ''} ${alias ?? ''}`.toLowerCase();
+    return {
+      alias,
+      cbu,
+      holder,
+      bank,
+      test: blob.includes('prueba'),
+    };
+  }
+
+  private async assertPendingEmailRateLimit(customerEmail: string) {
+    const activePending = await this.prisma.order.count({
+      where: {
+        customerEmail,
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      },
+    });
+    if (activePending >= MAX_PENDING_ORDERS_PER_EMAIL) {
+      throw new HttpException(
+        'Demasiadas órdenes pendientes de pago para este email. ' +
+          'Completá el pago de una o esperá a que expiren.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private async computeCheckoutTotals(
+    orderItems: { variantId: string; quantity: number }[],
+    shippingCostRaw: number | undefined,
+    couponCode: string | undefined,
+    couponLogContext: string,
+  ): Promise<{
+    shippingCost: number;
+    couponValidation: Awaited<ReturnType<CouponsService['validate']>> | null;
+    finalAmount: number;
+  }> {
+    const itemsSubtotal = await this.calculateOrderItemsSubtotal(orderItems);
+    const shippingCost = Math.max(0, Number(shippingCostRaw ?? 0));
+    const grossAmount = itemsSubtotal + shippingCost;
+
+    let couponValidation: Awaited<
+      ReturnType<CouponsService['validate']>
+    > | null = null;
+
+    if (couponCode) {
+      try {
+        couponValidation = await this.coupons.validate(couponCode, grossAmount);
+      } catch {
+        this.logger.warn(
+          `Cupón ${couponCode} inválido en ${couponLogContext} — ignorado`,
+        );
+      }
+    }
+
+    const couponDiscount = couponValidation?.discountAmount ?? 0;
+    const finalAmount = Math.max(0, grossAmount - couponDiscount);
+    return { shippingCost, couponValidation, finalAmount };
+  }
+
+  // -------------------------------------------------------
   // HELPER INTERNO: Crear Orden y Descontar Stock
   // -------------------------------------------------------
   private async createPendingOrder(params: {
@@ -1704,6 +2110,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     // Correo Argentino: D (domicilio) | S (sucursal)
     shippingDeliveryType?: string;
     shippingAgencyCode?: string;
+    notes?: string;
+    paymentProvider?: PaymentProvider;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const orderItemsData: {
@@ -1782,7 +2190,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           customerPhone: params.customerPhone,
           total: params.totalAmount,
           status: OrderStatus.PENDING,
-          paymentProvider: PaymentProvider.MERCADOPAGO,
+          paymentProvider:
+            params.paymentProvider ?? PaymentProvider.MERCADOPAGO,
           deliveryType: params.deliveryType || 'pickup',
           // Dirección estructurada
           shippingStreetName: params.shippingStreetName,
@@ -1802,6 +2211,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           // Correo: D/S + sucursal
           shippingDeliveryType: params.shippingDeliveryType,
           shippingAgencyCode: params.shippingAgencyCode,
+          notes: params.notes,
           items: { create: orderItemsData },
         },
       });

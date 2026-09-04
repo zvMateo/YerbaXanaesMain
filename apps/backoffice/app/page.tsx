@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import { Sidebar, QuickActions } from "@/components/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { DashboardContent } from "@/components/dashboard-content";
 import { DashboardSkeleton } from "@/components/skeletons";
 
@@ -11,12 +11,9 @@ export const metadata: Metadata = {
 
 export default function DashboardPage() {
   return (
-    <div className="flex min-h-screen bg-stone-50/50">
-      <Sidebar />
-
-      <main className="flex-1 lg:ml-0 overflow-auto">
+    <AppShell>
         {/* Breadcrumbs header */}
-        <div className="bg-white border-b border-stone-200 px-6 py-4">
+        <div className="bg-white border-b border-stone-200 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2 text-sm text-stone-500">
             <span className="text-stone-900 font-medium">Dashboard</span>
           </div>
@@ -28,14 +25,11 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="p-6 lg:p-8">
+        <div className="min-w-0 p-4 sm:p-6 lg:p-8">
           <Suspense fallback={<DashboardSkeleton />}>
             <DashboardContent />
           </Suspense>
         </div>
-      </main>
-
-      <QuickActions />
-    </div>
+    </AppShell>
   );
 }

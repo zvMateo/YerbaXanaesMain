@@ -33,7 +33,7 @@ export function PersonalInfoStep() {
               {...register("customerName")}
               type="text"
               placeholder="Ej: María González"
-              className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+              className="w-full min-h-11 pl-10 pr-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
             />
           </div>
           {errors.customerName && (
@@ -54,7 +54,7 @@ export function PersonalInfoStep() {
               {...register("customerEmail")}
               type="email"
               placeholder="Ej: maria@email.com"
-              className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+              className="w-full min-h-11 pl-10 pr-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
             />
           </div>
           {errors.customerEmail && (
@@ -75,7 +75,7 @@ export function PersonalInfoStep() {
               {...register("customerPhone")}
               type="tel"
               placeholder="Ej: 11 1234-5678"
-              className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+              className="w-full min-h-11 pl-10 pr-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
             />
           </div>
           {errors.customerPhone && (

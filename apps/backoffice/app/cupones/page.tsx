@@ -18,7 +18,7 @@ import {
   useDeleteCoupon,
   type CreateCouponDto,
 } from "@/hooks/use-coupons";
-import { Sidebar, QuickActions } from "@/components/sidebar";
+import { AppShell } from "@/components/app-shell";
 
 export default function CuponesPage() {
   const { data: coupons = [], isLoading } = useCoupons();
@@ -50,16 +50,14 @@ export default function CuponesPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-stone-50/50">
-      <Sidebar />
-      <main className="flex-1 lg:ml-0 overflow-auto">
-        <div className="bg-white border-b border-stone-200 px-6 py-4">
+    <AppShell>
+        <div className="bg-white border-b border-stone-200 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2 text-sm text-stone-500">
             <span>Dashboard</span>
             <span>/</span>
             <span className="text-stone-900 font-medium">Cupones</span>
           </div>
-          <div className="flex items-center justify-between mt-1">
+          <div className="flex flex-col gap-3 mt-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-stone-900">Cupones</h1>
               <p className="text-stone-500 text-sm">
@@ -68,7 +66,7 @@ export default function CuponesPage() {
             </div>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium text-sm shadow-sm"
+              className="inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium text-sm shadow-sm"
             >
               <Plus className="h-4 w-4" />
               Nuevo cupón
@@ -76,7 +74,7 @@ export default function CuponesPage() {
           </div>
         </div>
 
-        <div className="p-6 lg:p-8 space-y-6">
+        <div className="min-w-0 p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Create form */}
           {showForm && (
             <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
@@ -89,7 +87,7 @@ export default function CuponesPage() {
                   <X className="h-5 w-5 text-stone-500" />
                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">
                     Código *
@@ -205,7 +203,7 @@ export default function CuponesPage() {
                   />
                 </div>
 
-                <div className="col-span-2 flex gap-3 pt-2">
+                <div className="sm:col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
@@ -245,7 +243,8 @@ export default function CuponesPage() {
                 </p>
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[40rem] text-sm">
                 <thead className="bg-stone-50 border-b border-stone-200">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-stone-500 uppercase tracking-wider">
@@ -332,11 +331,10 @@ export default function CuponesPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
-      </main>
-      <QuickActions />
-    </div>
+    </AppShell>
   );
 }

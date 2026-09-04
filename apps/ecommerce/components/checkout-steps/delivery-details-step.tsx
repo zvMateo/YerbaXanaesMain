@@ -277,8 +277,8 @@ export function DeliveryDetailsStep() {
       {isDomicilio && (
         <div className="space-y-4">
           {/* Calle + altura */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-stone-700 mb-2">
                 Calle
               </label>
@@ -288,7 +288,7 @@ export function DeliveryDetailsStep() {
                   {...register("streetName")}
                   type="text"
                   placeholder="Ej: Av. Corrientes"
-                  className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+                  className="w-full min-h-11 pl-10 pr-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
                 />
               </div>
               {errors.streetName && (
@@ -305,7 +305,7 @@ export function DeliveryDetailsStep() {
                 {...register("streetNumber")}
                 type="text"
                 placeholder="1234"
-                className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+                className="w-full min-h-11 px-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
               />
               {errors.streetNumber && (
                 <p className="mt-1 text-sm text-red-600">
@@ -325,7 +325,7 @@ export function DeliveryDetailsStep() {
                 {...register("floor")}
                 type="text"
                 placeholder="Ej: 2"
-                className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+                className="w-full min-h-11 px-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
               />
             </div>
             <div>
@@ -336,7 +336,7 @@ export function DeliveryDetailsStep() {
                 {...register("apartment")}
                 type="text"
                 placeholder="Ej: B"
-                className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+                className="w-full min-h-11 px-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
               />
             </div>
           </div>
@@ -353,7 +353,7 @@ export function DeliveryDetailsStep() {
                   {...register("city")}
                   type="text"
                   placeholder="Ej: Villa del Rosario"
-                  className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+                  className="w-full min-h-11 pl-10 pr-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
                 />
               </div>
               {errors.city && (
@@ -372,7 +372,7 @@ export function DeliveryDetailsStep() {
                   {...register("zipCode")}
                   type="text"
                   placeholder="Ej: 5963"
-                  className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+                  className="w-full min-h-11 pl-10 pr-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
                 />
               </div>
               {errors.zipCode && (
@@ -390,7 +390,7 @@ export function DeliveryDetailsStep() {
             </label>
             <select
               {...register("shippingProvinceCode")}
-              className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all bg-white"
+              className="w-full min-h-11 px-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all bg-white"
             >
               <option value="">Seleccioná una provincia...</option>
               {PROVINCES.map((p) => (
@@ -419,7 +419,7 @@ export function DeliveryDetailsStep() {
               </label>
               <select
                 {...register("shippingProvinceCode")}
-                className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all bg-white"
+                className="w-full min-h-11 px-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all bg-white"
               >
                 <option value="">Seleccioná una provincia...</option>
                 {PROVINCES.map((p) => (
@@ -445,7 +445,7 @@ export function DeliveryDetailsStep() {
                   {...register("zipCode")}
                   type="text"
                   placeholder="Ej: 5963"
-                  className="w-full pl-10 pr-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+                  className="w-full min-h-11 pl-10 pr-4 py-3 border border-stone-200 rounded-lg text-base focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
                 />
               </div>
               {errors.zipCode && (
@@ -493,7 +493,7 @@ export function DeliveryDetailsStep() {
                         value={agencyFilter}
                         onChange={(e) => setAgencyFilter(e.target.value)}
                         placeholder="Buscar por nombre, ciudad o dirección…"
-                        className="w-full pl-9 pr-4 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:outline-none"
+                        className="w-full min-h-11 pl-9 pr-4 py-2 text-base border border-stone-200 rounded-lg focus:ring-2 focus:ring-palm focus:outline-none"
                       />
                     </div>
 
@@ -587,7 +587,7 @@ export function DeliveryDetailsStep() {
               href={MANUAL_SHIPPING_WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-palm px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-palm/90"
             >
               <MessageCircle className="h-4 w-4" />
               Cotizar envío por WhatsApp

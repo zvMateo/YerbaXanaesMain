@@ -80,8 +80,11 @@ export default function RootLayout({
   return (
     <html lang="es" data-scroll-behavior="smooth">
       <body
-        className={`${sourceSans.variable} ${playfair.variable} font-sans antialiased bg-background text-foreground`}
+        className={`${sourceSans.variable} ${playfair.variable} font-sans antialiased bg-background text-foreground overflow-x-clip`}
       >
+        <noscript>
+          <style>{`.home-reveal,[data-home-reveal]{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
         <Providers>{children}</Providers>
         <Analytics />
         <SpeedInsights />

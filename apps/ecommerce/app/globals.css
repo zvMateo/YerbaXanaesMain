@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "../../../../packages/ui/tokens.css";
+@import "../../../packages/ui/tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -16,5 +16,32 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Visible by default; motion/react enhances after hydration. */
+.home-reveal {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-reveal,
+  [data-home-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+
+html,
+body {
+  overflow-x: clip;
+}
+
+@media (max-width: 1023px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }

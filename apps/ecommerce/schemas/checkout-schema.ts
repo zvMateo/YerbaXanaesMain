@@ -77,8 +77,8 @@ export const checkoutSchema = z.object({
     .regex(/^\d{4,8}$/, "El código postal debe tener entre 4 y 8 dígitos")
     .optional(),
 
-  // Paso 3: Método de pago — ecommerce usa solo Mercado Pago Payment Brick
-  paymentMethod: z.enum(["mercadopago"]),
+  // Paso 4: Método de pago
+  paymentMethod: z.enum(["mercadopago", "transfer", "cash"]),
 
   // Costo de envío calculado (lo setea el delivery-step tras cotizar)
   shippingCost: z.number().min(0, "El costo de envío no puede ser negativo"),
@@ -157,6 +157,13 @@ export const checkoutSchemaValidated = checkoutSchema.superRefine(
           message: "Seleccioná una sucursal para retirar tu envío",
         });
       }
+    }
+    if (data.paymentMethod === "cash" && data.deliveryType !== "pickup") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["paymentMethod"],
+        message: "El efectivo solo está disponible para retiro en el local",
+      });
     }
   },
 );

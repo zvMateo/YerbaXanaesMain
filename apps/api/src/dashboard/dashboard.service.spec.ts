@@ -42,25 +42,22 @@ describe('DashboardService.getAlerts', () => {
 
   it('alerta pedidos pagados sin tracking', async () => {
     prisma.inventoryItem.findMany.mockResolvedValue([]);
-    prisma.order.count
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(3);
+    prisma.order.count.mockResolvedValueOnce(0).mockResolvedValueOnce(3);
 
     const alerts = await service.getAlerts();
-    const ship = alerts.find((a) =>
-      a.title.includes('pagados para despachar'),
-    );
+    const ship = alerts.find((a) => a.title.includes('pagados para despachar'));
     expect(ship?.message).toContain('3');
     expect(ship?.link).toBe('/ordenes');
   });
 
   it('alerta pendientes de pago', async () => {
     prisma.inventoryItem.findMany.mockResolvedValue([]);
-    prisma.order.count
-      .mockImplementation(async (args: { where?: { status?: OrderStatus } }) => {
+    prisma.order.count.mockImplementation(
+      async (args: { where?: { status?: OrderStatus } }) => {
         if (args?.where?.status === OrderStatus.PENDING) return 2;
         return 0;
-      });
+      },
+    );
 
     const alerts = await service.getAlerts();
     expect(alerts.some((a) => a.title.includes('pendientes de pago'))).toBe(

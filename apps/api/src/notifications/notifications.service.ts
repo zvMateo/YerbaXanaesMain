@@ -145,8 +145,7 @@ export class NotificationsService {
       event: 'email_skipped_no_provider',
       to: params.to,
       subject: params.subject,
-      hint:
-        'Configurá SMTP (Gmail App Password) o RESEND_API_KEY. Ver apps/api/.env.example',
+      hint: 'Configurá SMTP (Gmail App Password) o RESEND_API_KEY. Ver apps/api/.env.example',
     });
   }
 
@@ -327,9 +326,7 @@ export class NotificationsService {
     total: unknown;
     customerName: string | null;
   }): string {
-    const name = order.customerName
-      ? escapeHtml(order.customerName)
-      : 'mate';
+    const name = order.customerName ? escapeHtml(order.customerName) : 'mate';
     return `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;color:#1c1917">
         <h1 style="color:#4a7c3d;font-size:22px">¡Gracias por tu compra!</h1>

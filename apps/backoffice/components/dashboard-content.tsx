@@ -72,7 +72,7 @@ function KPICard({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200"
+        className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-200 min-w-0"
       >
         <div className="h-4 w-24 bg-stone-200 rounded animate-pulse mb-4" />
         <div className="h-8 w-32 bg-stone-300 rounded animate-pulse mb-2" />
@@ -87,12 +87,12 @@ function KPICard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)" }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 cursor-pointer"
+      className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-200 cursor-pointer min-w-0 overflow-hidden"
     >
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm font-medium text-stone-500">{title}</p>
-          <h3 className="text-3xl font-bold text-stone-900">{value}</h3>
+          <h3 className="text-2xl sm:text-3xl font-bold text-stone-900 break-words">{value}</h3>
           <div className="flex items-center gap-2">
             <span
               className={`flex items-center text-sm font-medium ${
@@ -145,7 +145,7 @@ function AlertBanner({
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: index * 0.1 }}
-          className={`rounded-2xl p-4 flex items-center gap-4 ${
+          className={`rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 ${
             alert.type === "error"
               ? "bg-red-50 border border-red-200"
               : alert.type === "warning"
@@ -172,7 +172,7 @@ function AlertBanner({
               }`}
             />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h4
               className={`font-medium ${
                 alert.type === "error"
@@ -198,7 +198,7 @@ function AlertBanner({
           </div>
           <Link
             href={alert.link}
-            className={`px-4 py-2 rounded-xl text-sm font-medium ${
+            className={`inline-flex min-h-11 w-full sm:w-auto items-center justify-center px-4 py-2 rounded-xl text-sm font-medium shrink-0 ${
               alert.type === "error"
                 ? "bg-red-100 text-red-700 hover:bg-red-200"
                 : alert.type === "warning"
@@ -280,11 +280,11 @@ export function DashboardContent() {
           <h1 className="text-2xl font-bold text-stone-900">Dashboard</h1>
           <p className="text-stone-500">Resumen de tu negocio</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as Period)}
-            className="px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 bg-white"
+            className="min-h-11 min-w-[10rem] flex-1 px-4 py-2.5 text-base border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 bg-white sm:flex-none"
           >
             <option value="today">Hoy</option>
             <option value="week">Esta semana</option>
@@ -293,7 +293,7 @@ export function DashboardContent() {
           </select>
           <button
             onClick={() => refetch()}
-            className="p-2.5 border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors"
           >
             <RefreshCw className="h-5 w-5 text-stone-600" />
           </button>
@@ -304,7 +304,7 @@ export function DashboardContent() {
       <AlertBanner alerts={alerts} />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 min-w-0">
         {kpiCards.map((card, index) => (
           <KPICard key={card.title} {...card} loading={isLoading} />
         ))}
@@ -317,7 +317,7 @@ export function DashboardContent() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-stone-200"
+          className="lg:col-span-2 bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-200 min-w-0"
         >
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-semibold text-stone-900">Ventas semanales</h3>

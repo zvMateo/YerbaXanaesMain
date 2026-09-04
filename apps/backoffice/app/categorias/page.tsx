@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sidebar } from "@/components/sidebar";
+import { AppShell } from "@/components/app-shell";
 import {
   useCategories,
   useCreateCategory,
@@ -183,13 +183,10 @@ export default function CategoriasPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-stone-50/50">
-      <Sidebar />
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto py-8 px-6">
+    <AppShell>
+        <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 sm:py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-stone-900">Categorías</h1>
               <p className="text-stone-500 mt-1">
@@ -199,7 +196,7 @@ export default function CategoriasPage() {
             <button
               onClick={() => setModalCategory(null)}
               data-testid="new-category-btn"
-              className="flex items-center gap-2 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium shadow-lg hover:shadow-xl"
+              className="inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2.5 bg-yerba-600 text-white rounded-xl hover:bg-yerba-700 transition-colors font-medium shadow-lg hover:shadow-xl"
             >
               <Plus className="h-4 w-4" />
               Nueva categoría
@@ -277,8 +274,6 @@ export default function CategoriasPage() {
             )}
           </div>
         </div>
-      </main>
-
       {/* Modal */}
       <AnimatePresence>
         {modalCategory !== undefined && (
@@ -288,6 +283,6 @@ export default function CategoriasPage() {
           />
         )}
       </AnimatePresence>
-    </div>
+    </AppShell>
   );
 }

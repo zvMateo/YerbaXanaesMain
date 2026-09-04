@@ -24,7 +24,7 @@ export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 640px)");
     const apply = () =>
-      setPosition(mq.matches ? "bottom-right" : "bottom-center");
+      setPosition(mq.matches ? "bottom-right" : "top-center");
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);

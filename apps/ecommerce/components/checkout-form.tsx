@@ -26,6 +26,7 @@ import { PersonalInfoStep } from "./checkout-steps/personal-info-step";
 import { DeliveryMethodStep } from "./checkout-steps/delivery-method-step";
 import { DeliveryDetailsStep } from "./checkout-steps/delivery-details-step";
 import { OrderSummary } from "./checkout-steps/order-summary";
+import { PaymentMethodSelector } from "@/components/checkout/payment-method-selector";
 
 const PaymentBrick = dynamic(
   () =>
@@ -118,14 +119,14 @@ function CouponInput({ total }: { total: number }) {
             }}
             onKeyDown={(e) => e.key === "Enter" && apply()}
             placeholder="¿Tenés un cupón?"
-            className="w-full pl-9 pr-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 focus:outline-none text-sm"
+            className="w-full min-h-11 pl-9 pr-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-palm focus:outline-none text-base"
           />
         </div>
         <button
           type="button"
           onClick={apply}
           disabled={loading || !code.trim()}
-          className="px-4 py-2.5 bg-stone-900 text-white rounded-xl text-sm font-medium hover:bg-stone-800 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+          className="inline-flex min-h-11 items-center gap-1.5 px-4 py-2.5 bg-shadow text-cream rounded-xl text-sm font-medium hover:bg-shadow/90 disabled:opacity-50 transition-colors"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -199,7 +200,25 @@ export function CheckoutForm() {
       const savedStep = localStorage.getItem(CHECKOUT_STEP_KEY);
       if (savedData) {
         const parsed = JSON.parse(savedData) as Partial<CheckoutFormData>;
-        reset({ ...parsed, paymentMethod: "mercadopago" });
+        const restoredMethod = parsed.paymentMethod;
+        const allowed = new Set<CheckoutFormData["paymentMethod"]>([
+          "mercadopago",
+          "transfer",
+          "cash",
+        ]);
+        const paymentMethod: CheckoutFormData["paymentMethod"] =
+          restoredMethod && allowed.has(restoredMethod)
+            ? restoredMethod
+            : "mercadopago";
+        const deliveryType = parsed.deliveryType === "pickup" ? "pickup" : "shipping";
+        reset({
+          ...parsed,
+          deliveryType,
+          paymentMethod:
+            paymentMethod === "cash" && deliveryType !== "pickup"
+              ? "mercadopago"
+              : paymentMethod,
+        });
       }
       if (savedStep) {
         const step = parseInt(savedStep, 10);
@@ -367,7 +386,7 @@ export function CheckoutForm() {
         </h2>
         <button
           onClick={() => router.push("/productos")}
-          className="bg-yerba-600 text-white px-6 py-3 rounded-full mt-4"
+          className="bg-palm text-white min-h-11 px-6 py-3 rounded-full mt-4"
         >
           Ver Productos
         </button>
@@ -416,7 +435,7 @@ export function CheckoutForm() {
             Cuando es pickup, el step "details" se ve muted con guión
             en lugar de número y label tachado.
         */}
-        <div className="mb-8 flex justify-between">
+        <div className="mb-8 grid grid-cols-4 gap-1 sm:flex sm:justify-between">
           {steps.map((step, index) => {
             const isSkipped = step.id === "details" && isPickup;
             const isCompleted = !isSkipped && index < currentStep;
@@ -431,7 +450,7 @@ export function CheckoutForm() {
                 }
               >
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${
+                  className={`h-10 w-10 sm:h-11 sm:w-11 rounded-full flex items-center justify-center font-bold transition-colors ${
                     isSkipped
                       ? "bg-stone-100 text-stone-400 border border-dashed border-stone-300"
                       : isActive || isCompleted
@@ -442,7 +461,7 @@ export function CheckoutForm() {
                   {isSkipped ? "—" : isCompleted ? "✓" : step.number}
                 </div>
                 <span
-                  className={`text-xs mt-2 ${
+                  className={`mt-2 max-w-full truncate text-[11px] sm:text-xs ${
                     isSkipped
                       ? "text-stone-400 line-through decoration-stone-300"
                       : "text-stone-700"
@@ -455,7 +474,7 @@ export function CheckoutForm() {
           })}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+        <div className="bg-card rounded-2xl shadow-lg p-4 sm:p-6 overflow-x-clip">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -489,11 +508,24 @@ export function CheckoutForm() {
                           {...register("notes")}
                           rows={2}
                           placeholder="¿Alguna instrucción especial? Ej: Tocar timbre, dejar en portería…"
-                          className="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all resize-none bg-white"
+                          className="w-full min-h-11 px-3 py-2 text-base border border-stone-200 rounded-lg focus:ring-2 focus:ring-palm focus:border-transparent transition-all resize-none bg-white"
                         />
                       </div>
                       <CouponInput total={total} />
                     </div>
+
+                    <PaymentMethodSelector
+                      amount={brickAmount}
+                      isPickup={isPickup}
+                      existingOrderId={brickOrderId}
+                      onOfflineSuccess={({ orderId, method }) => {
+                        clearStoredData();
+                        clearCart();
+                        router.push(
+                          `/checkout/success?orderId=${orderId}&method=${method}`,
+                        );
+                      }}
+                    />
 
                     {/* Payment Brick: Mercado Pago — protagonista visual */}
                     {selectedPaymentMethod === "mercadopago" && (
@@ -540,11 +572,11 @@ export function CheckoutForm() {
           </AnimatePresence>
 
           {/* Botones de navegación */}
-          <div className="flex justify-between mt-8 pt-6 border-t border-stone-200">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between mt-8 pt-6 border-t border-stone-200">
             <button
               onClick={handleBack}
               disabled={currentStep === 0 || isValidatingStock}
-              className="px-6 py-3 text-stone-600 disabled:opacity-50"
+              className="inline-flex min-h-11 items-center justify-center px-6 py-3 text-shadow/70 disabled:opacity-50"
             >
               {currentStep === 0 ? "Cancelar" : "Volver"}
             </button>
@@ -553,7 +585,7 @@ export function CheckoutForm() {
               <button
                 onClick={handleNext}
                 disabled={isValidatingStock}
-                className="px-8 py-3 bg-yerba-600 text-white rounded-full hover:bg-yerba-700 disabled:opacity-50 flex items-center gap-2"
+                className="inline-flex min-h-11 items-center justify-center gap-2 px-8 py-3 bg-terra text-shadow rounded-full hover:bg-terra/90 disabled:opacity-50"
               >
                 {isValidatingStock ? (
                   <>

@@ -3,10 +3,13 @@ import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { CreateOrderDto } from './create-order.dto';
 
 // Estados que el backoffice puede setear manualmente desde la UI.
-// Mantener alineado con OrderStatus de Prisma.
+// Alineado con OrderStatus de Prisma (incluye el flujo Preparar / Enviar / Entregar).
 export const UPDATABLE_ORDER_STATUSES = [
   'PENDING',
   'PAID',
+  'PROCESSING',
+  'SHIPPED',
+  'DELIVERED',
   'REJECTED',
   'CANCELLED',
   'REFUNDED',

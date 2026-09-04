@@ -74,7 +74,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-stone-100 to-stone-200 p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-stone-100 to-stone-200 p-4 overflow-x-hidden">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -84,7 +84,7 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           {/* Header */}
-          <div className="bg-yerba-600 p-8 text-center">
+          <div className="bg-yerba-600 p-6 sm:p-8 text-center">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -98,7 +98,7 @@ export default function LoginPage() {
           </div>
 
           {/* Form */}
-          <div className="p-8">
+          <div className="p-5 sm:p-8">
             <div className="text-center mb-6">
               <h2 className="text-xl font-semibold text-stone-900">
                 Iniciar sesión
@@ -113,7 +113,7 @@ export default function LoginPage() {
               type="button"
               onClick={handleGoogleSignIn}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border-2 border-stone-200 bg-white text-stone-700 font-medium hover:bg-stone-50 hover:border-stone-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed mb-6"
+              className="w-full flex items-center justify-center gap-3 min-h-11 py-3 px-4 rounded-xl border-2 border-stone-200 bg-white text-stone-700 font-medium hover:bg-stone-50 hover:border-stone-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed mb-6"
             >
               {/* Google Logo SVG */}
               <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -177,7 +177,7 @@ export default function LoginPage() {
                     data-testid="login-email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-stone-200 focus:border-yerba-500 focus:ring-yerba-100 transition-all duration-200 focus:outline-none focus:ring-4"
+                    className="w-full pl-10 pr-4 py-3 text-base rounded-xl border-2 border-stone-200 focus:border-yerba-500 focus:ring-yerba-100 transition-all duration-200 focus:outline-none focus:ring-4"
                     placeholder="tu@email.com"
                     required
                     autoFocus
@@ -198,7 +198,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className={`
-                      w-full pl-10 pr-10 py-3 rounded-xl border-2
+                      w-full pl-10 pr-10 py-3 text-base rounded-xl border-2
                       transition-all duration-200
                       focus:outline-none focus:ring-4
                       ${
@@ -213,7 +213,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex min-h-11 min-w-11 items-center justify-center text-stone-400 hover:text-stone-600"
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5" />

@@ -216,3 +216,18 @@ export interface BrickPaymentResult {
   ticketUrl?: string;
   mpPaymentId?: string;
 }
+
+export interface TransferInstructions {
+  alias: string | null;
+  cbu: string | null;
+  holder: string | null;
+  bank: string | null;
+  test?: boolean;
+}
+
+export interface OfflineCheckoutResult {
+  orderId: string;
+  total: number;
+  paymentProvider: Extract<PaymentProvider, "TRANSFER" | "CASH">;
+  transferInstructions: TransferInstructions | null;
+}

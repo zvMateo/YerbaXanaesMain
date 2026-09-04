@@ -71,7 +71,7 @@ export function ProductFilters({
               placeholder="Buscar yerba, mates, bombillas..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-full text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-yerba-500 focus:border-transparent transition-all"
+              className="w-full min-h-11 pl-10 pr-4 py-2.5 bg-cream border border-border rounded-full text-shadow placeholder-shadow/40 text-base focus:outline-none focus:ring-2 focus:ring-palm focus:border-transparent transition-all"
             />
             {search && (
               <button
@@ -89,7 +89,7 @@ export function ProductFilters({
             <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={() => setSelectedCategory("")}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                className={`inline-flex min-h-11 items-center px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                   !selectedCategory
                     ? "bg-yerba-600 text-white"
                     : "bg-stone-100 text-stone-600 hover:bg-stone-200"
@@ -101,7 +101,7 @@ export function ProductFilters({
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.slug)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  className={`inline-flex min-h-11 items-center px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     selectedCategory === category.slug
                       ? "bg-yerba-600 text-white"
                       : "bg-stone-100 text-stone-600 hover:bg-stone-200"
@@ -122,7 +122,7 @@ export function ProductFilters({
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="appearance-none bg-stone-50 border border-stone-200 rounded-full px-4 py-2.5 pr-10 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-yerba-500 cursor-pointer"
+                className="appearance-none min-h-11 bg-cream border border-border rounded-full px-4 py-2.5 pr-10 text-base text-shadow focus:outline-none focus:ring-2 focus:ring-palm cursor-pointer"
               >
                 <option value="createdAt">Más nuevos</option>
                 <option value="price-asc">Precio: Menor a mayor</option>
@@ -135,7 +135,7 @@ export function ProductFilters({
             {/* Mobile Filter Toggle */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="lg:hidden p-2.5 bg-stone-100 rounded-full text-stone-600 hover:bg-stone-200 transition-colors"
+              className="lg:hidden inline-flex h-11 w-11 items-center justify-center bg-muted rounded-full text-shadow/70 hover:bg-muted/80 transition-colors"
             >
               <SlidersHorizontal className="h-5 w-5" />
             </button>
@@ -148,7 +148,7 @@ export function ProductFilters({
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   onClick={clearFilters}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-yerba-600 hover:text-yerba-700 font-medium"
+                  className="inline-flex min-h-11 items-center gap-1.5 px-3 py-2 text-sm text-palm hover:text-shadow font-medium"
                 >
                   <X className="h-4 w-4" />
                   Limpiar
@@ -201,7 +201,7 @@ export function ProductFilters({
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedCategory("")}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    className={`inline-flex min-h-11 items-center px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                       !selectedCategory
                         ? "bg-yerba-600 text-white"
                         : "bg-stone-100 text-stone-600"
@@ -213,7 +213,7 @@ export function ProductFilters({
                     <button
                       key={category.id}
                       onClick={() => setSelectedCategory(category.slug)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      className={`inline-flex min-h-11 items-center px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                         selectedCategory === category.slug
                           ? "bg-yerba-600 text-white"
                           : "bg-stone-100 text-stone-600"

@@ -19,6 +19,28 @@ export type OrderStatus =
   | "CANCELLED"
   | "REFUNDED";
 
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  PENDING: "Pendiente",
+  PAID: "Pagada",
+  PROCESSING: "En preparación",
+  SHIPPED: "Enviada",
+  DELIVERED: "Entregada",
+  REJECTED: "Rechazada",
+  CANCELLED: "Cancelada",
+  REFUNDED: "Reembolsada",
+};
+
+export function statusLabel(
+  status: OrderStatus,
+  opts?: { pickup?: boolean },
+) {
+  if (opts?.pickup) {
+    if (status === "SHIPPED") return "Lista para retiro";
+    if (status === "DELIVERED") return "Retirada";
+  }
+  return ORDER_STATUS_LABELS[status] ?? status;
+}
+
 export type SalesChannel =
   | "ONLINE"
   | "STORE"
@@ -34,9 +56,17 @@ export interface CreateOrderInput {
   paymentMethod: "CASH" | "TRANSFER" | "MERCADOPAGO";
   deliveryType?: "pickup" | "shipping";
   shippingAddress?: string;
+  shippingStreetName?: string;
+  shippingStreetNumber?: string;
+  shippingFloor?: string;
+  shippingApartment?: string;
   shippingCity?: string;
+  shippingProvinceCode?: string;
+  shippingDeliveryType?: "D" | "S";
+  shippingAgencyCode?: string;
   shippingZip?: string;
   shippingCost?: number;
+  shippingProvider?: string;
   notes?: string;
   items: { variantId: string; quantity: number }[];
 }
@@ -52,6 +82,8 @@ export interface Order {
   notes?: string;
   createdAt: string; // ISO string
   paymentProvider: string;
+  mpPaymentId?: string;
+  mpStatus?: string;
   items: Array<any>; // Idealmente definir el tipo OrderItem
   user?: {
     name?: string;
@@ -77,9 +109,14 @@ export interface Order {
   trackingNumber?: string;
   correoShippingId?: string;
   correoImportedAt?: string;
-  // Override manual desde backoffice
+  // Cambio manual desde backoffice
   manualOverrideAt?: string;
   manualOverrideReason?: string;
+}
+
+/** Retiro en local: misma regla que la columna Entrega (todo lo que no es shipping). */
+export function isPickupOrder(order: Pick<Order, "deliveryType">) {
+  return order.deliveryType !== "shipping";
 }
 
 export interface StateChangeEntry {
@@ -142,7 +179,11 @@ async function updateOrderStatus(
     body: JSON.stringify({ status, note }),
   });
 
-  if (!response.ok) throw new Error("Error al actualizar orden");
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    const raw = (err as { message?: string | string[] }).message;
+    throw new Error((Array.isArray(raw) ? raw.join(", ") : raw) || "Error al actualizar orden");
+  }
   return response.json();
 }
 
@@ -251,7 +292,7 @@ export function useUpdateOrderStatus() {
 
     onSuccess: (_, variables) => {
       toast.success("Estado actualizado", {
-        description: `Orden marcada como ${variables.status}`,
+        description: `Orden marcada como ${statusLabel(variables.status)}`,
       });
       // Invalidar para traer datos frescos del server
       queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
@@ -290,7 +331,7 @@ export function useBulkUpdateOrderStatus() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
       toast.success("Órdenes actualizadas", {
-        description: `${variables.ids.length} órdenes marcadas como ${variables.status}`,
+        description: `${variables.ids.length} órdenes marcadas como ${statusLabel(variables.status)}`,
       });
     },
 
@@ -399,7 +440,12 @@ export function useCreateOrder() {
 
 async function importShippingToCorreo(
   orderId: string,
-): Promise<{ correoImportedAt: string; message: string }> {
+): Promise<{
+  correoImportedAt: string;
+  message: string;
+  trackingNumber?: string;
+  correoShippingId?: string;
+}> {
   const response = await fetchWithAuth(
     `${API_URL}/shipping/import/${orderId}`,
     { method: "POST" },
@@ -423,7 +469,9 @@ export function useImportShipping() {
       toast.success("Envío creado en MiCorreo", {
         description:
           data.message ||
-          "Imprimí la doblea desde el dashboard de MiCorreo y cargá el número de seguimiento cuando esté disponible.",
+          (data.trackingNumber
+            ? `Número de seguimiento: ${data.trackingNumber}. Imprimí la oblea desde el dashboard de MiCorreo.`
+            : "Imprimí la oblea desde el dashboard de MiCorreo y cargá el número de seguimiento cuando esté disponible."),
         duration: 8000,
       });
       queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
@@ -476,7 +524,7 @@ export function useSetTrackingNumber() {
     mutationFn: setTrackingNumberApi,
     onSuccess: (data, variables) => {
       toast.success("Número de seguimiento cargado", {
-        description: `Tracking: ${data.trackingNumber}`,
+        description: `Seguimiento: ${data.trackingNumber}`,
       });
       queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
       queryClient.invalidateQueries({
@@ -484,15 +532,80 @@ export function useSetTrackingNumber() {
       });
     },
     onError: (error: Error) => {
-      toast.error("Error al cargar el tracking", {
+      toast.error("Error al cargar el seguimiento", {
         description: error.message,
       });
     },
   });
 }
 
+
 // ============================================================
-// HOOK: Override manual de estado (con auditoría)
+// HOOK: Consultar tracking de Correo Argentino
+// GET /shipping/tracking/:orderId — requiere trackingNumber guardado.
+// ============================================================
+
+export interface ShippingTrackingEvent {
+  event?: string;
+  date?: string;
+  branch?: string;
+  status?: string;
+}
+
+/** Forma real de GET /shipping/tracking/:orderId (shipping.service#getTracking). */
+export interface ShippingTracking {
+  trackingNumber?: string;
+  events?: ShippingTrackingEvent[];
+  trackingUrl?: string;
+  message?: string;
+}
+
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const raw = (err as { message?: string | string[] } | null)?.message;
+  if (Array.isArray(raw)) return raw.join(", ");
+  if (typeof raw === "string" && raw.trim()) return raw;
+  return fallback;
+}
+
+async function fetchShippingTracking(
+  orderId: string,
+): Promise<ShippingTracking> {
+  const response = await fetchWithAuth(
+    `${API_URL}/shipping/tracking/${orderId}`,
+  );
+
+  if (response.status === 404) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(
+      apiErrorMessage(
+        err,
+        "Esta orden aún no tiene número de seguimiento",
+      ),
+    );
+  }
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(
+      apiErrorMessage(err, "No se pudo consultar el tracking"),
+    );
+  }
+
+  const data = (await response.json()) as ShippingTracking | null;
+  if (!data || (typeof data === "object" && Object.keys(data).length === 0)) {
+    throw new Error("Correo no devolvió datos de seguimiento");
+  }
+  return data;
+}
+
+export function useShippingTracking() {
+  return useMutation({
+    mutationFn: fetchShippingTracking,
+  });
+}
+
+// ============================================================
+// HOOK: Cambio manual de estado (con auditoría)
 // ============================================================
 
 async function overrideOrderStatusApi(params: {
@@ -510,7 +623,7 @@ async function overrideOrderStatusApi(params: {
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(
-      (err as { message?: string }).message || "Error al hacer override",
+      (err as { message?: string }).message || "Error al cambiar el estado",
     );
   }
   return response.json();
@@ -527,18 +640,18 @@ export function useOverrideOrderStatus() {
         queryKey: orderKeys.detail(variables.orderId),
       });
       if (result.data.updated) {
-        toast.success("Override aplicado", {
-          description: `Orden marcada como ${variables.status}. El webhook de MP no revertirá este cambio.`,
+        toast.success("Cambio manual aplicado", {
+          description: `Orden marcada como ${statusLabel(variables.status)}. Mercado Pago no va a revertir este cambio.`,
         });
       } else {
         toast.info("Sin cambios", {
           description:
-            "La orden ya tenía ese estado o tiene un override más reciente.",
+            "La orden ya tenía ese estado o tiene un cambio manual más reciente.",
         });
       }
     },
     onError: (error: Error) => {
-      toast.error("Error al hacer override", { description: error.message });
+      toast.error("Error al cambiar el estado", { description: error.message });
     },
   });
 }

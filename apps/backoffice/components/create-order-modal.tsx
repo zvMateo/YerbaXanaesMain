@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   X,
   Plus,
@@ -17,6 +17,9 @@ import {
   Building2,
   Package,
   Truck,
+  Search,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useProducts, type Product } from "@/hooks/use-products";
@@ -25,6 +28,7 @@ import {
   type SalesChannel,
   type CreateOrderInput,
 } from "@/hooks/use-orders";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 // ============================================================
 // TIPOS INTERNOS
@@ -40,6 +44,48 @@ interface CreateOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+type EntregaKind = "pickup" | "domicilio" | "sucursal";
+
+interface Agency {
+  code: string;
+  name: string;
+  address: string;
+  city: string;
+  postalCode: string;
+}
+
+// Misma lista que apps/ecommerce/schemas/checkout-schema.ts (códigos Correo).
+const PROVINCES = [
+  { code: "A", name: "Salta" },
+  { code: "B", name: "Provincia de Buenos Aires" },
+  { code: "C", name: "Ciudad Autónoma de Buenos Aires" },
+  { code: "D", name: "San Luis" },
+  { code: "E", name: "Entre Ríos" },
+  { code: "F", name: "La Rioja" },
+  { code: "G", name: "Santiago del Estero" },
+  { code: "H", name: "Chaco" },
+  { code: "J", name: "San Juan" },
+  { code: "K", name: "Catamarca" },
+  { code: "L", name: "La Pampa" },
+  { code: "M", name: "Mendoza" },
+  { code: "N", name: "Misiones" },
+  { code: "P", name: "Formosa" },
+  { code: "Q", name: "Neuquén" },
+  { code: "R", name: "Río Negro" },
+  { code: "S", name: "Santa Fe" },
+  { code: "T", name: "Tucumán" },
+  { code: "U", name: "Chubut" },
+  { code: "V", name: "Tierra del Fuego" },
+  { code: "W", name: "Corrientes" },
+  { code: "X", name: "Córdoba" },
+  { code: "Y", name: "Jujuy" },
+  { code: "Z", name: "Santa Cruz" },
+] as const;
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+).replace(/\/+$/, "");
 
 // ============================================================
 // CONFIG DE CANALES Y PAGOS
@@ -68,6 +114,9 @@ const paymentOptions: {
   { value: "MERCADOPAGO", label: "MercadoPago",   icon: CreditCard},
 ];
 
+const inputClass =
+  "w-full min-h-11 px-4 py-3 border border-stone-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400";
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -78,6 +127,29 @@ function formatPrice(n: number) {
     currency: "ARS",
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+function toastError(message: string) {
+  void import("sonner").then(({ toast }) => toast.error(message));
+}
+
+function composeDisplayAddress(params: {
+  streetName: string;
+  streetNumber: string;
+  floor: string;
+  apartment: string;
+}): string | undefined {
+  const street = [params.streetName.trim(), params.streetNumber.trim()]
+    .filter(Boolean)
+    .join(" ");
+  const extras = [
+    params.floor.trim() ? `Piso ${params.floor.trim()}` : "",
+    params.apartment.trim() ? `Depto ${params.apartment.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const composed = [street, extras].filter(Boolean).join(", ");
+  return composed || undefined;
 }
 
 // ============================================================
@@ -94,15 +166,29 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [deliveryType, setDeliveryType] = useState<"pickup" | "shipping">("pickup");
-  const [shippingAddress, setShippingAddress] = useState("");
+  const [entrega, setEntrega] = useState<EntregaKind>("pickup");
+  const [shippingStreetName, setShippingStreetName] = useState("");
+  const [shippingStreetNumber, setShippingStreetNumber] = useState("");
+  const [shippingFloor, setShippingFloor] = useState("");
+  const [shippingApartment, setShippingApartment] = useState("");
   const [shippingCity, setShippingCity] = useState("");
   const [shippingZip, setShippingZip] = useState("");
+  const [shippingProvinceCode, setShippingProvinceCode] = useState("");
+  const [shippingAgencyCode, setShippingAgencyCode] = useState("");
   const [shippingCost, setShippingCost] = useState(0);
   const [notes, setNotes] = useState("");
   const [orderItems, setOrderItems] = useState<OrderLineItem[]>([
     { productId: "", variantId: "", quantity: 1 },
   ]);
+
+  const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [agenciesLoading, setAgenciesLoading] = useState(false);
+  const [agenciesError, setAgenciesError] = useState<string | null>(null);
+  const [agencyFilter, setAgencyFilter] = useState("");
+
+  const isShipping = entrega !== "pickup";
+  const isDomicilio = entrega === "domicilio";
+  const isSucursal = entrega === "sucursal";
 
   // Solo productos activos
   const activeProducts = useMemo(
@@ -119,7 +205,60 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
     }, 0);
   }, [orderItems, activeProducts]);
 
-  const total = subtotal + (deliveryType === "shipping" ? shippingCost : 0);
+  const total = subtotal + (isShipping ? shippingCost : 0);
+
+  const filteredAgencies = useMemo(() => {
+    if (!agencyFilter.trim()) return agencies;
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    const q = normalize(agencyFilter.trim());
+    return agencies.filter((a) => {
+      return (
+        normalize(a.name).includes(q) ||
+        normalize(a.city).includes(q) ||
+        normalize(a.code).includes(q) ||
+        normalize(a.address).includes(q)
+      );
+    });
+  }, [agencies, agencyFilter]);
+
+  const fetchAgencies = useCallback(async (province: string) => {
+    if (!province) return;
+    setAgenciesLoading(true);
+    setAgenciesError(null);
+    try {
+      const response = await fetchWithAuth(
+        `${API_URL}/shipping/agencies?provinceCode=${encodeURIComponent(province)}`,
+      );
+      if (!response.ok) throw new Error("Error al cargar sucursales");
+      const data = (await response.json()) as Agency[];
+      setAgencies(Array.isArray(data) ? data : []);
+    } catch {
+      setAgenciesError(
+        "No pudimos cargar las sucursales. Probá de nuevo o coordiná el envío a domicilio.",
+      );
+      setAgencies([]);
+    } finally {
+      setAgenciesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isSucursal && shippingProvinceCode) {
+      void fetchAgencies(shippingProvinceCode);
+    } else {
+      setAgencies([]);
+      setAgenciesError(null);
+    }
+  }, [isSucursal, shippingProvinceCode, fetchAgencies]);
+
+  useEffect(() => {
+    setShippingAgencyCode("");
+    setAgencyFilter("");
+  }, [shippingProvinceCode]);
 
   // ────────────────────────────────────────────────
   // Handlers de items
@@ -141,7 +280,6 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
       prev.map((item, i) => {
         if (i !== idx) return item;
         if (field === "productId") {
-          // Al cambiar producto, resetear variante
           return { ...item, productId: value as string, variantId: "", quantity: 1 };
         }
         return { ...item, [field]: value };
@@ -149,23 +287,39 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
     );
   }
 
-  // ────────────────────────────────────────────────
-  // Reset al cerrar
-  // ────────────────────────────────────────────────
+  function handleSelectAgency(agency: Agency) {
+    setShippingAgencyCode(agency.code);
+    if (agency.city) setShippingCity(agency.city);
+    if (agency.postalCode && !shippingZip.trim()) {
+      setShippingZip(agency.postalCode);
+    }
+  }
 
-  function handleClose() {
+  function resetForm() {
     setChannel("STORE");
     setPaymentMethod("CASH");
     setCustomerName("");
     setCustomerEmail("");
     setCustomerPhone("");
-    setDeliveryType("pickup");
-    setShippingAddress("");
+    setEntrega("pickup");
+    setShippingStreetName("");
+    setShippingStreetNumber("");
+    setShippingFloor("");
+    setShippingApartment("");
     setShippingCity("");
     setShippingZip("");
+    setShippingProvinceCode("");
+    setShippingAgencyCode("");
     setShippingCost(0);
     setNotes("");
     setOrderItems([{ productId: "", variantId: "", quantity: 1 }]);
+    setAgencies([]);
+    setAgenciesError(null);
+    setAgencyFilter("");
+  }
+
+  function handleClose() {
+    resetForm();
     onClose();
   }
 
@@ -179,18 +333,62 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
     );
 
     if (validItems.length === 0) {
-      import("sonner").then(({ toast }) =>
-        toast.error("Agregá al menos un producto"),
-      );
+      toastError("Agregá al menos un producto");
       return;
     }
 
-    if (deliveryType === "shipping" && !shippingAddress.trim()) {
-      import("sonner").then(({ toast }) =>
-        toast.error("Ingresá la dirección de envío"),
-      );
-      return;
+    if (isDomicilio) {
+      if (!shippingStreetName.trim() || !shippingStreetNumber.trim()) {
+        toastError("Ingresá calle y altura para el envío a domicilio");
+        return;
+      }
+      if (!shippingZip.trim()) {
+        toastError("Ingresá el código postal");
+        return;
+      }
+      if (!shippingProvinceCode) {
+        toastError("Seleccioná la provincia");
+        return;
+      }
     }
+
+    if (isSucursal) {
+      if (!shippingProvinceCode) {
+        toastError("Seleccioná la provincia");
+        return;
+      }
+      if (!shippingAgencyCode.trim()) {
+        toastError("Seleccioná una sucursal de Correo Argentino");
+        return;
+      }
+      if (!shippingZip.trim()) {
+        toastError("Ingresá el código postal");
+        return;
+      }
+    }
+
+    const deliveryType: "pickup" | "shipping" = isShipping ? "shipping" : "pickup";
+    const shippingDeliveryType: "D" | "S" | undefined = isDomicilio
+      ? "D"
+      : isSucursal
+        ? "S"
+        : undefined;
+
+    const displayAddress = isDomicilio
+      ? composeDisplayAddress({
+          streetName: shippingStreetName,
+          streetNumber: shippingStreetNumber,
+          floor: shippingFloor,
+          apartment: shippingApartment,
+        })
+      : isSucursal
+        ? (() => {
+            const agency = agencies.find((a) => a.code === shippingAgencyCode);
+            return agency
+              ? `${agency.name} — ${agency.address}, ${agency.city}`.trim()
+              : `Sucursal ${shippingAgencyCode}`;
+          })()
+        : undefined;
 
     const input: CreateOrderInput = {
       channel,
@@ -199,10 +397,26 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
       customerEmail: customerEmail.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
       deliveryType,
-      shippingAddress: shippingAddress.trim() || undefined,
-      shippingCity: shippingCity.trim() || undefined,
-      shippingZip: shippingZip.trim() || undefined,
-      shippingCost: deliveryType === "shipping" ? shippingCost : 0,
+      shippingAddress: displayAddress,
+      shippingStreetName: isDomicilio ? shippingStreetName.trim() || undefined : undefined,
+      shippingStreetNumber: isDomicilio
+        ? shippingStreetNumber.trim() || undefined
+        : undefined,
+      shippingFloor: isDomicilio ? shippingFloor.trim() || undefined : undefined,
+      shippingApartment: isDomicilio
+        ? shippingApartment.trim() || undefined
+        : undefined,
+      shippingCity: isShipping ? shippingCity.trim() || undefined : undefined,
+      shippingProvinceCode: isShipping
+        ? shippingProvinceCode || undefined
+        : undefined,
+      shippingDeliveryType,
+      shippingAgencyCode: isSucursal
+        ? shippingAgencyCode.trim() || undefined
+        : undefined,
+      shippingZip: isShipping ? shippingZip.trim() || undefined : undefined,
+      shippingCost: isShipping ? shippingCost : 0,
+      shippingProvider: isShipping ? "correo_argentino" : "pickup",
       notes: notes.trim() || undefined,
       items: validItems.map((i) => ({
         variantId: i.variantId,
@@ -236,12 +450,12 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-stretch justify-center p-0 md:items-center md:p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white shadow-2xl w-full h-[100dvh] max-h-[100dvh] flex flex-col rounded-none md:h-auto md:max-h-[90vh] md:max-w-2xl md:rounded-2xl">
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100">
+              <div className="flex items-center justify-between px-4 py-4 sm:px-6 sm:py-5 border-b border-stone-100">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-yerba-100 rounded-xl">
                     <ShoppingBag className="h-5 w-5 text-yerba-700" />
@@ -255,21 +469,21 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                 </div>
                 <button
                   onClick={handleClose}
-                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
               {/* Contenido scrollable */}
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 space-y-6 sm:px-6">
 
                 {/* ── Canal de venta ── */}
                 <section>
                   <h3 className="text-sm font-semibold text-stone-700 mb-3">
                     Canal de venta
                   </h3>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
                     {channelOptions.map((opt) => {
                       const Icon = opt.icon;
                       const active = channel === opt.value;
@@ -278,7 +492,7 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                           key={opt.value}
                           type="button"
                           onClick={() => setChannel(opt.value)}
-                          className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 text-xs font-medium transition-all ${
+                          className={`flex min-h-11 flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 text-xs font-medium transition-all ${
                             active
                               ? opt.color + " border-opacity-100"
                               : "border-stone-200 text-stone-500 hover:border-stone-300 bg-white"
@@ -302,7 +516,7 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                     ventas de feria, local o transferencia. El cobro lo
                     confirmás vos.
                   </p>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {paymentOptions.map((opt) => {
                       const Icon = opt.icon;
                       const active = paymentMethod === opt.value;
@@ -311,7 +525,7 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                           key={opt.value}
                           type="button"
                           onClick={() => setPaymentMethod(opt.value)}
-                          className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                          className={`flex min-h-11 items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
                             active
                               ? "border-yerba-500 bg-yerba-50 text-yerba-700"
                               : "border-stone-200 text-stone-500 hover:border-stone-300 bg-white"
@@ -325,14 +539,14 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                   </div>
                   {paymentMethod === "CASH" && (
                     <p className="mt-2 text-xs text-yerba-700 bg-yerba-50 border border-yerba-100 rounded-lg px-3 py-2">
-                      Efectivo: la orden queda como <strong>PAID</strong> al
+                      Efectivo: la orden queda como <strong>Pagada</strong> al
                       guardar (ya cobraste).
                     </p>
                   )}
                   {paymentMethod === "TRANSFER" && (
                     <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                      Transferencia: queda <strong>PENDING</strong> hasta que
-                      veas el depósito. Después marcá <strong>PAID</strong> en
+                      Transferencia: queda <strong>Pendiente</strong> hasta que
+                      veas el depósito. Después marcá <strong>Pagada</strong> en
                       la orden.
                     </p>
                   )}
@@ -350,27 +564,27 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                     Datos del cliente{" "}
                     <span className="text-stone-400 font-normal">(opcional)</span>
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <input
                       type="text"
                       placeholder="Nombre"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
-                      className="px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                      className="min-h-11 px-4 py-3 border border-stone-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
                     />
                     <input
                       type="tel"
                       placeholder="Teléfono"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                      className="min-h-11 px-4 py-3 border border-stone-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
                     />
                     <input
                       type="email"
                       placeholder="Email"
                       value={customerEmail}
                       onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="col-span-2 px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                      className="sm:col-span-2 min-h-11 px-4 py-3 border border-stone-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
                     />
                   </div>
                 </section>
@@ -398,16 +612,15 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                       return (
                         <div
                           key={idx}
-                          className="flex gap-2 items-start bg-stone-50 rounded-xl p-3"
+                          className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-start bg-stone-50 rounded-xl p-3"
                         >
-                          {/* Select Producto */}
                           <div className="flex-1 min-w-0">
                             <select
                               value={line.productId}
                               onChange={(e) =>
                                 updateItem(idx, "productId", e.target.value)
                               }
-                              className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                              className="w-full min-h-11 px-3 py-2 border border-stone-200 rounded-lg text-base bg-white focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
                             >
                               <option value="">Seleccionar producto...</option>
                               {activeProducts.map((p: Product) => (
@@ -418,7 +631,6 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                             </select>
                           </div>
 
-                          {/* Select Variante */}
                           <div className="flex-1 min-w-0">
                             <select
                               value={line.variantId}
@@ -426,7 +638,7 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                                 updateItem(idx, "variantId", e.target.value)
                               }
                               disabled={!line.productId}
-                              className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm bg-white disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                              className="w-full min-h-11 px-3 py-2 border border-stone-200 rounded-lg text-base bg-white disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
                             >
                               <option value="">Variante...</option>
                               {selectedProduct?.variants.map((v) => (
@@ -451,7 +663,6 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                             )}
                           </div>
 
-                          {/* Cantidad */}
                           <input
                             type="number"
                             min={1}
@@ -463,22 +674,20 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                                 Math.max(1, parseInt(e.target.value) || 1),
                               )
                             }
-                            className="w-16 px-2 py-2 border border-stone-200 rounded-lg text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                            className="w-full sm:w-16 min-h-11 px-2 py-2 border border-stone-200 rounded-lg text-base text-center bg-white focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
                           />
 
-                          {/* Subtotal línea */}
                           {selectedVariant && (
                             <span className="text-sm font-medium text-stone-700 py-2 whitespace-nowrap">
                               {formatPrice(selectedVariant.price * line.quantity)}
                             </span>
                           )}
 
-                          {/* Eliminar */}
                           <button
                             type="button"
                             onClick={() => removeItem(idx)}
                             disabled={orderItems.length === 1}
-                            className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30"
+                            className="inline-flex min-h-11 min-w-11 items-center justify-center text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 self-end sm:self-auto"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -501,21 +710,22 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                   <h3 className="text-sm font-semibold text-stone-700 mb-3">
                     Entrega
                   </h3>
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    {[
-                      { value: "pickup",   label: "Retiro en local", icon: Package },
-                      { value: "shipping", label: "Envío a domicilio", icon: Truck  },
-                    ].map((opt) => {
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+                    {(
+                      [
+                        { value: "pickup" as const, label: "Retiro", icon: Package },
+                        { value: "domicilio" as const, label: "Domicilio", icon: Truck },
+                        { value: "sucursal" as const, label: "Sucursal", icon: Building2 },
+                      ]
+                    ).map((opt) => {
                       const Icon = opt.icon;
-                      const active = deliveryType === opt.value;
+                      const active = entrega === opt.value;
                       return (
                         <button
                           key={opt.value}
                           type="button"
-                          onClick={() =>
-                            setDeliveryType(opt.value as "pickup" | "shipping")
-                          }
-                          className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                          onClick={() => setEntrega(opt.value)}
+                          className={`flex min-h-11 flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 p-2 sm:p-3 rounded-xl border-2 text-xs sm:text-sm font-medium transition-all ${
                             active
                               ? "border-yerba-500 bg-yerba-50 text-yerba-700"
                               : "border-stone-200 text-stone-500 hover:border-stone-300 bg-white"
@@ -528,36 +738,72 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                     })}
                   </div>
 
-                  {deliveryType === "shipping" && (
+                  {isDomicilio && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
                       className="space-y-2"
                     >
-                      <input
-                        type="text"
-                        placeholder="Dirección (calle y número) *"
-                        value={shippingAddress}
-                        onChange={(e) => setShippingAddress(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
-                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Calle *"
+                          value={shippingStreetName}
+                          onChange={(e) => setShippingStreetName(e.target.value)}
+                          className={`col-span-2 ${inputClass}`}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Altura *"
+                          value={shippingStreetNumber}
+                          onChange={(e) => setShippingStreetNumber(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Piso (opcional)"
+                          value={shippingFloor}
+                          onChange={(e) => setShippingFloor(e.target.value)}
+                          className={inputClass}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Depto (opcional)"
+                          value={shippingApartment}
+                          onChange={(e) => setShippingApartment(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <input
                           type="text"
                           placeholder="Ciudad"
                           value={shippingCity}
                           onChange={(e) => setShippingCity(e.target.value)}
-                          className="px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                          className={inputClass}
                         />
                         <input
                           type="text"
-                          placeholder="Código postal"
+                          placeholder="Código postal *"
                           value={shippingZip}
                           onChange={(e) => setShippingZip(e.target.value)}
-                          className="px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                          className={inputClass}
                         />
                       </div>
+                      <select
+                        value={shippingProvinceCode}
+                        onChange={(e) => setShippingProvinceCode(e.target.value)}
+                        className={`${inputClass} bg-white`}
+                      >
+                        <option value="">Provincia *</option>
+                        {PROVINCES.map((p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
                       <input
                         type="number"
                         min={0}
@@ -566,7 +812,136 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                         onChange={(e) =>
                           setShippingCost(parseFloat(e.target.value) || 0)
                         }
-                        className="w-full px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yerba-500/30 focus:border-yerba-400"
+                        className={inputClass}
+                      />
+                    </motion.div>
+                  )}
+
+                  {isSucursal && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="space-y-2"
+                    >
+                      <select
+                        value={shippingProvinceCode}
+                        onChange={(e) => setShippingProvinceCode(e.target.value)}
+                        className={`${inputClass} bg-white`}
+                      >
+                        <option value="">Provincia *</option>
+                        {PROVINCES.map((p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Código postal *"
+                        value={shippingZip}
+                        onChange={(e) => setShippingZip(e.target.value)}
+                        className={inputClass}
+                      />
+
+                      {shippingProvinceCode && (
+                        <div className="space-y-2 pt-1">
+                          <p className="text-xs font-medium text-stone-600">
+                            Sucursal de Correo Argentino
+                          </p>
+
+                          {agenciesLoading && (
+                            <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg text-stone-600 text-sm">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Cargando sucursales...
+                            </div>
+                          )}
+
+                          {agenciesError && !agenciesLoading && (
+                            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                              <p>{agenciesError}</p>
+                            </div>
+                          )}
+
+                          {!agenciesLoading && agencies.length > 0 && (
+                            <>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
+                                <input
+                                  type="text"
+                                  value={agencyFilter}
+                                  onChange={(e) => setAgencyFilter(e.target.value)}
+                                  placeholder="Buscar por nombre, ciudad o dirección…"
+                                  className="w-full pl-9 pr-4 py-2 text-sm border border-stone-200 rounded-lg focus:ring-2 focus:ring-yerba-500/30 focus:outline-none"
+                                />
+                              </div>
+                              <div className="max-h-56 overflow-y-auto space-y-1 border border-stone-200 rounded-lg p-2">
+                                {filteredAgencies.length === 0 ? (
+                                  <p className="text-xs text-stone-400 text-center py-4">
+                                    No hay sucursales que coincidan con “
+                                    {agencyFilter}”.
+                                  </p>
+                                ) : (
+                                  filteredAgencies.map((agency) => (
+                                    <button
+                                      key={agency.code}
+                                      type="button"
+                                      onClick={() => handleSelectAgency(agency)}
+                                      className={`w-full min-h-11 flex items-start gap-3 p-3 rounded-lg text-left transition-all border-2 ${
+                                        shippingAgencyCode === agency.code
+                                          ? "border-yerba-600 bg-yerba-50"
+                                          : "border-transparent hover:bg-stone-50"
+                                      }`}
+                                    >
+                                      {shippingAgencyCode === agency.code ? (
+                                        <CheckCircle2 className="h-5 w-5 text-yerba-600 mt-0.5 shrink-0" />
+                                      ) : (
+                                        <Building2 className="h-5 w-5 text-stone-400 mt-0.5 shrink-0" />
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-stone-900">
+                                          {agency.name}
+                                        </p>
+                                        <p className="text-xs text-stone-500 truncate">
+                                          {agency.address}
+                                          {agency.address && agency.city && " — "}
+                                          {agency.city}
+                                          {agency.postalCode &&
+                                            ` (CP ${agency.postalCode})`}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </>
+                          )}
+
+                          {!agenciesLoading &&
+                            !agenciesError &&
+                            agencies.length === 0 && (
+                              <p className="text-xs text-stone-400 text-center py-2">
+                                No hay sucursales disponibles para esta provincia.
+                              </p>
+                            )}
+                        </div>
+                      )}
+
+                      {!shippingProvinceCode && (
+                        <p className="text-xs text-stone-400 text-center py-2">
+                          Seleccioná la provincia para ver sucursales.
+                        </p>
+                      )}
+
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder="Costo de envío (ARS)"
+                        value={shippingCost || ""}
+                        onChange={(e) =>
+                          setShippingCost(parseFloat(e.target.value) || 0)
+                        }
+                        className={inputClass}
                       />
                     </motion.div>
                   )}
@@ -589,15 +964,14 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
               </div>
 
               {/* Footer fijo con totales y botones */}
-              <div className="border-t border-stone-100 px-6 py-4">
-                {/* Resumen de totales */}
+              <div className="border-t border-stone-100 px-4 py-4 sm:px-6">
                 <div className="flex justify-end mb-4 text-sm">
                   <div className="space-y-1 text-right">
                     <div className="flex justify-between gap-8 text-stone-500">
                       <span>Subtotal</span>
                       <span>{formatPrice(subtotal)}</span>
                     </div>
-                    {deliveryType === "shipping" && shippingCost > 0 && (
+                    {isShipping && shippingCost > 0 && (
                       <div className="flex justify-between gap-8 text-stone-500">
                         <span>Envío</span>
                         <span>{formatPrice(shippingCost)}</span>
@@ -610,13 +984,12 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                   </div>
                 </div>
 
-                {/* Acciones */}
-                <div className="flex gap-3 justify-end">
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                   <button
                     type="button"
                     onClick={handleClose}
                     disabled={createOrder.isPending}
-                    className="px-5 py-2.5 text-sm font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors disabled:opacity-50"
+                    className="w-full sm:w-auto min-h-11 px-5 py-2.5 text-sm font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors disabled:opacity-50"
                   >
                     Cancelar
                   </button>
@@ -624,7 +997,7 @@ export function CreateOrderModal({ isOpen, onClose }: CreateOrderModalProps) {
                     type="button"
                     onClick={handleSubmit}
                     disabled={createOrder.isPending}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-yerba-600 hover:bg-yerba-700 rounded-xl transition-colors disabled:opacity-60"
+                    className="flex w-full sm:w-auto min-h-11 items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-yerba-600 hover:bg-yerba-700 rounded-xl transition-colors disabled:opacity-60"
                   >
                     {createOrder.isPending ? (
                       <>

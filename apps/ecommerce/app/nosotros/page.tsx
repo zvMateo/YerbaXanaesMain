@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
-import Image from "next/image";
 import { Footer } from "@/components/footer";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Leaf,
@@ -68,7 +68,7 @@ const FLOW_STEPS = [
     number: "04",
     title: "Lo llevamos a tu puerta",
     description:
-      "Despachamos a todo el país con envío rápido. Seguís tu pedido en tiempo real hasta que llega a tus manos.",
+      "Despachamos a todo el país con Correo Argentino, a domicilio o sucursal. También podés retirar en el local.",
   },
 ];
 
@@ -103,16 +103,17 @@ export default function NosotrosPage() {
 
         {/* Historia */}
         <section className="py-20 bg-white">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="container mx-auto px-5 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
-              {/* Foto real */}
+              {/* Foto real — mate y termo */}
               <div className="order-2 lg:order-1">
-                <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-lg border border-stone-200">
+                <div className="relative aspect-[4/3] rounded-3xl overflow-hidden border border-stone-200 shadow-lg">
                   <Image
-                    src="/brand/nosotros.jpg"
-                    alt="Mate y termo de Yerba Xanaes en Villa del Rosario"
+                    src="/brand/hero.jpg"
+                    alt="Yerba mate agroecológica de Yerba Xanaes"
                     fill
-                    className="object-cover"
+                    quality={90}
+                    className="object-cover object-[center_30%]"
                     sizes="(max-width: 1024px) 100vw, 50vw"
                   />
                 </div>

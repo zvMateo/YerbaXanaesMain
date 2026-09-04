@@ -84,9 +84,9 @@ function CartItem({ item, index }: CartItemProps) {
         <p className="text-sm text-stone-500">{item.variantName}</p>
 
         {/* Stock warning - Generative UI */}
-        {item.stock < 5 && item.stock > 0 && (
-          <p className="text-xs text-earth-600 mt-1">
-            ¡Solo {item.stock} disponibles!
+        {item.stock > 0 && item.stock < 5 && (
+          <p className="text-xs text-shadow/60 mt-1">
+            {item.stock} disponibles
           </p>
         )}
 
@@ -96,7 +96,7 @@ function CartItem({ item, index }: CartItemProps) {
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => updateQuantity(item.id, item.quantity - 1)}
-              className="w-7 h-7 flex items-center justify-center text-stone-600 hover:text-yerba-600 transition-colors"
+              className="inline-flex h-11 w-11 items-center justify-center text-shadow/70 hover:text-palm transition-colors"
             >
               <Minus className="h-3 w-3" />
             </motion.button>
@@ -111,7 +111,7 @@ function CartItem({ item, index }: CartItemProps) {
                 }
               }}
               disabled={item.quantity >= item.stock}
-              className="w-7 h-7 flex items-center justify-center text-stone-600 hover:text-yerba-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex h-11 w-11 items-center justify-center text-shadow/70 hover:text-palm disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Plus className="h-3 w-3" />
             </motion.button>
@@ -129,7 +129,7 @@ function CartItem({ item, index }: CartItemProps) {
         whileHover={{ scale: 1.1, color: "#dc2626" }}
         whileTap={{ scale: 0.9 }}
         onClick={handleRemove}
-        className="text-stone-400 hover:text-red-600 transition-colors p-1"
+        className="inline-flex h-11 w-11 items-center justify-center text-stone-400 hover:text-red-600 transition-colors"
         aria-label="Eliminar item"
       >
         <Trash2 className="h-4 w-4" />
@@ -177,7 +177,7 @@ function EmptyCart({ onClose }: { onClose: () => void }) {
         <Link
           href="/productos"
           onClick={onClose}
-          className="inline-flex items-center gap-2 bg-yerba-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-yerba-700 transition-colors"
+          className="inline-flex min-h-11 items-center gap-2 bg-palm text-white px-6 py-3 rounded-full font-semibold hover:bg-palm/90 transition-colors"
         >
           Ver productos
           <ArrowRight className="h-4 w-4" />
@@ -308,7 +308,7 @@ export function CartDrawer() {
               stiffness: 300,
               mass: 0.8,
             }}
-            className="fixed top-0 right-0 h-full w-full max-w-md bg-stone-50 shadow-2xl z-50 flex flex-col"
+            className="fixed inset-y-0 right-0 h-full w-full max-w-none bg-cream shadow-2xl z-50 flex flex-col sm:max-w-md"
             role="dialog"
             aria-modal="true"
             aria-label="Carrito de compras"
@@ -331,7 +331,7 @@ export function CartDrawer() {
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={closeCart}
-                className="p-2 text-stone-400 hover:text-stone-600 transition-colors"
+                className="inline-flex h-11 w-11 items-center justify-center text-shadow/60 hover:text-shadow transition-colors"
                 aria-label="Cerrar carrito"
               >
                 <X className="h-6 w-6" />
@@ -366,7 +366,7 @@ export function CartDrawer() {
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="bg-white border-t border-stone-200 p-6 space-y-4"
+                className="bg-card border-t border-border p-4 sm:p-6 space-y-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
               >
                 {/* Subtotal */}
                 <div className="flex justify-between items-center">
@@ -387,7 +387,7 @@ export function CartDrawer() {
                 <Link
                   href="/checkout"
                   onClick={closeCart}
-                  className="w-full bg-yerba-600 text-white py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 hover:bg-yerba-700 transition-colors shadow-lg hover:shadow-xl"
+                  className="w-full min-h-12 bg-terra text-shadow py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 hover:bg-terra/90 transition-colors"
                 >
                   Finalizar compra
                   <ArrowRight className="h-5 w-5" />
@@ -396,7 +396,7 @@ export function CartDrawer() {
                 {/* Continue Shopping */}
                 <button
                   onClick={closeCart}
-                  className="w-full text-stone-600 hover:text-yerba-600 font-medium transition-colors"
+                  className="w-full min-h-11 text-shadow/70 hover:text-palm font-medium transition-colors"
                 >
                   Seguir comprando
                 </button>

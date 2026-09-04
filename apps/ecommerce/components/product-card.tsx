@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, AlertCircle, Check, Leaf } from "lucide-react";
+import { ShoppingCart, Check, Leaf } from "lucide-react";
 import { Product } from "@repo/types";
 import { useState } from "react";
 import { toast } from "sonner";
+import { motion, useReducedMotion } from "motion/react";
 import { useCartStore } from "@/stores/cart-store";
 import { sortVariantsBySize } from "@/lib/variant-order";
 import Image from "next/image";
@@ -17,6 +18,7 @@ interface ProductCardProps {
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const { addItem, removeItem, updateQuantity } = useCartStore();
+  const reduceMotion = useReducedMotion() === true;
 
   const totalStock =
     product.variants?.reduce((acc, variant) => {
@@ -24,7 +26,6 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
     }, 0) || 0;
 
   const hasStock = totalStock > 0;
-  const isLowStock = totalStock > 0 && totalStock < 5;
 
   const cheapestVariant =
     product.variants && product.variants.length > 0
@@ -85,18 +86,27 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
   };
 
   return (
-    <article
-      style={{
-        animationDelay: `${Math.min(index, 7) * 60}ms`,
-        animationDuration: "500ms",
-      }}
-      className="group relative bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl transition-shadow duration-300 animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-both"
+    <motion.article
+      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
+      whileInView={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.12 }}
+      transition={
+        reduceMotion
+          ? { duration: 0 }
+          : {
+              duration: 0.45,
+              delay: Math.min(index, 7) * 0.1,
+              ease: [0.22, 1, 0.36, 1],
+            }
+      }
+      whileHover={reduceMotion ? undefined : { y: -3 }}
+      className="group relative bg-card rounded-2xl border border-border overflow-hidden hover:shadow-xl transition-shadow duration-300"
       data-product-id={product.id}
       data-category={product.category?.name}
     >
       <Link href={`/productos/${product.slug}`} className="block">
         <div className="aspect-square bg-muted relative overflow-hidden">
-          <div className="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-105">
+          <div className="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
             {product.images?.[0] ? (
               <>
                 <Image
@@ -134,19 +144,13 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             </div>
           )}
 
-          {isLowStock && (
-            <div className="absolute top-3 left-3 bg-cream text-shadow border-2 border-terra px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 animate-in fade-in-0 slide-in-from-top-1 duration-300">
-              <AlertCircle className="w-3 h-3" />
-              ¡Últimas {totalStock}!
-            </div>
-          )}
 
           <button
             type="button"
             onClick={handleAddToCart}
             disabled={!hasStock || isAdding}
             aria-label={`Agregar ${product.name} al carrito`}
-            className={`absolute bottom-4 right-4 p-3 rounded-full shadow-lg opacity-0 translate-y-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 ${
+            className={`absolute bottom-4 right-4 inline-flex h-11 w-11 items-center justify-center rounded-full shadow-lg transition-all duration-200 ${
               hasStock
                 ? "bg-terra text-shadow hover:bg-terra/90"
                 : "bg-muted text-muted-foreground cursor-not-allowed"
@@ -169,25 +173,27 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             {product.name}
           </h3>
 
-          <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-            {product.description || "Yerba mate premium seleccionada"}
-          </p>
+          {product.description ? (
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+              {product.description}
+            </p>
+          ) : (
+            <div className="mb-4" />
+          )}
 
           <div className="flex items-end justify-between">
             <div>
               <span className="text-xs text-muted-foreground">Desde</span>
               <div className="flex items-baseline gap-1">
                 <span className="font-serif text-2xl font-bold text-palm">
-                  ${(minPrice || 0).toLocaleString()}
+                  ${(minPrice || 0).toLocaleString("es-AR")}
                 </span>
               </div>
             </div>
 
             {hasStock && (
               <div className="flex items-center gap-1.5">
-                <span
-                  className={`w-2 h-2 rounded-full bg-palm ${isLowStock ? "animate-pulse" : ""}`}
-                />
+                <span className="w-2 h-2 rounded-full bg-palm" />
                 <span className="text-xs text-muted-foreground">
                   {totalStock} disponibles
                 </span>
@@ -222,6 +228,6 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           )}
         </div>
       </Link>
-    </article>
+    </motion.article>
   );
 }

@@ -16,7 +16,7 @@ interface ProductGridProps {
 export function ProductGrid({ products, isLoading }: ProductGridProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
           <div
             key={i}
@@ -57,7 +57,7 @@ export function ProductGrid({ products, isLoading }: ProductGridProps) {
           )}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-yerba-600 text-white px-6 py-3 rounded-full font-semibold text-sm hover:bg-yerba-700 transition-colors"
+          className="inline-flex min-h-11 items-center gap-2 bg-palm text-white px-6 py-3 rounded-full font-semibold text-sm hover:bg-palm/90 transition-colors"
         >
           Consultar por WhatsApp
           <Phone className="h-4 w-4" aria-hidden="true" />
@@ -67,7 +67,7 @@ export function ProductGrid({ products, isLoading }: ProductGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {products.map((product, index) => (
         <ProductCard key={product.id} product={product} index={index} />
       ))}

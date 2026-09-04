@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useCartStore } from "@/stores/cart-store";
 import { CheckoutFormData } from "@/schemas/checkout-schema";
 import { ApiEnvelope, BrickPaymentResult } from "@repo/types";
+import { buildPublicCheckoutPayload } from "@/lib/checkout-payload";
 
 type BrickSelectedPaymentMethod =
   | "credit_card"
@@ -192,6 +193,7 @@ export function PaymentBrick({
     couponCode,
     couponDiscount,
     customerPhone,
+    notes,
   } = getValues();
 
   const hasAddress = !!(streetName || streetNumber || city || zipCode || shippingProvinceCode);
@@ -292,30 +294,15 @@ export function PaymentBrick({
         const res = await fetch(`${API_URL}/payments/brick-init`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerEmail,
-            customerName,
-            customerPhone: customerPhone || undefined,
-            orderItems: items.map((item) => ({
-              variantId: item.variantId,
-              quantity: item.quantity,
-            })),
-            deliveryType: deliveryType || undefined,
-            // Dirección estructurada (preferida — para MiCorreo)
-            shippingStreetName: streetName || undefined,
-            shippingStreetNumber: streetNumber || undefined,
-            shippingFloor: floor || undefined,
-            shippingApartment: apartment || undefined,
-            shippingCity: city || undefined,
-            shippingProvinceCode: shippingProvinceCode || undefined,
-            shippingZip: zipCode || undefined,
-            shippingCost: shippingCost ?? 0,
-            shippingProvider: shippingProvider || undefined,
-            // D/S + sucursal (si retira en sucursal)
-            shippingDeliveryType: shippingDeliveryType || undefined,
-            shippingAgencyCode: shippingAgencyCode || undefined,
-            couponCode: couponCode || undefined,
-          }),
+          body: JSON.stringify(
+            buildPublicCheckoutPayload(
+              getValues(),
+              items.map((item) => ({
+                variantId: item.variantId,
+                quantity: item.quantity,
+              })),
+            ),
+          ),
         });
 
         if (!res.ok) {
@@ -395,6 +382,7 @@ export function PaymentBrick({
         shippingDeliveryType,
         shippingAgencyCode,
         couponCode,
+        notes,
       } = getValues();
 
       const controller = new AbortController();
@@ -441,6 +429,7 @@ export function PaymentBrick({
           shippingDeliveryType: shippingDeliveryType || undefined,
           shippingAgencyCode: shippingAgencyCode || undefined,
           couponCode: couponCode || undefined,
+          notes: notes || undefined,
           orderItems: items.map((item) => ({
             variantId: item.variantId,
             quantity: item.quantity,

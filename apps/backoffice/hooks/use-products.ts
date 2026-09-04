@@ -202,13 +202,16 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: Parameters<typeof updateProduct>[0]) =>
-      toast.promise(updateProduct(input), {
+    mutationFn: (input: Parameters<typeof updateProduct>[0]) => {
+      const pending = updateProduct(input);
+      toast.promise(pending, {
         loading: "Guardando producto...",
         success: "Producto actualizado correctamente",
         error: (error) =>
           error instanceof Error ? error.message : "Error al actualizar producto",
-      }),
+      });
+      return pending;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
     },

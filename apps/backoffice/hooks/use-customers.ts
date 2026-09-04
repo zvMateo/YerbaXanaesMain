@@ -26,6 +26,17 @@ export interface Customer {
   createdAt: string;
 }
 
+export interface CustomerOrderHistoryItem {
+  id: string;
+  date: string;
+  total: number;
+  status: string;
+  items: number;
+  itemsSummary: string;
+  phone: string;
+  city: string;
+}
+
 export interface CustomerDetails extends Customer {
   address?: {
     street: string;
@@ -33,13 +44,7 @@ export interface CustomerDetails extends Customer {
     province: string;
     zipCode: string;
   };
-  orderHistory: Array<{
-    id: string;
-    date: string;
-    total: number;
-    status: string;
-    items: number;
-  }>;
+  orderHistory: CustomerOrderHistoryItem[];
 }
 
 // ============================================
@@ -58,7 +63,9 @@ async function fetchCustomers(): Promise<Customer[]> {
 }
 
 async function fetchCustomerById(id: string): Promise<CustomerDetails> {
-  const response = await fetchWithAuth(`${API_URL}/customers/${id}`);
+  const response = await fetchWithAuth(
+    `${API_URL}/customers/${encodeURIComponent(id)}`,
+  );
   if (!response.ok) throw new Error("Cliente no encontrado");
   return response.json();
 }

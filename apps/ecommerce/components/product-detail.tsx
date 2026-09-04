@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { useRef, useState } from "react";
+import {
+  motion,
+  AnimatePresence,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "motion/react";
 import { Product, ProductVariant } from "@repo/types";
 import { sortVariantsBySize } from "@/lib/variant-order";
 import {
@@ -12,7 +18,6 @@ import {
   AlertCircle,
   Package,
   Truck,
-  Shield,
   Leaf,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +25,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCartStore } from "@/stores/cart-store";
 import { BrandBrick } from "@/components/checkout/brand-brick";
+import { brand } from "@/lib/brand";
 
 interface ProductDetailProps {
   product: Product;
@@ -36,6 +42,13 @@ function ImageGallery({
   const [selectedImage, setSelectedImage] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const reduceMotion = useReducedMotion() === true;
+  const frameRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: frameRef,
+    offset: ["start end", "end start"],
+  });
+  const imageY = useTransform(scrollYProgress, [0, 1], [-18, 18]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -51,8 +64,11 @@ function ImageGallery({
     <div className="space-y-4">
       {/* Main Image - Human-Core: Zoom suave */}
       <div
+        ref={frameRef}
         className="relative aspect-square bg-stone-100 rounded-2xl overflow-hidden cursor-zoom-in group"
-        onMouseEnter={() => setIsZoomed(true)}
+        onMouseEnter={() => {
+          if (!reduceMotion) setIsZoomed(true);
+        }}
         onMouseLeave={() => setIsZoomed(false)}
         onMouseMove={handleMouseMove}
       >
@@ -60,12 +76,17 @@ function ImageGallery({
           <motion.div
             className="w-full h-full"
             animate={{
-              scale: isZoomed ? 1.5 : 1,
+              scale: !reduceMotion && isZoomed ? 1.5 : 1,
             }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            style={{
-              transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
-            }}
+            transition={{ duration: reduceMotion ? 0 : 0.3, ease: "easeOut" }}
+            style={
+              reduceMotion
+                ? { transformOrigin: `${mousePosition.x}% ${mousePosition.y}%` }
+                : {
+                    y: imageY,
+                    transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                  }
+            }
           >
             <Image
               src={displayImages[selectedImage]}
@@ -103,7 +124,7 @@ function ImageGallery({
             <button
               key={index}
               onClick={() => setSelectedImage(index)}
-              className={`relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 transition-all ${
+              className={`relative h-14 w-14 min-h-11 min-w-11 sm:h-20 sm:w-20 rounded-lg overflow-hidden flex-shrink-0 transition-all ${
                 selectedImage === index
                   ? "ring-2 ring-yerba-600 ring-offset-2"
                   : "opacity-60 hover:opacity-100"
@@ -166,7 +187,7 @@ function VariantSelector({
               disabled={!hasStock}
               whileHover={hasStock ? { scale: 1.02 } : {}}
               whileTap={hasStock ? { scale: 0.98 } : {}}
-              className={`relative px-5 py-3 rounded-xl border-2 transition-all ${
+              className={`relative min-h-11 px-5 py-3 rounded-xl border-2 transition-all ${
                 isSelected
                   ? "border-yerba-600 bg-yerba-50 text-yerba-800"
                   : hasStock
@@ -218,14 +239,8 @@ function VariantSelector({
               selectedVariant.stock < 5 ? "bg-earth-500" : "bg-yerba-500"
             }`}
           />
-          <span
-            className={
-              selectedVariant.stock < 5 ? "text-earth-600" : "text-stone-600"
-            }
-          >
-            {selectedVariant.stock < 5
-              ? `¡Solo quedan ${selectedVariant.stock} unidades!`
-              : `${selectedVariant.stock} unidades disponibles`}
+          <span className="text-shadow/70">
+            {selectedVariant.stock} unidades disponibles
           </span>
         </motion.div>
       )}
@@ -307,7 +322,7 @@ function AddToCartSection({
           <button
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
             disabled={quantity <= 1}
-            className="w-10 h-10 flex items-center justify-center text-stone-600 hover:text-yerba-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center text-shadow/70 hover:text-palm disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Minus className="h-4 w-4" />
           </button>
@@ -317,7 +332,7 @@ function AddToCartSection({
           <button
             onClick={() => setQuantity(Math.min(maxQuantity, quantity + 1))}
             disabled={quantity >= maxQuantity}
-            className="w-10 h-10 flex items-center justify-center text-stone-600 hover:text-yerba-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center text-shadow/70 hover:text-palm disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -349,7 +364,7 @@ function AddToCartSection({
         disabled={variant.stock === 0 || isAdding}
         whileHover={{ scale: variant.stock > 0 ? 1.02 : 1 }}
         whileTap={{ scale: variant.stock > 0 ? 0.98 : 1 }}
-        className={`w-full py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 transition-all ${
+        className={`hidden lg:flex w-full min-h-12 py-4 rounded-full font-semibold text-lg items-center justify-center gap-2 transition-all ${
           variant.stock === 0
             ? "bg-stone-200 text-stone-400 cursor-not-allowed"
             : isAdding
@@ -383,31 +398,56 @@ function AddToCartSection({
         </AnimatePresence>
       </motion.button>
 
-      {/* Trust Badges - Systems-Oriented: Reducir fricción */}
-      <div className="grid grid-cols-3 gap-2 text-center text-xs text-stone-500">
-        <div className="flex flex-col items-center gap-1">
-          <Truck className="h-5 w-5 text-yerba-600" />
-          <span>
-            Envío gratis
-            <br />
-            +$15.000
-          </span>
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <Shield className="h-5 w-5 text-yerba-600" />
-          <span>
-            Garantía de
-            <br />
-            calidad
-          </span>
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <Package className="h-5 w-5 text-yerba-600" />
-          <span>
-            Entrega en
-            <br />
-            24-48hs
-          </span>
+      <div className="space-y-3 rounded-xl border border-border bg-cream/50 p-4 text-sm text-shadow/80">
+        <p className="font-medium text-shadow">Cómo lo recibís</p>
+        <p>
+          Retiro en {brand.locationLabel}.{" "}
+          <Link href="/envios" className="font-semibold text-palm underline-offset-2 hover:underline">
+            Ver envíos y retiro
+          </Link>
+        </p>
+        <p>
+          Envío a todo el país con Correo Argentino; el costo se cotiza en el
+          checkout. Si no hay tarifa, coordinamos por WhatsApp.
+        </p>
+        <p>
+          Envío gratis desde $
+          {brand.freeShippingFromArs.toLocaleString("es-AR")}.
+        </p>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-cream/95 px-4 py-3 backdrop-blur lg:hidden pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <div className="min-w-0">
+            <p className="font-serif text-xl font-bold text-shadow">
+              ${(variant.price * quantity).toLocaleString("es-AR")}
+            </p>
+            <p className="text-xs text-shadow/60">{variant.name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={variant.stock === 0 || isAdding}
+            className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full px-4 font-semibold ${
+              variant.stock === 0
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-terra text-shadow"
+            }`}
+          >
+            {isAdding ? (
+              <>
+                <Check className="h-5 w-5" />
+                Agregado
+              </>
+            ) : variant.stock === 0 ? (
+              "Sin stock"
+            ) : (
+              <>
+                <ShoppingCart className="h-5 w-5" />
+                Agregar
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
@@ -429,12 +469,12 @@ function ProductTabs({ product }: { product: Product }) {
   return (
     <div className="mt-8">
       {/* Tab Buttons */}
-      <div className="flex gap-6 border-b border-stone-200">
+      <div className="flex gap-4 overflow-x-auto border-b border-border sm:gap-6">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`pb-3 text-sm font-medium transition-colors relative ${
+            className={`inline-flex min-h-11 items-center pb-3 text-sm font-medium transition-colors relative shrink-0 ${
               activeTab === tab.id
                 ? "text-yerba-600"
                 : "text-stone-500 hover:text-stone-700"
@@ -466,19 +506,7 @@ function ProductTabs({ product }: { product: Product }) {
               {product.description ? (
                 <p>{product.description}</p>
               ) : (
-                <>
-                  <p>
-                    Descubrí la excelencia de {product.name}. Seleccionada
-                    cuidadosamente para ofrecerte la mejor experiencia en cada
-                    mate.
-                  </p>
-                  <p>
-                    Nuestros productos son elaborados con los más altos
-                    estándares de calidad, garantizando frescura y sabor en cada
-                    sorbo. Ideal para compartir momentos especiales o disfrutar
-                    en soledad.
-                  </p>
-                </>
+                <p>Sin descripción adicional para este producto.</p>
               )}
             </div>
           )}
@@ -532,28 +560,45 @@ function ProductTabs({ product }: { product: Product }) {
           {activeTab === "shipping" && (
             <div className="space-y-4">
               <div className="flex items-start gap-3">
-                <Truck className="h-5 w-5 text-yerba-600 mt-0.5" />
+                <Truck className="h-5 w-5 text-palm mt-0.5" />
                 <div>
-                  <h4 className="font-medium text-stone-900">
+                  <h4 className="font-medium text-shadow">
                     Envío a todo el país
                   </h4>
                   <p className="text-sm mt-1">
-                    Entregamos en 24-48hs hábiles en CABA y GBA. Al interior del
-                    país el tiempo varía según la zona.
+                    Cotizamos con Correo Argentino en el checkout, según tu
+                    código postal y el peso del pedido. El plazo lo informa
+                    Correo.
                   </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <Shield className="h-5 w-5 text-yerba-600 mt-0.5" />
+                <Package className="h-5 w-5 text-palm mt-0.5" />
                 <div>
-                  <h4 className="font-medium text-stone-900">Envío gratis</h4>
+                  <h4 className="font-medium text-shadow">Retiro en origen</h4>
                   <p className="text-sm mt-1">
-                    En compras mayores a $15.000 el envío es completamente
-                    gratis. Para compras menores, el costo se calcula en el
-                    checkout.
+                    {brand.locationLabel}. Coordinamos el retiro al confirmar el
+                    pago.
                   </p>
                 </div>
               </div>
+              <div className="flex items-start gap-3">
+                <Truck className="h-5 w-5 text-palm mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-shadow">Envío gratis</h4>
+                  <p className="text-sm mt-1">
+                    En compras desde $
+                    {brand.freeShippingFromArs.toLocaleString("es-AR")} el envío
+                    puede no tener cargo — se confirma en el checkout.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/envios"
+                className="inline-flex min-h-11 items-center font-semibold text-palm"
+              >
+                Más sobre envíos
+              </Link>
             </div>
           )}
         </motion.div>
@@ -583,7 +628,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 mb-16">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mb-16 pb-24 lg:pb-0">
       {/* Left Column - Images */}
       <div className="lg:sticky lg:top-24 lg:self-start">
         <ImageGallery images={product.images} productName={product.name} />
@@ -595,20 +640,19 @@ export function ProductDetail({ product }: ProductDetailProps) {
         <div>
           <Link
             href={`/productos?category=${product.category?.slug}`}
-            className="text-sm text-yerba-600 font-medium hover:underline"
+            className="inline-flex min-h-11 items-center text-sm text-palm font-medium hover:underline"
           >
             {product.category?.name}
           </Link>
-          <h1 className="font-serif text-3xl md:text-4xl font-bold text-stone-900 mt-2">
+          <h1 className="font-serif text-3xl md:text-4xl font-bold text-shadow mt-2">
             {product.name}
           </h1>
         </div>
 
         {/* Short Description */}
-        <p className="text-stone-600 leading-relaxed">
-          {product.description ||
-            "Producto premium seleccionado con los más altos estándares de calidad."}
-        </p>
+        {product.description ? (
+          <p className="text-shadow/80 leading-relaxed">{product.description}</p>
+        ) : null}
 
         {/* Divider */}
         <div className="border-t border-stone-200" />

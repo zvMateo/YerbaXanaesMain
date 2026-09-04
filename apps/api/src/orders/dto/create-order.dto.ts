@@ -76,7 +76,23 @@ export class CreateOrderDto {
 
   @IsString()
   @IsOptional()
-  shippingAddress?: string; // Calle + número del cliente
+  shippingAddress?: string; // Display legacy: se compone si vienen campos estructurados
+
+  @IsString()
+  @IsOptional()
+  shippingStreetName?: string;
+
+  @IsString()
+  @IsOptional()
+  shippingStreetNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  shippingFloor?: string;
+
+  @IsString()
+  @IsOptional()
+  shippingApartment?: string;
 
   @IsString()
   @IsOptional()
@@ -85,6 +101,14 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   shippingProvinceCode?: string; // Código de provincia (Correo Argentino)
+
+  @IsString()
+  @IsOptional()
+  shippingDeliveryType?: string; // "D" | "S"
+
+  @IsString()
+  @IsOptional()
+  shippingAgencyCode?: string;
 
   @IsString()
   @IsOptional()

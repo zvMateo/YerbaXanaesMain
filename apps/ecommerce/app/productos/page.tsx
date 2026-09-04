@@ -76,10 +76,10 @@ export default async function ProductosPage({
   const { category, search, sortBy } = params;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-x-clip">
       <Header />
 
-      <main className="flex-1 bg-stone-50">
+      <main className="flex-1 bg-cream">
         {/* Page Header */}
         <div className="bg-white border-b border-stone-200">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">

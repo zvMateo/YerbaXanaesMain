@@ -6,8 +6,8 @@ import { BrandSeal } from "@/components/brand-seal";
 export function Footer() {
   return (
     <footer className="bg-shadow text-cream/80">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 md:gap-12">
           <div>
             <Link href="/" className="flex items-center gap-2 mb-6">
               <BrandSeal size={32} className="h-8 w-8" />
@@ -23,7 +23,7 @@ export function Footer() {
                     href={brand.social.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-cream/60 hover:text-leaf transition-colors"
+                    className="inline-flex min-h-11 items-center text-cream/60 hover:text-leaf transition-colors"
                     aria-label="Instagram"
                   >
                     <Instagram className="h-5 w-5" />
@@ -34,7 +34,7 @@ export function Footer() {
                     href={brand.social.facebook}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-cream/60 hover:text-leaf transition-colors"
+                    className="inline-flex min-h-11 items-center text-cream/60 hover:text-leaf transition-colors"
                     aria-label="Facebook"
                   >
                     <Facebook className="h-5 w-5" />
@@ -46,11 +46,11 @@ export function Footer() {
 
           <div>
             <h3 className="text-cream font-semibold mb-6">Productos</h3>
-            <ul className="space-y-3">
+            <ul className="space-y-1">
               <li>
                 <Link
                   href="/productos"
-                  className="text-cream/60 hover:text-leaf transition-colors"
+                  className="inline-flex min-h-11 items-center text-cream/60 hover:text-leaf transition-colors"
                 >
                   Ver catálogo
                 </Link>
@@ -60,11 +60,11 @@ export function Footer() {
 
           <div>
             <h3 className="text-cream font-semibold mb-6">Empresa</h3>
-            <ul className="space-y-3">
+            <ul className="space-y-1">
               <li>
                 <Link
                   href="/nosotros"
-                  className="text-cream/60 hover:text-leaf transition-colors"
+                  className="inline-flex min-h-11 items-center text-cream/60 hover:text-leaf transition-colors"
                 >
                   Sobre Nosotros
                 </Link>
@@ -72,7 +72,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/contacto"
-                  className="text-cream/60 hover:text-leaf transition-colors"
+                  className="inline-flex min-h-11 items-center text-cream/60 hover:text-leaf transition-colors"
                 >
                   Contacto
                 </Link>
@@ -80,7 +80,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/faq"
-                  className="text-cream/60 hover:text-leaf transition-colors"
+                  className="inline-flex min-h-11 items-center text-cream/60 hover:text-leaf transition-colors"
                 >
                   Preguntas Frecuentes
                 </Link>
@@ -88,7 +88,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/envios"
-                  className="text-cream/60 hover:text-leaf transition-colors"
+                  className="inline-flex min-h-11 items-center text-cream/60 hover:text-leaf transition-colors"
                 >
                   Envíos
                 </Link>
@@ -98,7 +98,7 @@ export function Footer() {
 
           <div>
             <h3 className="text-cream font-semibold mb-6">Contacto</h3>
-            <ul className="space-y-3">
+            <ul className="space-y-1">
               <li className="flex items-center gap-3 text-cream/60">
                 <MapPin className="h-5 w-5 text-leaf shrink-0" />
                 <span>{brand.locationLabel}</span>
@@ -109,7 +109,7 @@ export function Footer() {
                   href={whatsappUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-leaf transition-colors"
+                  className="inline-flex min-h-11 items-center hover:text-leaf transition-colors"
                 >
                   {brand.whatsappDisplay}
                 </a>
@@ -118,7 +118,7 @@ export function Footer() {
                 <Mail className="h-5 w-5 text-leaf shrink-0" />
                 <a
                   href={`mailto:${brand.email}`}
-                  className="hover:text-leaf transition-colors"
+                  className="inline-flex min-h-11 items-center hover:text-leaf transition-colors break-all"
                 >
                   {brand.email}
                 </a>
@@ -132,16 +132,16 @@ export function Footer() {
             © {new Date().getFullYear()} {brand.businessName}. Todos los
             derechos reservados.
           </p>
-          <div className="flex gap-6 text-sm text-cream/45">
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-6 text-sm text-cream/45">
             <Link
               href="/terminos"
-              className="hover:text-leaf transition-colors"
+              className="inline-flex min-h-11 items-center hover:text-leaf transition-colors"
             >
               Términos y Condiciones
             </Link>
             <Link
               href="/privacidad"
-              className="hover:text-leaf transition-colors"
+              className="inline-flex min-h-11 items-center hover:text-leaf transition-colors"
             >
               Política de Privacidad
             </Link>

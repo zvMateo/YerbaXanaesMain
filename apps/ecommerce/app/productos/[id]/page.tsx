@@ -142,7 +142,7 @@ function Breadcrumb({
 }) {
   return (
     <nav aria-label="Breadcrumb" className="py-4">
-      <ol className="flex items-center gap-2 text-sm text-stone-500">
+      <ol className="flex flex-wrap items-center gap-2 text-sm text-shadow/60">
         <li>
           <Link
             href="/"
@@ -197,7 +197,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50">
+    <div className="min-h-screen flex flex-col overflow-x-clip bg-cream">
       <Header />
 
       <main className="flex-1">

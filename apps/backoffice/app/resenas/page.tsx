@@ -8,7 +8,7 @@ import {
   useRejectRating,
   useDeleteRating,
 } from "@/hooks/use-ratings";
-import { Sidebar, QuickActions } from "@/components/sidebar";
+import { AppShell } from "@/components/app-shell";
 
 function StarDisplay({ rating }: { rating: number }) {
   return (
@@ -47,16 +47,14 @@ export default function ResenasPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-stone-50/50">
-      <Sidebar />
-      <main className="flex-1 lg:ml-0 overflow-auto">
-        <div className="bg-white border-b border-stone-200 px-6 py-4">
+    <AppShell>
+        <div className="bg-white border-b border-stone-200 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2 text-sm text-stone-500">
             <span>Dashboard</span>
             <span>/</span>
             <span className="text-stone-900 font-medium">Reseñas</span>
           </div>
-          <div className="flex items-center justify-between mt-1">
+          <div className="flex flex-col gap-3 mt-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-stone-900">Reseñas</h1>
               <p className="text-stone-500 text-sm">
@@ -71,9 +69,9 @@ export default function ResenasPage() {
           </div>
         </div>
 
-        <div className="p-6 lg:p-8 space-y-6">
+        <div className="min-w-0 p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Filters */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {(["all", "pending", "approved"] as const).map((f) => (
               <button
                 key={f}
@@ -115,7 +113,7 @@ export default function ResenasPage() {
                   key={rating.id}
                   className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <StarDisplay rating={rating.rating} />
@@ -159,7 +157,7 @@ export default function ResenasPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       {!rating.isApproved ? (
                         <button
                           onClick={() => approveRating.mutate(rating.id)}
@@ -194,8 +192,6 @@ export default function ResenasPage() {
             )}
           </div>
         </div>
-      </main>
-      <QuickActions />
-    </div>
+    </AppShell>
   );
 }

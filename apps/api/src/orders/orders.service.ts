@@ -11,6 +11,27 @@ import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 
+function composeShippingAddressDisplay(dto: CreateOrderDto): string | null {
+  const street = [
+    dto.shippingStreetName?.trim(),
+    dto.shippingStreetNumber?.trim(),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const extras = [
+    dto.shippingFloor?.trim() ? `Piso ${dto.shippingFloor.trim()}` : '',
+    dto.shippingApartment?.trim()
+      ? `Depto ${dto.shippingApartment.trim()}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const composed = [street, extras].filter(Boolean).join(', ');
+  if (composed) return composed;
+  const legacy = dto.shippingAddress?.trim();
+  return legacy || null;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -176,10 +197,21 @@ export class OrdersService {
             : {}),
           // Datos de entrega
           deliveryType: dto.deliveryType || 'pickup',
-          shippingAddress: dto.shippingAddress,
-          shippingCity: dto.shippingCity,
-          shippingProvinceCode: dto.shippingProvinceCode,
-          shippingZip: dto.shippingZip,
+          shippingStreetName: dto.shippingStreetName?.trim() || null,
+          shippingStreetNumber: dto.shippingStreetNumber?.trim() || null,
+          shippingFloor: dto.shippingFloor?.trim() || null,
+          shippingApartment: dto.shippingApartment?.trim() || null,
+          shippingAddress: composeShippingAddressDisplay(dto),
+          shippingCity: dto.shippingCity?.trim() || null,
+          shippingProvinceCode: dto.shippingProvinceCode?.trim() || null,
+          shippingDeliveryType:
+            dto.shippingDeliveryType === 'S'
+              ? 'S'
+              : dto.shippingDeliveryType === 'D'
+                ? 'D'
+                : null,
+          shippingAgencyCode: dto.shippingAgencyCode?.trim() || null,
+          shippingZip: dto.shippingZip?.trim() || null,
           shippingCost: shippingCost > 0 ? shippingCost : null,
           shippingProvider: dto.shippingProvider,
           items: {
@@ -249,8 +281,8 @@ export class OrdersService {
 
   async update(id: string, updateOrderDto: UpdateOrderDto) {
     // Extraemos campos con lógica especial / no actualizables en una transición directa
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { items, userId, status, note, ...data } = updateOrderDto;
+
+    const { status, note } = updateOrderDto;
 
     const existing = await this.prisma.order.findUnique({
       where: { id },
@@ -295,7 +327,7 @@ export class OrdersService {
     }
 
     // Cambio de status libre (PAID, REJECTED, REFUNDED, etc.) — actualización plana
-    const patch: Prisma.OrderUpdateInput = { ...data };
+    const patch: Prisma.OrderUpdateInput = {};
     if (status) {
       patch.status = status as OrderStatus;
       patch.manualOverrideAt = new Date();

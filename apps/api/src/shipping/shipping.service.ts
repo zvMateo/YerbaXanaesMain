@@ -56,6 +56,39 @@ const MICORREO_BASE_URLS = {
   PROD: 'https://api.correoargentino.com.ar/micorreo/v1',
 } as const;
 
+function asNonEmptyString(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return undefined;
+}
+
+/**
+ * Extrae tracking / shippingId de la respuesta de POST /shipping/import.
+ * La doc oficial solo documenta `{ createdAt }` — no inventamos un número
+ * si no viene un campo reconocible.
+ */
+function extractTrackingFromImportResponse(data: unknown): {
+  trackingNumber?: string;
+  correoShippingId?: string;
+} {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+  const obj = data as Record<string, unknown>;
+
+  const trackingNumber =
+    asNonEmptyString(obj.trackingNumber) ||
+    asNonEmptyString(obj.tracking) ||
+    asNonEmptyString(obj.tn);
+
+  // `id` solo si no es claramente una fecha (createdAt).
+  const rawId =
+    asNonEmptyString(obj.shippingId) ||
+    asNonEmptyString(obj.shipmentId) ||
+    asNonEmptyString(obj.id);
+  const correoShippingId =
+    rawId && !/^\d{4}-\d{2}-\d{2}/.test(rawId) ? rawId : undefined;
+
+  return { trackingNumber, correoShippingId };
+}
+
 @Injectable()
 export class ShippingService implements OnModuleInit {
   private readonly logger = new Logger(ShippingService.name);
@@ -363,9 +396,12 @@ export class ShippingService implements OnModuleInit {
   // Usa HTTP directo a la API porque la librería no soporta shipping/import
   // ============================================================
 
-  async importShipping(
-    orderId: string,
-  ): Promise<{ correoImportedAt: Date; message: string }> {
+  async importShipping(orderId: string): Promise<{
+    correoImportedAt: Date;
+    message: string;
+    trackingNumber?: string;
+    correoShippingId?: string;
+  }> {
     // Validar credenciales mínimas para HTTP directo (no requiere lib inicializada)
     const creds = this.getMiCorreoCredentials();
     if (!creds) {
@@ -485,9 +521,6 @@ export class ShippingService implements OnModuleInit {
         }),
       });
 
-      // La respuesta exitosa es { createdAt: "..." } — no devuelve tracking number.
-      // El trackingNumber real lo asigna Correo internamente y aparece en el dashboard
-      // de MiCorreo. El admin lo va a copiar manualmente desde ahí.
       if (!result['ok']) {
         const errData = result['data'] as { message?: string; code?: string };
         const apiMessage = errData?.message ?? 'Unknown';
@@ -495,25 +528,52 @@ export class ShippingService implements OnModuleInit {
         throw new Error(`MiCorreo error ${apiCode}: ${apiMessage}`);
       }
 
-      // Marcamos la orden como "importada" pero sin trackingNumber real.
-      // El admin cargará el trackingNumber manualmente cuando lo tenga visible
-      // en el dashboard de MiCorreo (ver POST /shipping/orders/:id/tracking-number).
+      const payload = result['data'] as Record<string, unknown> | unknown[];
+      const responseKeys = Array.isArray(payload)
+        ? ['[array]']
+        : payload && typeof payload === 'object'
+          ? Object.keys(payload)
+          : [];
+      // Solo keys — nunca valores (pueden incluir tokens / PII).
+      this.logger.log(
+        `MiCorreo /shipping/import keys: ${responseKeys.join(', ') || '(vacío)'}`,
+      );
+
+      const extracted = extractTrackingFromImportResponse(payload);
       const importedAt = new Date();
-      await this.prisma.order.update({
-        where: { id: orderId },
-        data: {
-          correoImportedAt: importedAt,
-        },
-      });
+      const persist: {
+        correoImportedAt: Date;
+        trackingNumber?: string;
+        correoShippingId?: string;
+      } = { correoImportedAt: importedAt };
+      if (extracted.trackingNumber)
+        persist.trackingNumber = extracted.trackingNumber;
+      if (extracted.correoShippingId)
+        persist.correoShippingId = extracted.correoShippingId;
 
       this.logger.log(
-        `Envío importado a MiCorreo: order=${orderId} (tracking pendiente de carga manual)`,
+        `MiCorreo import persist keys: ${Object.keys(persist).join(', ')}`,
+      );
+
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: persist,
+      });
+
+      const hasTracking = Boolean(extracted.trackingNumber);
+      this.logger.log(
+        hasTracking
+          ? `Envío importado a MiCorreo: order=${orderId} (tracking persistido)`
+          : `Envío importado a MiCorreo: order=${orderId} (sin tracking en la respuesta; carga manual)`,
       );
 
       return {
         correoImportedAt: importedAt,
-        message:
-          'Envío creado en MiCorreo. Imprimí la oblea desde el dashboard y cargá el número de seguimiento cuando lo tengas.',
+        trackingNumber: extracted.trackingNumber,
+        correoShippingId: extracted.correoShippingId,
+        message: hasTracking
+          ? 'Envío creado en MiCorreo. El número de seguimiento ya quedó guardado. Imprimí la oblea desde el dashboard.'
+          : 'Envío creado en MiCorreo. Imprimí la oblea desde el dashboard y cargá el número de seguimiento cuando lo tengas.',
       };
     } catch (error) {
       this.logger.error('No se pudo importar el envío a MiCorreo', error);
@@ -563,7 +623,10 @@ export class ShippingService implements OnModuleInit {
           'Credenciales de Correo Argentino inválidas o vencidas. Revisá CA_USER_TOKEN / CA_PASSWORD_TOKEN en el servidor.',
         );
       }
-      if (lowercased.includes('timeout') || lowercased.includes('econnrefused')) {
+      if (
+        lowercased.includes('timeout') ||
+        lowercased.includes('econnrefused')
+      ) {
         throw new ServiceUnavailableException(
           'MiCorreo no responde en este momento. Reintentá en unos minutos.',
         );

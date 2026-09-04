@@ -101,4 +101,8 @@ export class BrickInitDto {
   @IsOptional()
   @IsString()
   couponCode?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

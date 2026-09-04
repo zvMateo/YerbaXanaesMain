@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sidebar } from "@/components/sidebar";
+import { AppShell } from "@/components/app-shell";
 import {
   HelpCircle,
   Keyboard,
@@ -436,11 +436,8 @@ function SupportContact() {
 
 export default function AyudaPage() {
   return (
-    <div className="flex min-h-screen bg-stone-50/50">
-      <Sidebar />
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto py-8 px-6 space-y-10">
+    <AppShell>
+        <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 sm:py-8 space-y-10">
           {/* Header */}
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -471,7 +468,6 @@ export default function AyudaPage() {
             <SupportContact />
           </div>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 }

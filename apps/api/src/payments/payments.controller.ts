@@ -26,6 +26,8 @@ import { PaymentsSyncService } from './payments-sync.service';
 import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 import { CreateBrickPaymentDto } from './dto/create-brick-payment.dto';
 import { BrickInitDto } from './dto/brick-init.dto';
+import { OfflineCheckoutDto } from './dto/offline-checkout.dto';
+import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
 import { OverrideOrderStatusDto } from './dto/override-order-status.dto';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -71,6 +73,52 @@ export class PaymentsController {
   async brickInit(@Body() dto: BrickInitDto) {
     const result = await this.paymentsService.brickInit(dto);
     return { data: result, message: 'Brick inicializado' };
+  }
+
+  @Post('offline-checkout')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Checkout público con transferencia o efectivo',
+    description:
+      'Crea (o reutiliza) una orden PENDING. No marca PAID. Efectivo solo si deliveryType=pickup.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Orden PENDING — { orderId, total, paymentProvider, transferInstructions }',
+  })
+  async offlineCheckout(@Body() dto: OfflineCheckoutDto) {
+    const result = await this.paymentsService.offlineCheckout(dto);
+    return { data: result, message: 'Pedido registrado' };
+  }
+
+  @Get('transfer-info')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Datos públicos de transferencia (alias/CBU)',
+    description:
+      'Devuelve alias, CBU, titular y banco desde env. Si faltan, transferInstructions es null.',
+  })
+  getTransferInfo() {
+    const result = this.paymentsService.getTransferInfo();
+    return { data: result, message: 'Datos de transferencia' };
+  }
+
+  @Post('payment-link')
+  @UseGuards(AuthGuard, AdminGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Generar link de pago de Mercado Pago (admin)',
+    description:
+      'Crea una preferencia MP. Con orderId usa esa orden PENDING. Sin orderId crea una orden PENDING sin stock (nota: Link de pago).',
+  })
+  @ApiResponse({ status: 200, description: 'Link generado' })
+  @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
+  async createPaymentLink(@Body() dto: CreatePaymentLinkDto) {
+    const result = await this.paymentsService.createPaymentLink(dto);
+    return { data: result, message: 'Link de pago generado' };
   }
 
   @Post('brick')

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "../../../../packages/ui/tokens.css";
+@import "../../../packages/ui/tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -12,6 +12,10 @@
 @layer base {
   * {
     @apply border-border;
+  }
+  html,
+  body {
+    overflow-x: hidden;
   }
   body {
     @apply bg-background text-foreground;
