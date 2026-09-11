@@ -2,13 +2,11 @@
 
 import { useEffect } from "react";
 import { useCartStore } from "@/stores/cart-store";
+import { clearCheckoutStorage } from "@/lib/checkout-storage";
 
 interface CheckoutSuccessCleanupProps {
   shouldClearCart: boolean;
 }
-
-const CHECKOUT_STORAGE_KEY = "yerbaxanaes-checkout-data";
-const CHECKOUT_STEP_KEY = "yerbaxanaes-checkout-step";
 
 export function CheckoutSuccessCleanup({
   shouldClearCart,
@@ -19,8 +17,7 @@ export function CheckoutSuccessCleanup({
     if (!shouldClearCart) return;
 
     clearCart();
-    localStorage.removeItem(CHECKOUT_STORAGE_KEY);
-    localStorage.removeItem(CHECKOUT_STEP_KEY);
+    clearCheckoutStorage();
   }, [shouldClearCart, clearCart]);
 
   return null;

@@ -31,6 +31,11 @@ interface PaymentBrickProps {
   existingPreferenceId?: string | null;
   /** Callback que notifica al padre cuando se completa el brick-init */
   onInit?: (data: { orderId: string; preferenceId: string }) => void;
+  /**
+   * Avisa al padre si el brick-init está en vuelo, para que bloquee la
+   * navegación: irse en ese hueco deja la orden a medio reportar.
+   */
+  onInitializingChange?: (isInitializing: boolean) => void;
   onSuccess?: (data: { orderId: string; status: string }) => void;
   onError?: (error: Error) => void;
   /** Callback para editar datos de envío desde el review step del Brick */
@@ -138,6 +143,9 @@ function normalizeMpErrorMessage(error: unknown): string {
   return "Error al inicializar el formulario de pago";
 }
 
+/** Cota del brick-init. Ver el comentario del fetch: bloquea la navegación. */
+const BRICK_INIT_TIMEOUT_MS = 15_000;
+
 function createCorrelationId(): string {
   if (
     typeof crypto !== "undefined" &&
@@ -154,6 +162,7 @@ export function PaymentBrick({
   existingOrderId,
   existingPreferenceId,
   onInit,
+  onInitializingChange,
   onSuccess,
   onError,
   onGoToDelivery,
@@ -174,6 +183,13 @@ export function PaymentBrick({
   const [brickOrderId, setBrickOrderId] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
+
+  // Espejo del estado hacia el padre. Al desmontar se reporta false para no
+  // dejarle el botón "Volver" trabado.
+  useEffect(() => {
+    onInitializingChange?.(isInitializing);
+    return () => onInitializingChange?.(false);
+  }, [isInitializing, onInitializingChange]);
 
   const {
     customerName,
@@ -294,6 +310,10 @@ export function PaymentBrick({
         const res = await fetch(`${API_URL}/payments/brick-init`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          // Con timeout porque mientras esto está en vuelo el padre bloquea
+          // el botón "Volver": sin cota, una request colgada deja al
+          // comprador encerrado en el paso de pago.
+          signal: AbortSignal.timeout(BRICK_INIT_TIMEOUT_MS),
           body: JSON.stringify(
             buildPublicCheckoutPayload(
               getValues(),
@@ -310,11 +330,19 @@ export function PaymentBrick({
         }
 
         const json = await res.json();
+
+        // El hoist va ANTES del guard de desmontaje: la orden ya existe en la
+        // base y el stock ya se descontó. Si el comprador volvió atrás
+        // mientras esto viajaba, perder el id acá lo obliga a crear otra.
+        onInit?.({
+          orderId: json.data.orderId,
+          preferenceId: json.data.preferenceId,
+        });
+
         if (!cancelled) {
           setPreferenceId(json.data.preferenceId);
           setBrickOrderId(json.data.orderId);
           setIsInitializing(false);
-          onInit?.({ orderId: json.data.orderId, preferenceId: json.data.preferenceId });
         }
       } catch {
         if (!cancelled) {

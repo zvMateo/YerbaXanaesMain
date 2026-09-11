@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,14 @@ import {
 } from "@/schemas/checkout-schema";
 import { useCartStore } from "@/stores/cart-store";
 import { useCheckoutQuote } from "@/hooks/use-checkout-quote";
+import {
+  CHECKOUT_STORAGE_KEY,
+  CHECKOUT_STEP_KEY,
+  cartFingerprint,
+  clearCheckoutStorage,
+  readCheckoutOrder,
+  writeCheckoutOrder,
+} from "@/lib/checkout-storage";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
@@ -153,12 +161,12 @@ const steps = [
   { id: "payment", label: "Pago", number: 4 },
 ];
 
-const CHECKOUT_STORAGE_KEY = "yerbaxanaes-checkout-data";
-const CHECKOUT_STEP_KEY = "yerbaxanaes-checkout-step";
-
 export function CheckoutForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isValidatingStock, setIsValidatingStock] = useState(false);
+  // El Brick avisa mientras crea la orden. Volver atrás en ese hueco dispara
+  // un segundo brick-init cuando el comprador vuelve a entrar.
+  const [isBrickInitializing, setIsBrickInitializing] = useState(false);
   const [stockErrors, setStockErrors] = useState<
     Array<{ product: string; message: string }>
   >([]);
@@ -170,6 +178,10 @@ export function CheckoutForm() {
 
   const { items, clearCart } = useCartStore();
   const router = useRouter();
+
+  // Identidad del carrito actual, para no reusar una orden de otro carrito.
+  const cartKey = useMemo(() => cartFingerprint(items), [items]);
+  const orderRestoredRef = useRef(false);
 
   const total = useMemo(() => {
     return items.reduce((sum, item) => {
@@ -275,6 +287,20 @@ export function CheckoutForm() {
     }
   }, [reset]);
 
+  // Restaurar la orden PENDING ya creada. Es lo que evita que un F5 en el paso
+  // de pago cree una segunda orden y descuente el stock otra vez. Se intenta
+  // una sola vez, y recién cuando el carrito hidrató: sin ítems la huella no
+  // coincide con ninguna y descartaría una orden buena.
+  useEffect(() => {
+    if (orderRestoredRef.current || items.length === 0) return;
+    orderRestoredRef.current = true;
+
+    const saved = readCheckoutOrder(cartKey);
+    if (!saved) return;
+    setBrickOrderId(saved.orderId);
+    setBrickPreferenceId(saved.preferenceId);
+  }, [items.length, cartKey]);
+
   // Persistir datos en localStorage
   useEffect(() => {
     const subscription = watch((data) => {
@@ -287,11 +313,6 @@ export function CheckoutForm() {
     });
     return () => subscription.unsubscribe();
   }, [watch, currentStep]);
-
-  const clearStoredData = () => {
-    localStorage.removeItem(CHECKOUT_STORAGE_KEY);
-    localStorage.removeItem(CHECKOUT_STEP_KEY);
-  };
 
   // Watches usados para lógica de navegación
   const deliveryType = watch("deliveryType");
@@ -594,7 +615,7 @@ export function CheckoutForm() {
                       isPickup={isPickup}
                       existingOrderId={brickOrderId}
                       onOfflineSuccess={({ orderId, method }) => {
-                        clearStoredData();
+                        clearCheckoutStorage();
                         clearCart();
                         router.push(
                           `/checkout/success?orderId=${orderId}&method=${method}`,
@@ -615,13 +636,22 @@ export function CheckoutForm() {
                           onInit={({ orderId, preferenceId }) => {
                             setBrickOrderId(orderId);
                             setBrickPreferenceId(preferenceId);
+                            // Se persiste acá y no en un efecto para congelar
+                            // el carrito exacto que originó esta orden.
+                            writeCheckoutOrder({
+                              orderId,
+                              preferenceId,
+                              cartFingerprint: cartKey,
+                              savedAt: Date.now(),
+                            });
                           }}
+                          onInitializingChange={setIsBrickInitializing}
                           onGoToDelivery={() => {
                             // Si es pickup volvemos al método; si no al detalle
                             setCurrentStep(isPickup ? 1 : 2);
                           }}
                           onSuccess={({ orderId }) => {
-                            clearStoredData();
+                            clearCheckoutStorage();
                             clearCart();
                             router.push(`/checkout/success?orderId=${orderId}`);
                           }}
@@ -650,7 +680,9 @@ export function CheckoutForm() {
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between mt-8 pt-6 border-t border-stone-200">
             <button
               onClick={handleBack}
-              disabled={currentStep === 0 || isValidatingStock}
+              disabled={
+                currentStep === 0 || isValidatingStock || isBrickInitializing
+              }
               className="inline-flex min-h-11 items-center justify-center px-6 py-3 text-shadow/70 disabled:opacity-50"
             >
               {currentStep === 0 ? "Cancelar" : "Volver"}
