@@ -26,6 +26,10 @@ async function safeFetch<T>(
   url: string,
   options?: RequestInit,
   fallbackData?: T,
+  /** Si es true, el fallback se usa SOLO cuando el API responde 404. Un
+   *  timeout o una caida se propagan. Sin esto, con el API abajo todas las
+   *  paginas de producto responderian 404 y Google las desindexa. */
+  fallbackOnlyOn404 = false,
 ): Promise<T> {
   try {
     const res = await fetch(url, {
@@ -35,13 +39,22 @@ async function safeFetch<T>(
     });
 
     if (!res.ok) {
-      if (fallbackData) return fallbackData;
+      // Comparar contra undefined y no por truthiness: null y 0 son fallbacks
+      // legitimos. Con `if (fallbackData)` el null de getProduct se trataba
+      // como "sin fallback", se lanzaba el error y el notFound() de la pagina
+      // de producto quedaba inalcanzable.
+      const aplicaFallback =
+        fallbackData !== undefined && (!fallbackOnlyOn404 || res.status === 404);
+
+      if (aplicaFallback) return fallbackData;
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
 
     return res.json();
   } catch (error) {
-    if (fallbackData) {
+    // Un timeout o un ECONNREFUSED no son "no existe": si el fallback era solo
+    // para el 404, propagamos para que la pagina muestre el error real.
+    if (fallbackData !== undefined && !fallbackOnlyOn404) {
       return fallbackData;
     }
 
@@ -113,7 +126,8 @@ export async function getProduct(id: string): Promise<Product | null> {
       // las páginas de detalle al editar un producto.
       next: { revalidate: 3600, tags: ["products"] },
     },
-    null, // Fallback
+    null, // Fallback: null -> notFound() en la pagina de producto
+    true, // ...pero solo si el API dice 404, no si esta caido
   );
 }
 
