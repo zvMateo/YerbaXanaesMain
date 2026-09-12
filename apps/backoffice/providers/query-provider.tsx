@@ -34,8 +34,10 @@ function createQueryClient() {
         // Refetch al volver a la pestaña solo si los datos están stale
         refetchOnWindowFocus: true,
 
-        // Mantener datos anteriores mientras se cargan nuevos (UX suave)
-        placeholderData: (previousData: unknown) => previousData,
+        // NO agregar placeholderData acá. Las queries por id (useOrder,
+        // useCustomer, useOrderStateHistory) mostrarían la ficha anterior sin
+        // indicador de carga al cambiar de entidad. Los listados tienen
+        // queryKey fija, así que el placeholder no se usa nunca en ellos.
       },
       mutations: {
         // Reintentar mutations solo en errores de red
