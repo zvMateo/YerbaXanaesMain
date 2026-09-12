@@ -9,7 +9,7 @@ import { CouponsService } from '../coupons/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
 import { SettingsService } from '../settings/settings.service';
-import { OrderStatus, PaymentProvider } from '@prisma/client';
+import { OrderStatus, PaymentProvider, Prisma } from '@prisma/client';
 import { InventoryReservationService } from '../inventory/inventory-reservation.service';
 
 /** Todos los medios de pago habilitados — el estado por defecto de la tienda. */
@@ -49,6 +49,7 @@ describe('PaymentsService - Integration Tests', () => {
             $transaction: jest.fn(),
             webhookLog: {
               create: jest.fn(),
+              delete: jest.fn(),
             },
             order: {
               findMany: jest.fn(),
@@ -322,9 +323,9 @@ describe('PaymentsService - Integration Tests', () => {
       (prismaService.webhookLog.create as jest.Mock)
         .mockResolvedValueOnce({ id: 'log-1' })
         .mockRejectedValueOnce(
-          Object.assign(new Error('Unique constraint'), {
+          new Prisma.PrismaClientKnownRequestError('Unique constraint', {
             code: 'P2002',
-            name: 'PrismaClientKnownRequestError',
+            clientVersion: '6.2.1',
           }),
         );
 
@@ -555,6 +556,128 @@ describe('PaymentsService - Integration Tests', () => {
       expect(
         paymentsSyncService.updateOrderStatusWithAudit,
       ).not.toHaveBeenCalled();
+    });
+
+    it('re-lanza y descarta el log de dedup cuando falla el procesamiento', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-fail-1';
+      const dataIdUrl = 'mp-pay-fail-1';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'mp-pay-fail-1',
+          external_reference: 'order-fail-1',
+          status: 'approved',
+          status_detail: 'accredited',
+        }),
+      });
+
+      jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
+        id: 'order-fail-1',
+        status: OrderStatus.PENDING,
+        deletedAt: null,
+      } as any);
+
+      jest
+        .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
+        .mockReturnValue(OrderStatus.PAID);
+
+      // Once y no mockRejectedValue: clearAllMocks no quita implementaciones,
+      // y un rechazo persistente romperia los tests que siguen.
+      jest
+        .spyOn(paymentsSyncService, 'updateOrderStatusWithAudit')
+        .mockRejectedValueOnce(new Error('base de datos caida'));
+
+      // Un 200 acá significa "procesado" y el pago queda sin acreditar.
+      await expect(
+        service.handleWebhook({
+          body: {},
+          signature,
+          requestId,
+          dataIdUrl,
+          typeUrl: 'payment',
+        }),
+      ).rejects.toThrow('base de datos caida');
+
+      // Sin borrar el log, el reintento de MP se descarta como duplicado.
+      expect(prismaService.webhookLog.delete).toHaveBeenCalledWith({
+        where: { requestId_type: { requestId, type: 'payment' } },
+      });
+    });
+
+    it('no toma un fallo de base cualquiera como webhook duplicado', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-dberr-1';
+      const dataIdUrl = 'mp-pay-dberr-1';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (prismaService.webhookLog.create as jest.Mock).mockRejectedValueOnce(
+        new Error('connection pool agotado'),
+      );
+
+      await expect(
+        service.handleWebhook({
+          body: {},
+          signature,
+          requestId,
+          dataIdUrl,
+          typeUrl: 'payment',
+        }),
+      ).rejects.toThrow('connection pool agotado');
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('re-lanza cuando Mercado Pago responde 5xx al consultar el pago', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-mp500-1';
+      const dataIdUrl = 'mp-pay-500';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({}),
+      });
+
+      await expect(
+        service.handleWebhook({
+          body: {},
+          signature,
+          requestId,
+          dataIdUrl,
+          typeUrl: 'payment',
+        }),
+      ).rejects.toThrow();
+
+      expect(prismaService.webhookLog.delete).toHaveBeenCalled();
+    });
+
+    it('no pide reintento cuando Mercado Pago responde 404', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-mp404-1';
+      const dataIdUrl = 'mp-pay-404';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      });
+
+      // El pago no existe o no es de esta cuenta: reintentar no cambia nada.
+      const res = await service.handleWebhook({
+        body: {},
+        signature,
+        requestId,
+        dataIdUrl,
+        typeUrl: 'payment',
+      });
+
+      expect(res).toEqual({ status: 'ok' });
+      expect(prismaService.webhookLog.delete).not.toHaveBeenCalled();
     });
   });
 

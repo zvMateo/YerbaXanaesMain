@@ -6,6 +6,7 @@ import {
   NotFoundException,
   HttpException,
   HttpStatus,
+  ServiceUnavailableException,
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
@@ -1187,8 +1188,16 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.webhookLog.create({
         data: { requestId, dataId: dataIdUrl, type: typeUrl },
       });
-    } catch {
-      // @@unique([requestId, type]) lanza error si ya existe → webhook ya procesado
+    } catch (error) {
+      // Sólo el choque contra @@unique([requestId, type]) significa "ya
+      // procesado". Cualquier otro fallo de base se propaga: tratarlo como
+      // duplicado descarta el evento y el pago queda sin acreditar.
+      const isDuplicate =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002';
+
+      if (!isDuplicate) throw error;
+
       this.logger.log(
         `Webhook duplicado ignorado: requestId=${requestId}, type=${typeUrl}, dataId=${dataIdUrl}`,
       );
@@ -1207,7 +1216,18 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         );
 
         if (!response.ok) {
-          this.logger.error(`No se pudo fetchear el payment MP ${dataIdUrl}`);
+          // Un 5xx o un rate limit de MP son transitorios: lanzamos para que
+          // el catch descarte el dedup y MP reintente. Un 4xx no tiene
+          // reintento útil, el pago no existe o no es de esta cuenta.
+          if (response.status >= 500 || response.status === 429) {
+            throw new ServiceUnavailableException(
+              `Mercado Pago respondió ${response.status} al consultar el payment ${dataIdUrl}`,
+            );
+          }
+
+          this.logger.error(
+            `No se pudo fetchear el payment MP ${dataIdUrl} (HTTP ${response.status})`,
+          );
           return { status: 'ok' };
         }
 
@@ -1291,6 +1311,11 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
           `Error procesando webhook payment ${dataIdUrl}`,
           error,
         );
+        // Re-lanzamos para que MP reintente: un 200 acá significa "procesado"
+        // y el pago quedaría sin acreditar para siempre. El log de dedup se
+        // descarta primero, o el reintento se descarta como duplicado.
+        await this.discardWebhookLog(requestId, typeUrl);
+        throw error;
       }
     }
 
@@ -1309,8 +1334,18 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         );
 
         if (!response.ok) {
-          this.logger.error(`No se pudo fetchear la order MP ${dataIdUrl}`);
-          return { status: 'ok' }; // Devuelve 200 para que MP no reintente
+          // Igual que en el tópico payment: sólo los fallos transitorios
+          // merecen que MP reintente.
+          if (response.status >= 500 || response.status === 429) {
+            throw new ServiceUnavailableException(
+              `Mercado Pago respondió ${response.status} al consultar la order ${dataIdUrl}`,
+            );
+          }
+
+          this.logger.error(
+            `No se pudo fetchear la order MP ${dataIdUrl} (HTTP ${response.status})`,
+          );
+          return { status: 'ok' };
         }
 
         const mpOrder = await response.json();
@@ -1386,10 +1421,34 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`Webhook procesado: Order ${extRef} → ${newStatus}`);
       } catch (error) {
         this.logger.error(`Error procesando webhook order ${dataIdUrl}`, error);
+        // Ver la nota del tópico payment: sin esto el reintento de MP se
+        // descarta como duplicado y la orden queda desincronizada.
+        await this.discardWebhookLog(requestId, typeUrl);
+        throw error;
       }
     }
 
     return { status: 'ok' };
+  }
+
+  /**
+   * Borra el registro de deduplicación de un webhook que no se pudo procesar,
+   * para que el reintento de Mercado Pago no lo vea como duplicado.
+   *
+   * Si el borrado falla, el reintento se va a descartar igual: queda el log
+   * de error y la reconciliación periódica como red de seguridad.
+   */
+  private async discardWebhookLog(requestId: string, type: string) {
+    try {
+      await this.prisma.webhookLog.delete({
+        where: { requestId_type: { requestId, type } },
+      });
+    } catch (error) {
+      this.logger.error(
+        `No se pudo descartar el webhookLog ${requestId}/${type}: el reintento de MP se va a ignorar como duplicado`,
+        error,
+      );
+    }
   }
 
   // -------------------------------------------------------
