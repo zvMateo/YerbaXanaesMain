@@ -110,41 +110,6 @@
   --sidebar-ring: #657f38;
 }
 
-/* Softened dark: Shadow canvas + Cream text. Not a product surface. */
-.dark {
-  --background: #212c1b;
-  --foreground: #fce0c0;
-  --card: #2a3724;
-  --card-foreground: #fce0c0;
-  --popover: #2a3724;
-  --popover-foreground: #fce0c0;
-  --primary: #657f38;
-  --primary-foreground: #ffffff;
-  --secondary: #354428;
-  --secondary-foreground: #fce0c0;
-  --muted: #354428;
-  --muted-foreground: #c4c882;
-  --accent: #d57640;
-  --accent-foreground: #212c1b;
-  --destructive: #a33b2b;
-  --border: #3d4a32;
-  --input: #3d4a32;
-  --ring: #9eab57;
-  --chart-1: #657f38;
-  --chart-2: #9eab57;
-  --chart-3: #d57640;
-  --chart-4: #fce0c0;
-  --chart-5: #f4d4ae;
-  --sidebar: #2a3724;
-  --sidebar-foreground: #fce0c0;
-  --sidebar-primary: #657f38;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #354428;
-  --sidebar-accent-foreground: #fce0c0;
-  --sidebar-border: #3d4a32;
-  --sidebar-ring: #9eab57;
-}
-
 .lucide {
   stroke-width: 1.75;
 }

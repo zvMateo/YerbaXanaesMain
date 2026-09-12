@@ -2,6 +2,11 @@
 @import "tw-animate-css";
 @import "../../../packages/ui/tokens.css";
 
+/* NO BORRAR. En Tailwind v4 `dark:` es nativa y por defecto escucha
+   prefers-color-scheme. Esta linea la ata a una clase `.dark` que nadie
+   aplica nunca, y es lo unico que mantiene apagados los `dark:` que todavia
+   traen los componentes de shadcn. Sacarla enciende el tema oscuro para
+   cualquiera con el sistema en oscuro, con una paleta que ya no existe. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
