@@ -21,6 +21,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { SettingsModule } from './settings/settings.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 
 @Module({
   imports: [
@@ -69,6 +70,14 @@ import { NotificationsModule } from './notifications/notifications.module';
     {
       provide: APP_FILTER,
       useClass: SentryGlobalFilter,
+    },
+    // Nest invierte la lista de filtros globales, asi que este corre ANTES
+    // que el de Sentry. Va ultimo a proposito: SentryGlobalFilter es un
+    // @Catch() sin tipos y si corriera primero se quedaria con los errores
+    // de Prisma y los devolveria como 500.
+    {
+      provide: APP_FILTER,
+      useClass: PrismaExceptionFilter,
     },
   ],
 })
