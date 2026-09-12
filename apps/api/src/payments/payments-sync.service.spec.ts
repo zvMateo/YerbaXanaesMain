@@ -10,7 +10,7 @@ import { InventoryReservationService } from '../inventory/inventory-reservation.
  * TESTS UNITARIOS: PaymentsSyncService
  *
  * Cubre:
- * 1. mapMercadoPagoStatus() — 9 estados MP + estado desconocido
+ * 1. mapMercadoPagoStatus() — 10 estados MP + estado desconocido
  * 2. updateOrderStatusWithAudit() — idempotencia, override protection, audit trail
  * 3. manuallyOverrideOrderStatus() — delega correctamente a updateOrderStatusWithAudit
  * 4. reconcileOrdersWithMercadoPago() — skip override manual, sincroniza diferencias, métricas
@@ -105,6 +105,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
       ['closed', OrderStatus.CANCELLED],
       ['expired', OrderStatus.CANCELLED],
       ['refunded', OrderStatus.REFUNDED],
+      ['charged_back', OrderStatus.REFUNDED],
     ])('"%s" → %s', (mpStatus, expected) => {
       expect(service.mapMercadoPagoStatus(mpStatus)).toBe(expected);
     });

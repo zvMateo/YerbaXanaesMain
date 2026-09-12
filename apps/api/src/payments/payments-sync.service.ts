@@ -109,6 +109,18 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
       case 'refunded':
         return OrderStatus.REFUNDED;
 
+      // 💳 CONTRACARGO: el comprador desconoció el consumo y el banco le
+      // devolvió la plata. Se trata como reembolso porque el dinero salió
+      // igual; sin esto el webhook caía en el default y la orden quedaba
+      // como pagada para siempre.
+      //
+      // shortcut: comparte estado con el reembolso, así que también devuelve
+      // el stock al inventario. En un contracargo el comprador suele quedarse
+      // con la mercadería, así que eso puede inflar el inventario y hay que
+      // ajustarlo a mano. Si pasa seguido, corresponde un estado propio.
+      case 'charged_back':
+        return OrderStatus.REFUNDED;
+
       default:
         this.logger.warn(
           `Estado desconocido de MP: '${mpStatus}' (detail: '${mpStatusDetail}')`,
