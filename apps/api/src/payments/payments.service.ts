@@ -29,11 +29,17 @@ import { ShippingService } from '../shipping/shipping.service';
 import { CheckoutPricingService } from '../checkout/checkout-pricing.service';
 import { SettingsService } from '../settings/settings.service';
 import { InventoryReservationService } from '../inventory/inventory-reservation.service';
+import { fetchWithTimeout } from '../common/fetch-with-timeout';
 
 // MP corta el statement_descriptor a 13 caracteres (límite documentado
 // en Checkout Pro /checkout/preferences). Valores más largos pueden
 // rechazarse o truncarse de forma impredecible según la red de tarjeta.
 const STATEMENT_DESCRIPTOR_MAX_LENGTH = 13;
+
+// Timeouts de las llamadas a Mercado Pago. Cobrar es más lento que consultar,
+// y el webhook tiene su propio reintento del lado de MP.
+const MP_PAYMENT_TIMEOUT_MS = 15_000;
+const MP_LOOKUP_TIMEOUT_MS = 10_000;
 const DEFAULT_STATEMENT_DESCRIPTOR = 'YERBAXANAES';
 
 // Tope de órdenes PENDING activas por email. El throttle por IP del controller
@@ -699,15 +705,19 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       )
       .digest('hex');
 
-    const response = await fetch('https://api.mercadopago.com/v1/payments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        'X-Idempotency-Key': idempotencyKey,
+    const response = await fetchWithTimeout(
+      'https://api.mercadopago.com/v1/payments',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(mpPayload),
       },
-      body: JSON.stringify(mpPayload),
-    });
+      MP_PAYMENT_TIMEOUT_MS,
+    );
 
     const data = await response.json();
 
@@ -819,15 +829,19 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       )
       .digest('hex');
 
-    const response = await fetch('https://api.mercadopago.com/v1/payments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        'X-Idempotency-Key': idempotencyKey,
+    const response = await fetchWithTimeout(
+      'https://api.mercadopago.com/v1/payments',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(mpPayload),
       },
-      body: JSON.stringify(mpPayload),
-    });
+      MP_PAYMENT_TIMEOUT_MS,
+    );
 
     const data = await response.json();
 
@@ -874,15 +888,19 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       .update(JSON.stringify({ orderId, amountStr, method: 'account_money' }))
       .digest('hex');
 
-    const response = await fetch('https://api.mercadopago.com/v1/payments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        'X-Idempotency-Key': idempotencyKey,
+    const response = await fetchWithTimeout(
+      'https://api.mercadopago.com/v1/payments',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(mpPayload),
       },
-      body: JSON.stringify(mpPayload),
-    });
+      MP_PAYMENT_TIMEOUT_MS,
+    );
 
     const data = await response.json();
 
@@ -1182,9 +1200,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (typeUrl === 'payment' && dataIdUrl) {
       try {
         const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
-        const response = await fetch(
+        const response = await fetchWithTimeout(
           `https://api.mercadopago.com/v1/payments/${dataIdUrl}`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
+          MP_LOOKUP_TIMEOUT_MS,
         );
 
         if (!response.ok) {
@@ -1281,11 +1300,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       try {
         const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
         // Ir a buscar el recurso Order a MercadoPago
-        const response = await fetch(
+        const response = await fetchWithTimeout(
           `https://api.mercadopago.com/v1/orders/${dataIdUrl}`,
           {
             headers: { Authorization: `Bearer ${accessToken}` },
           },
+          MP_LOOKUP_TIMEOUT_MS,
         );
 
         if (!response.ok) {

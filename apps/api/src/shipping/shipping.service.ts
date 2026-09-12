@@ -13,6 +13,7 @@ import { GetShippingRatesDto } from './dto/get-rates.dto';
 // Importación para NestJS/CommonJS según doc de la librería
 import CorreoArgentinoApi from 'ylazzari-correoargentino';
 import { Environment } from 'ylazzari-correoargentino/enums';
+import { fetchWithTimeout } from '../common/fetch-with-timeout';
 
 // ============================================================
 // TIPOS DE RESPUESTA
@@ -36,6 +37,10 @@ export interface ShippingRatesResponse {
 // ============================================================
 // CONSTANTES
 // ============================================================
+
+// Timeout de las llamadas a MiCorreo. Su API no tiene tope propio y una
+// cotización colgada bloquea el checkout entero.
+const MICORREO_TIMEOUT_MS = 8_000;
 
 // Peso por defecto si la variante no tiene peso configurado (en gramos)
 const DEFAULT_WEIGHT_PER_UNIT_GRAMS = 600;
@@ -156,13 +161,17 @@ export class ShippingService implements OnModuleInit {
       'base64',
     );
 
-    const response = await fetch(`${baseUrl}/token`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        'Content-Type': 'application/json',
+    const response = await fetchWithTimeout(
+      `${baseUrl}/token`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          'Content-Type': 'application/json',
+        },
       },
-    });
+      MICORREO_TIMEOUT_MS,
+    );
 
     if (!response.ok) {
       const body = await response.text();
@@ -231,14 +240,18 @@ export class ShippingService implements OnModuleInit {
     const baseUrl = MICORREO_BASE_URLS[envStr === 'TEST' ? 'TEST' : 'PROD'];
     const token = await this.getMiCorreoToken();
 
-    const response = await fetch(`${baseUrl}${path}`, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string>),
+    const response = await fetchWithTimeout(
+      `${baseUrl}${path}`,
+      {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...(options.headers as Record<string, string>),
+        },
       },
-    });
+      MICORREO_TIMEOUT_MS,
+    );
 
     return {
       ok: response.ok,

@@ -4,6 +4,7 @@ import { OrderStatus } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
+import { fetchWithTimeout } from '../common/fetch-with-timeout';
 
 /**
  * Notificaciones de pedido (email).
@@ -207,7 +208,7 @@ export class NotificationsService {
     from: string,
     resendKey: string,
   ): Promise<void> {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetchWithTimeout('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${resendKey}`,

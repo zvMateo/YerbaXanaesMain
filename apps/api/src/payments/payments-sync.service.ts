@@ -12,6 +12,11 @@ import {
   InventoryReservationService,
   STOCK_RELEASING_STATUSES,
 } from '../inventory/inventory-reservation.service';
+import { fetchWithTimeout } from '../common/fetch-with-timeout';
+
+// La reconciliación corre en batch y en background: un timeout corto evita
+// que una orden lenta frene las 99 restantes del lote.
+const MP_RECONCILIATION_TIMEOUT_MS = 5_000;
 
 /**
  * PAYMENTS SYNC SERVICE
@@ -337,20 +342,11 @@ export class PaymentsSyncService implements OnModuleInit, OnModuleDestroy {
 
       try {
         // Fetch payment status desde Mercado Pago
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        let response: Response;
-        try {
-          response = await fetch(
-            `https://api.mercadopago.com/v1/payments/${order.mpPaymentId}`,
-            {
-              headers: { Authorization: `Bearer ${accessToken}` },
-              signal: controller.signal,
-            },
-          );
-        } finally {
-          clearTimeout(timeoutId);
-        }
+        const response = await fetchWithTimeout(
+          `https://api.mercadopago.com/v1/payments/${order.mpPaymentId}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+          MP_RECONCILIATION_TIMEOUT_MS,
+        );
 
         if (!response.ok) {
           this.logger.warn(
