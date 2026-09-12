@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
+import { throwApiError } from "@/lib/throw-api-error";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -23,7 +24,9 @@ export interface Rating {
 
 async function fetchRatings(): Promise<Rating[]> {
   const response = await fetchWithAuth(`${API_URL}/ratings`);
-  if (!response.ok) throw new Error("Error al cargar reseñas");
+  if (!response.ok) {
+    await throwApiError(response, "Error al cargar reseñas");
+  }
   return response.json();
 }
 
@@ -31,7 +34,9 @@ async function approveRating(id: string): Promise<Rating> {
   const response = await fetchWithAuth(`${API_URL}/ratings/${id}/approve`, {
     method: "PATCH",
   });
-  if (!response.ok) throw new Error("Error al aprobar reseña");
+  if (!response.ok) {
+    await throwApiError(response, "Error al aprobar reseña");
+  }
   return response.json();
 }
 
@@ -39,7 +44,9 @@ async function rejectRating(id: string): Promise<Rating> {
   const response = await fetchWithAuth(`${API_URL}/ratings/${id}/reject`, {
     method: "PATCH",
   });
-  if (!response.ok) throw new Error("Error al rechazar reseña");
+  if (!response.ok) {
+    await throwApiError(response, "Error al rechazar reseña");
+  }
   return response.json();
 }
 
@@ -47,7 +54,9 @@ async function deleteRating(id: string): Promise<void> {
   const response = await fetchWithAuth(`${API_URL}/ratings/${id}`, {
     method: "DELETE",
   });
-  if (!response.ok) throw new Error("Error al eliminar reseña");
+  if (!response.ok) {
+    await throwApiError(response, "Error al eliminar reseña");
+  }
 }
 
 export const ratingKeys = {

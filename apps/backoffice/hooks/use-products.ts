@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
+import { throwApiError } from "@/lib/throw-api-error";
 
 // ============================================
 // TIPOS
@@ -94,13 +95,17 @@ const API_URL = (
 
 async function fetchProducts(): Promise<Product[]> {
   const response = await fetchWithAuth(`${API_URL}/catalog/admin`);
-  if (!response.ok) throw new Error("Error al cargar productos");
+  if (!response.ok) {
+    await throwApiError(response, "Error al cargar productos");
+  }
   return response.json();
 }
 
 async function fetchCategories(): Promise<Category[]> {
   const response = await fetchWithAuth(`${API_URL}/categories`);
-  if (!response.ok) throw new Error("Error al cargar categorías");
+  if (!response.ok) {
+    await throwApiError(response, "Error al cargar categorías");
+  }
   return response.json();
 }
 
@@ -109,7 +114,9 @@ async function createProduct(data: CreateProductDto): Promise<Product> {
     method: "POST",
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Error al crear producto");
+  if (!response.ok) {
+    await throwApiError(response, "Error al crear producto");
+  }
   return response.json();
 }
 
@@ -124,7 +131,9 @@ async function updateProduct({
     method: "PATCH",
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Error al actualizar producto");
+  if (!response.ok) {
+    await throwApiError(response, "Error al actualizar producto");
+  }
   return response.json();
 }
 
@@ -132,7 +141,9 @@ async function deleteProduct(id: string): Promise<void> {
   const response = await fetchWithAuth(`${API_URL}/catalog/${id}`, {
     method: "DELETE",
   });
-  if (!response.ok) throw new Error("Error al eliminar producto");
+  if (!response.ok) {
+    await throwApiError(response, "Error al eliminar producto");
+  }
 }
 
 async function toggleProductStatus({
@@ -146,7 +157,9 @@ async function toggleProductStatus({
     method: "PATCH",
     body: JSON.stringify({ isActive }),
   });
-  if (!response.ok) throw new Error("Error al cambiar el estado del producto");
+  if (!response.ok) {
+    await throwApiError(response, "Error al cambiar el estado del producto");
+  }
   return response.json();
 }
 
@@ -282,7 +295,9 @@ async function uploadProductImage({
       body: formData,
     },
   );
-  if (!response.ok) throw new Error("Error al subir imagen");
+  if (!response.ok) {
+    await throwApiError(response, "Error al subir imagen");
+  }
   return response.json();
 }
 
@@ -301,7 +316,9 @@ async function removeProductImage({
       body: JSON.stringify({ url }),
     },
   );
-  if (!response.ok) throw new Error("Error al eliminar imagen");
+  if (!response.ok) {
+    await throwApiError(response, "Error al eliminar imagen");
+  }
   return response.json();
 }
 
@@ -320,6 +337,12 @@ export function useUploadProductImage() {
         },
       );
     },
+    onError: (error) => {
+      toast.error("No se pudo subir la imagen", {
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+      });
+    },
   });
 }
 
@@ -337,6 +360,12 @@ export function useRemoveProductImage() {
         },
       );
     },
+    onError: (error) => {
+      toast.error("No se pudo quitar la imagen", {
+        description:
+          error instanceof Error ? error.message : "Error desconocido",
+      });
+    },
   });
 }
 
@@ -352,7 +381,9 @@ async function createCategory(data: {
     method: "POST",
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Error al crear categoría");
+  if (!response.ok) {
+    await throwApiError(response, "Error al crear categoría");
+  }
   return response.json();
 }
 
@@ -367,7 +398,9 @@ async function updateCategory({
     method: "PATCH",
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Error al actualizar categoría");
+  if (!response.ok) {
+    await throwApiError(response, "Error al actualizar categoría");
+  }
   return response.json();
 }
 
@@ -376,10 +409,7 @@ async function deleteCategory(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(
-      (error as { message?: string }).message || "Error al eliminar categoría",
-    );
+    await throwApiError(response, "Error al eliminar categoría");
   }
 }
 

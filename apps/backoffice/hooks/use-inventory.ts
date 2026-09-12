@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
+import { throwApiError } from "@/lib/throw-api-error";
 
 // ============================================
 // TIPOS
@@ -42,13 +43,17 @@ const API_URL = (
 
 async function fetchInventory(): Promise<InventoryItem[]> {
   const response = await fetchWithAuth(`${API_URL}/inventory`);
-  if (!response.ok) throw new Error("Error al cargar inventario");
+  if (!response.ok) {
+    await throwApiError(response, "Error al cargar inventario");
+  }
   return response.json();
 }
 
 async function fetchInventoryItem(id: string): Promise<InventoryItem> {
   const response = await fetchWithAuth(`${API_URL}/inventory/${id}`);
-  if (!response.ok) throw new Error("Item no encontrado");
+  if (!response.ok) {
+    await throwApiError(response, "Item no encontrado");
+  }
   return response.json();
 }
 
@@ -59,7 +64,9 @@ async function createInventoryItem(
     method: "POST",
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Error al crear item");
+  if (!response.ok) {
+    await throwApiError(response, "Error al crear item");
+  }
   return response.json();
 }
 
@@ -74,7 +81,9 @@ async function updateInventoryItem({
     method: "PATCH",
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Error al actualizar item");
+  if (!response.ok) {
+    await throwApiError(response, "Error al actualizar item");
+  }
   return response.json();
 }
 
@@ -90,8 +99,7 @@ async function adjustStock({
     body: JSON.stringify({ quantityChange }),
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "Error al ajustar stock");
+    await throwApiError(response, "Error al ajustar stock");
   }
   return response.json();
 }

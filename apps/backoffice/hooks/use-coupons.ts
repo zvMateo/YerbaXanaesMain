@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
+import { throwApiError } from "@/lib/throw-api-error";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -33,7 +34,9 @@ export interface CreateCouponDto {
 
 async function fetchCoupons(): Promise<Coupon[]> {
   const response = await fetchWithAuth(`${API_URL}/coupons`);
-  if (!response.ok) throw new Error("Error al cargar cupones");
+  if (!response.ok) {
+    await throwApiError(response, "Error al cargar cupones");
+  }
   return response.json();
 }
 
@@ -43,8 +46,7 @@ async function createCoupon(data: CreateCouponDto): Promise<Coupon> {
     body: JSON.stringify(data),
   });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error((err as { message?: string }).message || "Error al crear cupón");
+    await throwApiError(response, "Error al crear cupón");
   }
   return response.json();
 }
@@ -53,7 +55,9 @@ async function toggleCoupon(id: string): Promise<Coupon> {
   const response = await fetchWithAuth(`${API_URL}/coupons/${id}/toggle`, {
     method: "PATCH",
   });
-  if (!response.ok) throw new Error("Error al actualizar cupón");
+  if (!response.ok) {
+    await throwApiError(response, "Error al actualizar cupón");
+  }
   return response.json();
 }
 
@@ -61,7 +65,9 @@ async function deleteCoupon(id: string): Promise<void> {
   const response = await fetchWithAuth(`${API_URL}/coupons/${id}`, {
     method: "DELETE",
   });
-  if (!response.ok) throw new Error("Error al eliminar cupón");
+  if (!response.ok) {
+    await throwApiError(response, "Error al eliminar cupón");
+  }
 }
 
 export const couponKeys = {

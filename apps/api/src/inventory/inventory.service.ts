@@ -34,7 +34,7 @@ export class InventoryService {
     const item = await this.prisma.inventoryItem.findUnique({
       where: { id },
     });
-    if (!item) throw new NotFoundException(`Inventory Item #${id} not found`);
+    if (!item) throw new NotFoundException('El item de inventario no existe');
     return item;
   }
 

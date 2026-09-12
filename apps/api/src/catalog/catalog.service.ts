@@ -68,7 +68,9 @@ export class CatalogService {
     // Verificar duplicados
     const existing = await this.prisma.category.findUnique({ where: { slug } });
     if (existing)
-      throw new BadRequestException(`Category slug '${slug}' already exists`);
+      throw new BadRequestException(
+        `Ya existe una categoría con el slug '${slug}'`,
+      );
 
     return this.prisma.category.create({
       data: {
@@ -100,7 +102,7 @@ export class CatalogService {
       where: { id: dto.categoryId },
     });
     if (!category) {
-      throw new BadRequestException('Category ID not found');
+      throw new BadRequestException('La categoría indicada no existe');
     }
 
     // TRANSACCIÓN: Todo o nada
@@ -198,7 +200,7 @@ export class CatalogService {
     });
 
     if (!product)
-      throw new NotFoundException(`Product '${idOrSlug}' not found`);
+      throw new NotFoundException(`El producto '${idOrSlug}' no existe`);
 
     return this.mapProductWithStock(product);
   }
@@ -360,7 +362,7 @@ export class CatalogService {
       });
 
       if (!product) {
-        throw new NotFoundException(`Product #${id} not found`);
+        throw new NotFoundException('El producto no existe');
       }
 
       return this.mapProductWithStock(product);
@@ -370,7 +372,7 @@ export class CatalogService {
   async remove(id: string) {
     // Primero verificamos que el producto exista
     const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException(`Product #${id} not found`);
+    if (!product) throw new NotFoundException('El producto no existe');
 
     return this.prisma.$transaction(async (tx) => {
       const variants = await tx.productVariant.findMany({
@@ -448,8 +450,7 @@ export class CatalogService {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
-    if (!product)
-      throw new NotFoundException(`Product #${productId} not found`);
+    if (!product) throw new NotFoundException('El producto no existe');
 
     const url = await this.cloudinary.uploadImage(
       fileBuffer,
@@ -470,8 +471,7 @@ export class CatalogService {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
     });
-    if (!product)
-      throw new NotFoundException(`Product #${productId} not found`);
+    if (!product) throw new NotFoundException('El producto no existe');
 
     if (!product.images.includes(imageUrl)) {
       throw new BadRequestException('La imagen no pertenece a este producto');
@@ -495,7 +495,7 @@ export class CatalogService {
 
   async toggleStatus(id: string, isActive: boolean) {
     const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException(`Product #${id} not found`);
+    if (!product) throw new NotFoundException('El producto no existe');
 
     const updated = await this.prisma.product.update({
       where: { id },
