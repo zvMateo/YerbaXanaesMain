@@ -47,6 +47,7 @@ import {
   type ShippingTrackingEvent,
 } from "@/hooks/use-orders";
 import { OrdersSkeleton } from "./skeletons";
+import { ConfirmDialog } from "./confirm-dialog";
 import { EmptyState, ErrorState } from "./empty-states";
 import {
   useReactTable,
@@ -200,6 +201,20 @@ const OVERRIDEABLE_STATUSES: OrderStatus[] = [
   "REFUNDED",
 ];
 
+/**
+ * Estados que devuelven el stock al inventario.
+ *
+ * shortcut: espejo a mano de STOCK_RELEASING_STATUSES
+ * (apps/api/src/inventory/inventory-reservation.service.ts). Si el API agrega
+ * un estado, este aviso deja de mostrarlo y nadie se entera. El arreglo real es
+ * mover la lista a @repo/types y que la importen los dos lados.
+ */
+const STOCK_RELEASING_STATUSES: OrderStatus[] = [
+  "CANCELLED",
+  "REFUNDED",
+  "REJECTED",
+];
+
 function OverrideStatusModal({
   order,
   onClose,
@@ -267,6 +282,11 @@ function OverrideStatusModal({
                 </option>
               ))}
             </select>
+            {STOCK_RELEASING_STATUSES.includes(selectedStatus) ? (
+              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Con este estado el stock de la orden vuelve al inventario.
+              </p>
+            ) : null}
           </div>
 
           <div>
@@ -429,6 +449,7 @@ function OrderActions({
   const [copied, setCopied] = useState(false);
   const [mpLink, setMpLink] = useState<string | null>(null);
   const [trackingInput, setTrackingInput] = useState("");
+  const [confirmStatus, setConfirmStatus] = useState<OrderStatus | null>(null);
   const pickup = isPickupOrder(order);
 
   const actions: Record<
@@ -502,6 +523,33 @@ function OrderActions({
     );
   };
 
+  const customerLabel =
+    order.customerName ||
+    order.user?.name ||
+    order.customerEmail ||
+    "cliente sin nombre";
+
+  // Los dos estados que liberan stock piden confirmación con nombre y monto.
+  const confirmCopy: Partial<
+    Record<
+      OrderStatus,
+      { title: string; description: string; confirmLabel: string }
+    >
+  > = {
+    CANCELLED: {
+      title: "¿Cancelar este pedido?",
+      description: `Pedido de ${customerLabel} por ${money(order.total)}. El stock vuelve al inventario.`,
+      confirmLabel: "Cancelar pedido",
+    },
+    REFUNDED: {
+      title: "¿Marcar como reembolsado?",
+      description: `Pedido de ${customerLabel} por ${money(order.total)}. El stock vuelve al inventario. La devolución del dinero al cliente se hace por fuera del panel.`,
+      confirmLabel: "Marcar reembolsado",
+    },
+  };
+
+  const pendingCopy = confirmStatus ? confirmCopy[confirmStatus] : undefined;
+
   return (
     <div className="flex flex-col gap-2">
       {/* Botones de estado — el reembolso va abajo, no como CTA principal */}
@@ -517,7 +565,7 @@ function OrderActions({
         ))}
         {cancelAction ? (
           <button
-            onClick={() => onUpdateStatus(orderId, cancelAction.nextStatus)}
+            onClick={() => setConfirmStatus(cancelAction.nextStatus)}
             className="inline-flex min-h-11 items-center justify-center px-3 py-2 rounded-lg text-sm font-medium text-red-700 hover:bg-red-50"
           >
             {cancelAction.label}
@@ -691,12 +739,27 @@ function OrderActions({
 
       {refundAction ? (
         <button
-          onClick={() => onUpdateStatus(orderId, refundAction.nextStatus)}
+          onClick={() => setConfirmStatus(refundAction.nextStatus)}
           className="inline-flex min-h-11 items-center self-start text-sm text-red-700/90 underline-offset-2 hover:underline"
         >
           Reembolsar
         </button>
       ) : null}
+
+      <AnimatePresence>
+        {confirmStatus && pendingCopy ? (
+          <ConfirmDialog
+            title={pendingCopy.title}
+            description={pendingCopy.description}
+            confirmLabel={pendingCopy.confirmLabel}
+            onCancel={() => setConfirmStatus(null)}
+            onConfirm={() => {
+              onUpdateStatus(orderId, confirmStatus);
+              setConfirmStatus(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
@@ -819,6 +882,7 @@ export function OrdersTable() {
   const [overrideOrder, setOverrideOrder] = useState<Order | null>(null);
   const [historyOrderId, setHistoryOrderId] = useState<string | null>(null);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -1088,6 +1152,7 @@ export function OrdersTable() {
   });
 
   const selectedCount = table.getSelectedRowModel().rows.length;
+  const bulkLabel = `${selectedCount} pedido${selectedCount !== 1 ? "s" : ""}`;
 
   // Loading state
   if (isLoading) {
@@ -1142,6 +1207,32 @@ export function OrdersTable() {
           onViewHistory={setHistoryOrderId}
         />
       )}
+
+      <AnimatePresence>
+        {bulkStatus ? (
+          <ConfirmDialog
+            title={
+              bulkStatus === "CANCELLED"
+                ? `¿Cancelar ${bulkLabel}?`
+                : `¿Confirmar el pago de ${bulkLabel}?`
+            }
+            description={
+              bulkStatus === "CANCELLED"
+                ? "El stock de cada pedido vuelve al inventario."
+                : "Hacelo solo si confirmaste el pago de cada uno."
+            }
+            confirmLabel={
+              bulkStatus === "CANCELLED" ? "Sí, cancelar" : "Confirmar pago"
+            }
+            tone={bulkStatus === "CANCELLED" ? "danger" : "neutral"}
+            onCancel={() => setBulkStatus(null)}
+            onConfirm={() => {
+              handleBulkAction(bulkStatus);
+              setBulkStatus(null);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
       {/* Filters Toolbar */}
       <div className="bg-white rounded-2xl p-3 shadow-sm border border-stone-200 sm:p-4">
@@ -1256,14 +1347,14 @@ export function OrdersTable() {
               </span>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
-                  onClick={() => handleBulkAction("PAID")}
+                  onClick={() => setBulkStatus("PAID")}
                   disabled={bulkUpdate.isPending}
                   className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 disabled:opacity-50"
                 >
                   {bulkUpdate.isPending ? "Procesando..." : "Marcar pagadas"}
                 </button>
                 <button
-                  onClick={() => handleBulkAction("CANCELLED")}
+                  onClick={() => setBulkStatus("CANCELLED")}
                   disabled={bulkUpdate.isPending}
                   className="inline-flex min-h-11 items-center justify-center px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 disabled:opacity-50"
                 >

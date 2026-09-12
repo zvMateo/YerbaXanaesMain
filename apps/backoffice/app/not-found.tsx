@@ -15,10 +15,10 @@ export default function NotFound() {
           La sección que buscás no existe o fue movida.
         </p>
         <Link
-          href="/dashboard"
+          href="/"
           className="inline-block px-4 py-2 bg-gray-800 text-white rounded-lg text-sm hover:bg-gray-900 transition-colors"
         >
-          Ir al dashboard
+          Ir al panel
         </Link>
       </div>
     </div>
