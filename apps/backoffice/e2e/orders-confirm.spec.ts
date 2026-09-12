@@ -60,7 +60,7 @@ test.describe.serial("Backoffice · acciones destructivas de pedidos", () => {
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
-    await expect(row).toContainText("Pagado");
+    await expect(row).toContainText("Pagada");
   });
 
   test("la acción masiva dice cuántos pedidos afecta", async ({ page }) => {
@@ -88,6 +88,6 @@ test.describe.serial("Backoffice · acciones destructivas de pedidos", () => {
     await page.getByTestId("confirm-dialog-confirm").click();
 
     await expect(page.getByRole("dialog")).toBeHidden();
-    await expect(orderRow(page, PENDING_CUSTOMER)).toContainText("Cancelado");
+    await expect(orderRow(page, PENDING_CUSTOMER)).toContainText("Cancelada");
   });
 });
