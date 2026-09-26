@@ -316,7 +316,7 @@ export function DeliveryDetailsStep() {
           </div>
 
           {/* Piso + Depto (opcionales) */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-2">
                 Piso <span className="text-stone-400">(opcional)</span>
@@ -342,7 +342,7 @@ export function DeliveryDetailsStep() {
           </div>
 
           {/* Ciudad + CP */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-2">
                 Ciudad

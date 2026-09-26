@@ -453,7 +453,7 @@ export function ProductFormModal({
                             <button
                               type="button"
                               onClick={() => removeVariant(idx)}
-                              className="absolute top-2 right-2 p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                              className="absolute top-2 right-2 p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-visible:opacity-100!"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>

@@ -26,3 +26,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* iOS Safari hace zoom al enfocar cualquier input de menos de 16px y el zoom
+   no se revierte al salir del campo. Va SIN @layer a proposito: dentro de
+   @layer base las utilidades de Tailwind (text-sm) le ganarian y la regla no
+   haria nada. El corte es 1023px para cubrir tambien el iPad en vertical. */
+@media (max-width: 1023px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

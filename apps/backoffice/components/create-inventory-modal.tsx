@@ -80,12 +80,12 @@ export function CreateInventoryModal({
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 backdrop-blur-sm p-0 md:items-center md:p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden"
+            className="bg-white shadow-xl w-full max-w-lg h-[100dvh] max-h-[100dvh] overflow-y-auto rounded-none md:h-auto md:max-h-[90vh] md:rounded-2xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-stone-200">
