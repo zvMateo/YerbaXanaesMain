@@ -1,0 +1,85 @@
+# Feature: go-live (plan A)
+
+Objective: take the store to production as soon as possible with the current design plus brand quick wins, after verifying every flow end to end. The full redesign is a later, separate feature.
+Branch: `feat/go-live` · Delivery strategy: `ask-on-risk` · Test runners: Jest (`apps/api`: `bun run test`, `bun run test:e2e`), Playwright (backoffice E2E).
+
+## Specs
+
+### S1 — Local environment and baseline health
+- Scope: this machine (native Linux, not WSL) has no `bun` and no `node_modules`. Install Bun 1.3.8, install deps, start Postgres (`docker compose up -d`), apply migrations.
+- Acceptance: `bun run check-types`, `bun run lint`, `apps/api` unit tests and `bun run build` run; every failure is recorded with its output (not fixed blindly).
+- Note: `scripts`/`dev:fresh` use PowerShell (Windows leftover).
+
+### S2 — End-to-end functional verification with TEST credentials
+- User's words: "testeando y corroborando, por ejemplo, están conectadas. Está conectado Mercopago, está conectado Correo Argentino para el tema de los envíos. Pero deberíamos testear cómo está funcionando el tema."
+- User's words: "cómo vería mi clienta en su back office los pedidos que son con envíos y que ella pueda generar el rótulo realmente con la conexión de correo argentino. Cómo va a funcionar ese flujo, si realmente funciona, si los envíos se van a poder hacer bien cuando una vez que esté en producción. O sea, que todo esté funcional"
+- Acceptance: payment matrix P01–P09 and backoffice B01–B03 from `docs/qa-payments-evidence.md` executed and recorded; PAID emails to owner and buyer observed; MiCorreo TEST: quote in checkout, import from backoffice, tracking load; the backoffice view of an order with shipping checked as the client would use it.
+- Depends on: S1 and TEST credentials (MP test account/users, MiCorreo TEST, SMTP).
+
+### S3 — Shipping label flow for launch
+- Finding (2026-11-07): the MiCorreo API (`/rates`, `/agencies`, `/shipping/import`, `/shipping/tracking`) cannot generate labels and import returns no tracking number. Only the Paq.ar API returns label PDFs, and it requires a commercial agreement (API Key + ID de Acuerdo).
+- Assumption (pending confirmation): launch with the MiCorreo flow — backoffice "Importar a MiCorreo" → client pays the shipment and downloads the label in the MiCorreo panel → pastes tracking into the order. Paq.ar is evaluated after launch.
+- Acceptance: the backoffice help guide (`apps/backoffice/app/ayuda/page.tsx`) describes the real steps, including paying the shipment in MiCorreo; `MICORREO_API.md` checked against the official manual dated 2026-05-18.
+
+### S4 — Brand quick wins before launch
+- User's words: "El logo está todo encuadrado. No es un SBG." / "que el FABA Icon, en vez de que se vea el de B Arcel, se vea el de Yerba Sadanaes" / "lo que se busca demostrar, que es una hierba de alta calidad, con orgánica. ¿En qué sentido orgánica? Es súper saludable porque justamente es agro. Es agroecológica."
+- Acceptance: brand favicon in ecommerce and backoffice (no create-next-app default); logo as SVG with transparent background; create-next-app boilerplate assets removed from `public/`; the agroecological value visible in storefront copy (no invented claims — see `AGENTS.md` rule 5).
+- Open decisions: brand name (logo reads "YERBA XANA", domain/email/Instagram read "YerbaXanaes"); source of the logo (editable original or redraw).
+
+### S5 — Production configuration session with the client
+- Scope: `docs/sesion-clienta.md` (Gmail SMTP, MP production + webhook, Better Auth/OAuth, CORS/URLs, Cloudinary, MiCorreo PROD).
+- Acceptance: every variable in `docs/prod-env-checklist.md` set; external wait on the client.
+
+### S6 — Production smoke and go-live
+- Scope: smoke in `docs/sesion-clienta.md` §7 and the P1 items of `docs/go-live.md`.
+- Acceptance: one real low-amount purchase → order PAID in backoffice → stock correct → emails received; `docs/go-live.md` updated.
+
+### S7 — Stack versions audit and upgrade
+- User's words: "quiero que revises todo el stack tecnológico, las versiones, todo el ecosistema. Y que revises qué tenemos. Porque sé que ha pasado mucho tiempo de que yo no estoy en este proyecto. Capaz que haya que utilizar versiones. Llevar la última. No importa si hay que acomodar."
+- Audit (2026-11-07, `bun outdated -r` + npm dist-tags): see L8.
+- Decision (L11): upgrade before S2, with TypeScript 6.0.3 and Prisma 7.10.
+- Version policy: newest stable release published at least 7 days earlier (cutoff 2026-10-31), unless a security fix needs a newer one; never prereleases.
+- Work units (one commit each; checks after each: check-types, api unit tests, build):
+  - U1 toolchain: Bun 1.4.x (`packageManager`, `Dockerfile`, CI workflows), turbo, prettier, TypeScript 6.0.3 in every workspace.
+  - U2 frontends: next 16.4.x + eslint-config-next, react 19.3, tailwind 4.3, minor bumps; motion 14; lucide 1.x with a local brand icon component (Simple Icons paths); backoffice ESLint config.
+  - U3 Prisma 7.10 (api + backoffice): new generator, `@prisma/adapter-pg`, `prisma.config.ts`; update Dockerfile/nixpacks/CI generate steps.
+  - U4 NestJS 12 suite + api minor deps.
+  - U5 mercadopago 3.6.x + webhook data ID format validation (RED test first).
+  - U6 better-auth 1.7.x.
+  - U7 remaining majors: Sentry 11, nodemailer 10, @hookform/resolvers 7, recharts 3, react-table 9, react-day-picker 10, ESLint 10, tsup 9, dotenv 18, shadcn CLI 4.
+- Verification: independent verifier after U7 (Risk item 5 on every unit; U3/U6 also touch auth/data access), then S2 E2E on the final stack.
+- Constraints found: TypeScript 7 blocked by tooling (`ts-jest` peer `<7`, `typescript-eslint` peer `<6.1.0`) → target TS 6.0.x; `prisma` CLI `latest` tag points to `8.0.0-rc.33` → pin Prisma 7.10.x explicitly; lucide-react v1 has no Instagram/Facebook icons (13 usages); NestJS 12 CLI needs Node 22.22.3+/24.15+.
+
+### S8 — UI/UX tooling market research (read-only)
+- User's words: "seguramente ya debe haber también herramientas como JCN, que estaba en su momento. No sé si tú hay sí o no. Pero digo, debe haber herramientas para una mejor desarrollo, una mejor diseño e implementación de interfaz UX UI en las páginas. Sé que por ejemplo hay un framework que es Tanztack. Tiene muchas herramientas en relación a esto. Necesito que revises. Revises todo el mercado tecnológico, me explicó. Y saber qué podemos utilizar e implementar para esta página."
+- Acceptance: shortlist with versions, fit, cost and perf impact; feeds the post-launch redesign feature.
+
+### Out of scope
+- Full redesign (design system, micro-animations, 3D/motion): separate feature after launch, by the user's choice of plan A.
+
+## Tasks
+
+| ID | Spec | Route | Status | Evidence |
+|----|------|-------|--------|----------|
+| T1 | S1 | inline | in progress (Postgres + migrations pending: DB target unknown) | Bun 1.3.8 via mise; `bun install` 2512 pkgs; check-types 5/5; api unit 70/70; build 3/3 (fronts need sandbox off for Google Fonts); lint: api 37 err/4 warn, ecommerce 6 err/6 warn, backoffice has no ESLint config |
+| T2 | S2 | inline | blocked (S1, TEST credentials) | — |
+| T3 | S3 | inline | pending (confirm assumption) | — |
+| T4 | S4 | inline | blocked (brand name, logo source) | — |
+| T5 | S5 | external (client session) | pending | — |
+| T6 | S6 | inline | blocked (T5) | — |
+| T7 | S7 | inline (shared lockfile and installs: units are not disjoint, no parallel writers) | in progress: U1 | L8 |
+| T8 | S8 | delegated (many-source web research, independent of T7) | done | L10 |
+
+## Log
+
+- L1 (2026-11-07, original request): "Bueno, te comento. Necesito primero que hagas un análisis completo de este repositorio, de este proyecto. Y cualquier pregunta que tengas, me las vayas haciendo. Necesito que entiendas con profundidad el concepto y el alcance. Y lo que mi clienta necesita de este proyecto primero. Y después de ahí vemos hacia dónde vamos."
+- L2 (2026-11-07): "Hoy la tienda está frenada en el sentido de no está en producción. Necesitamos justamente hacer un relevamiento completo del estado del proyecto y avanzarlo y llevar la producción lo antes posible. Pero, ¿qué me pasa? Yo, como desarrollador de esta página, no sé. No me siento para nada conforme con el diseño. Con el design system de esta página. No la veo intuitiva. No la veo con muy buena usabilidad. Siento que está media sobria, media pobre de diseño, por así decirlo. El logo está todo encuadrado. No es un SBG. Me gustaría poder hacerlo más profesional en ese sentido. No sé, que el FABA Icon, en vez de que se vea el de B Arcel, se vea el de Yerba Sadanaes, en vez de ese. Siento que le falta micro animaciones. Poder darle más creatividad a la página. Explotar este rubro que se demuestra, el rubro que se demuestre, lo que se busca demostrar, que es una hierba de alta calidad, con orgánica. ¿En qué sentido orgánica? Es súper saludable porque justamente es agro. Es agroecológica. Y no sé, siento que hoy en día las páginas, el desarrollo web, hablando de más que nada diseño UX UI. Hay más creatividad en las páginas hoy en día. No sé, ya sea con diseño 3D, a veces metiendo animaciones un poco más profesionales, más avanzadas. No sé. Me explicó, quiero darle una vuelta de rosca al diseño en sí. Y nada, revisar qué es lo que falta para poder determinar y llevar la producción al 100% a la página. Obviamente, testeando y corroborando, por ejemplo, están conectadas. Está conectado Mercopago, está conectado Correo Argentino para el tema de los envíos. Pero deberíamos testear cómo está funcionando el tema. Por ejemplo, cómo vería mi clienta en su back office los pedidos que son con envíos y que ella pueda generar el rótulo realmente con la conexión de correo argentino. Cómo va a funcionar ese flujo, si realmente funciona, si los envíos se van a poder hacer bien cuando una vez que esté en producción. O sea, que todo esté funcional, ¿me explico?"
+- L3 (2026-11-07): "vamos con A" — answer to: go-live with current design plus quick wins and redesign later (A), or redesign before launch (B).
+- L4 (2026-11-07, analysis): last commit 2026-08-22; store not in production. Design audit: ecommerce favicon is the create-next-app default; backoffice has no favicon and no `public/`; logo is a 500×500 PNG with the orange gradient square baked in; "agroecológica" appears only in a hero image `alt`; fonts Inter + Playfair; `motion` and `tw-animate-css` already installed. Correo label capability: see S3.
+- L5 (2026-11-07, next step): T1 — install Bun 1.3.8, deps, Postgres, run baseline checks.
+- L6 (2026-11-07, T1 evidence): Bun 1.3.8 installed with mise (not activated in any config; run as `mise exec bun@1.3.8 -- …`). `bun install --frozen-lockfile`: 2512 packages. `prisma generate` OK (needs sandbox off for binaries.prisma.sh). `turbo run check-types`: 5/5. `apps/api` jest: 12 suites, 70/70 tests. `turbo run build`: api OK; ecommerce and backoffice OK with sandbox off (Google Fonts fetch at build). Lint without `--fix` (the api script autofixes): api 41 problems (16 require-await, 10 prettier, 4 restrict-template-expressions…), ecommerce 12 (error.tsx `<a>` to `/`, unescaped quotes, non-null after optional chain, product-filters use-before-declare, sidebar impure render), backoffice: no `eslint.config.*`, lint cannot run. The sandbox denies reading `.env` files (Bun logs AccessDenied), so running the API for S2 needs the sandbox off or the user's terminal. Not done: Postgres and migrations — the `DATABASE_URL` target in `apps/api/.env` is unknown, so no migration runs until it is confirmed local.
+- L7 (2026-11-07): "Mirá, me acabo de dar cuenta que en los MB Tengo algunas credenciales que son de producción y no de test. Así que como podemos avanzar. No tengo acceso ahí a las credenciales de la aplicación, de mi cliente y todo. Porque bueno, me dio acceso. Tengo ahí las credenciales de prueba, las credenciales de producción, tengo todo. Otra cosa que también quiero que revises es última versión de NextGAs. Última versión de NextGAs. O si quiero que revises todo el stack tecnológico, las versiones, todo el ecosistema. Y que revises qué tenemos. Porque sé que ha pasado mucho tiempo de que yo no estoy en este proyecto. Capaz que haya que utilizar versiones. Llevar la última. No importa si hay que acomodar. Me explico también a lo que voy."
+- L8 (2026-11-07, S7 audit): .env files never committed (only `*.example` tracked). Majors behind: next 16.1.6→16.4.5 (2026-11-03), react 19.2→19.3.1, NestJS 11→12.4.0 (12.0.0 on 2026-08-27: ESM packages, Node ≥20.19/22.12, lifecycle hook order, @nestjs/config Standard Schema; `nest upgrade --dry-run`), Prisma 6.19→7.10.1, typescript 5.9→7.0.2 (blocked, use 6.0.3), mercadopago 2.12→3.6.1, better-auth 1.4.18→1.7.18, motion 12→14, lucide-react 0.563→1.70 (no brand icons), recharts 2→3, @tanstack/react-table 8→9, eslint 9→10, @sentry 10→11, nodemailer 9→10, @hookform/resolvers 5→7, shadcn CLI 3→4, Bun 1.3.8→1.4.4 (Dockerfile `oven/bun:1.3.8-slim`, nixpacks `nodejs_22`). Security: CVE-2026-76842 (CVSS 8.8, mercadopago ≤3.4.0 path injection in payment/paymentRefund/advancedPayment/disbursementRefund clients) — our code only uses the SDK `Preference.create`; webhook interpolates `dataIdUrl` into `fetch` after HMAC verification (`payments.service.ts:1338`), so not exploitable without the secret; cheap hardening: validate the ID format. Correo uses the community package `ylazzari-correoargentino` 0.0.7 (latest 0.1.0). Credentials: user confirmed local `.env` mixes production and test values; the user has access to the client's test and production credentials.
+- L9 (2026-11-07): "Además también porque sí que han sacado muchas cosas hoy en día en el ecosistema, por así decirlo de Node.js. Las cosas avanzaron mucho. En cuanto a herramientas, eso que estamos hablando de la UI, seguramente ya debe haber también herramientas como JCN, que estaba en su momento. No sé si tú hay sí o no. Pero digo, debe haber herramientas para una mejor desarrollo, una mejor diseño e implementación de interfaz UX UI en las páginas. Sé que por ejemplo hay un framework que es Tanztack. Tiene muchas herramientas en relación a esto. Necesito que revises. Revises todo el mercado tecnológico, me explicó. Y saber qué podemos utilizar e implementar para esta página. ¿Ok?"
+- L10 (2026-11-07, S8 result; parent spot check confirmed motion in 10 files incl. header.tsx, Radix in 34 files vs Base UI in 1, recharts only in unused `components/ui/chart.tsx`): recommended redesign stack with zero new runtime deps — Next 16.4 + React 19.3 (`<ViewTransition>` stable, zero-config in App Router), motion 14 (drop-in from 12; switch to `LazyMotion` + `m`, ~43 KB → ~5 KB initial; `MotionConfig reducedMotion="user"`), shadcn CLI 4 (`shadcn apply` re-theme, registries, shadcn MCP; keep Radix), native CSS scroll-driven animations (all major browsers since Firefox 159), 2–3 Magic UI pieces, brand icons as inline Simple Icons SVGs, fonts Fraunces + Figtree, Cache Components + `ensureStatic` on catalog. Avoid: Spline/R3F/Rive/dotLottie on storefront (0.4–1 MB+ mobile), Lenis (no effect on touch), GSAP (duplicates Motion), TanStack Start migration, Radix→Base UI swap, Aceternity. TanStack Start 1.0 stable 2026-10-13 but not worth migrating. Unverified: Aceternity free license, Magic UI Pro/Motion+/v0 pricing.
+- L11 (2026-11-07): "si actualizamos igual otra consulta three.js?" — answer to: upgrade the whole stack before S2 (TS 6.0.3, Prisma 7.10) even if launch is delayed. Three.js question answered in chat: not for go-live; candidate for one lazy-loaded "wow" moment in the redesign, only with a quality 3D asset and a static fallback.
