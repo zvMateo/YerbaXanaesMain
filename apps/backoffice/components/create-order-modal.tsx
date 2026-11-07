@@ -9,7 +9,6 @@ import {
   ShoppingBag,
   Store,
   Tent,
-  Instagram,
   MessageCircle,
   Globe,
   Banknote,
@@ -18,6 +17,7 @@ import {
   Package,
   Truck,
 } from "lucide-react";
+import { SiInstagram } from "react-icons/si";
 import { motion, AnimatePresence } from "motion/react";
 import { useProducts, type Product } from "@/hooks/use-products";
 import {
@@ -53,7 +53,7 @@ const channelOptions: {
 }[] = [
   { value: "STORE",     label: "Tienda",    icon: Store,         color: "border-stone-400 bg-stone-50 text-stone-700"   },
   { value: "FAIR",      label: "Feria",     icon: Tent,          color: "border-amber-400 bg-amber-50 text-amber-700"   },
-  { value: "INSTAGRAM", label: "Instagram", icon: Instagram,     color: "border-purple-400 bg-purple-50 text-purple-700"},
+  { value: "INSTAGRAM", label: "Instagram", icon: SiInstagram,   color: "border-purple-400 bg-purple-50 text-purple-700"},
   { value: "WHATSAPP",  label: "WhatsApp",  icon: MessageCircle, color: "border-green-400 bg-green-50 text-green-700"   },
   { value: "ONLINE",    label: "Online",    icon: Globe,         color: "border-blue-400 bg-blue-50 text-blue-700"      },
 ];

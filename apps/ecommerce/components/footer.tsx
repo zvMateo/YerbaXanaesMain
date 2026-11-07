@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Instagram, Facebook, Mail, MapPin, Phone } from "lucide-react";
+import { Mail, MapPin, Phone } from "lucide-react";
+import { FacebookIcon, InstagramIcon } from "@/components/brand-icons";
 import { brand, whatsappUrl } from "@/lib/brand";
 
 export function Footer() {
@@ -27,7 +28,7 @@ export function Footer() {
                     className="text-stone-400 hover:text-yerba-400 transition-colors"
                     aria-label="Instagram"
                   >
-                    <Instagram className="h-5 w-5" />
+                    <InstagramIcon className="h-5 w-5" />
                   </a>
                 )}
                 {brand.social.facebook && (
@@ -38,7 +39,7 @@ export function Footer() {
                     className="text-stone-400 hover:text-yerba-400 transition-colors"
                     aria-label="Facebook"
                   >
-                    <Facebook className="h-5 w-5" />
+                    <FacebookIcon className="h-5 w-5" />
                   </a>
                 )}
               </div>
