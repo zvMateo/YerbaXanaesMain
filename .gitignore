@@ -58,3 +58,6 @@ Img-claude/
 **/playwright-report/
 **/test-results/
 **/e2e/.auth/
+
+# Prisma client generated for the backoffice (see apps/api/prisma/schema.prisma)
+apps/backoffice/lib/generated/

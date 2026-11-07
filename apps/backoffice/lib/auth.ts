@@ -1,10 +1,14 @@
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/lib/generated/prisma/client";
 import { nextCookies } from "better-auth/next-js";
 
-const prisma = new PrismaClient();
+// Prisma 7 connects through a driver adapter (same database as the API).
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 // Determinar si estamos en producción para activar seguridad extra
 const isProduction = process.env.NODE_ENV === "production";

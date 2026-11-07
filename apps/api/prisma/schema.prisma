@@ -1,12 +1,23 @@
 // prisma/schema.prisma
 
+// DEBT: prisma-client-js is the legacy generator in Prisma 7. Kept so the
+// `@prisma/client` imports in api and backoffice stay unchanged. Upgrade path:
+// `provider = "prisma-client"` with an explicit `output` and new import paths.
 generator client {
   provider = "prisma-client-js"
 }
 
+// The backoffice (Better Auth) gets its own client with an explicit output.
+// With Bun's isolated installs the api and the backoffice resolve different
+// copies of @prisma/client, so a shared node_modules client is not reliable.
+generator backoffice {
+  provider = "prisma-client"
+  output   = "../../backoffice/lib/generated/prisma"
+}
+
+// The connection URL lives in prisma.config.ts (Prisma 7).
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ============================================================
