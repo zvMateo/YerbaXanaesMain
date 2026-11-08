@@ -37,17 +37,43 @@ import {
 import { OrdersSkeleton } from "./skeletons";
 import { EmptyState, ErrorState } from "./empty-states";
 import {
-  useReactTable,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
+  useTable,
+  tableFeatures,
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  createFilteredRowModel,
+  createSortedRowModel,
+  createPaginatedRowModel,
+  sortFn_alphanumeric,
+  sortFn_datetime,
+  sortFn_text,
   flexRender,
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { CreateOrderModal } from "./create-order-modal";
+
+// Table v9 requires explicit features. The sort fns are the ones the "auto"
+// sort can pick, so sorting keeps the v8 behavior.
+const features = tableFeatures({
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  sortFns: {
+    alphanumeric: sortFn_alphanumeric,
+    datetime: sortFn_datetime,
+    text: sortFn_text,
+  },
+});
 
 const channelConfig: Record<
   SalesChannel,
@@ -667,7 +693,7 @@ export function OrdersTable() {
   };
 
   // Define columns
-  const columns: ColumnDef<Order>[] = [
+  const columns: ColumnDef<typeof features, Order>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -820,7 +846,8 @@ export function OrdersTable() {
     },
   ];
 
-  const table = useReactTable({
+  const table = useTable({
+    features,
     data: filteredData,
     columns,
     state: {
@@ -829,12 +856,11 @@ export function OrdersTable() {
     },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // v9 turns on Shift range selection in getToggleSelectedHandler; keep v8 behavior.
+    enableRowRangeSelection: false,
     initialState: {
       pagination: {
+        pageIndex: 0,
         pageSize: 5,
       },
     },
@@ -1000,7 +1026,7 @@ export function OrdersTable() {
                   transition={{ delay: index * 0.05 }}
                   className={`hover:bg-stone-50 transition-colors ${row.getIsSelected() ? "bg-yerba-50" : ""}`}
                 >
-                  {row.getVisibleCells().map((cell) => (
+                  {row.getAllCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3 whitespace-nowrap">
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -1031,13 +1057,13 @@ export function OrdersTable() {
         <div className="px-4 py-3 border-t border-stone-200 flex items-center justify-between">
           <div className="text-sm text-stone-600">
             Mostrando{" "}
-            {table.getState().pagination.pageIndex *
-              table.getState().pagination.pageSize +
+            {table.state.pagination.pageIndex *
+              table.state.pagination.pageSize +
               1}{" "}
             a{" "}
             {Math.min(
-              (table.getState().pagination.pageIndex + 1) *
-                table.getState().pagination.pageSize,
+              (table.state.pagination.pageIndex + 1) *
+                table.state.pagination.pageSize,
               filteredData.length,
             )}{" "}
             de {filteredData.length} resultados
@@ -1051,7 +1077,7 @@ export function OrdersTable() {
               <ChevronLeft className="h-5 w-5" />
             </button>
             <span className="text-sm text-stone-600">
-              Página {table.getState().pagination.pageIndex + 1} de{" "}
+              Página {table.state.pagination.pageIndex + 1} de{" "}
               {table.getPageCount()}
             </span>
             <button

@@ -3,11 +3,18 @@
 import { useMemo, useState } from "react";
 import { useInventory, type InventoryItem } from "@/hooks/use-inventory";
 import {
-  useReactTable,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
+  useTable,
+  tableFeatures,
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  rowPaginationFeature,
+  createFilteredRowModel,
+  createSortedRowModel,
+  createPaginatedRowModel,
+  sortFn_alphanumeric,
+  sortFn_datetime,
+  sortFn_text,
   flexRender,
   type ColumnDef,
   type SortingState,
@@ -24,6 +31,23 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { AdjustStockModal } from "./adjust-stock-modal";
 import { CreateInventoryModal } from "./create-inventory-modal";
+
+// Table v9 requires explicit features. The sort fns are the ones the "auto"
+// sort can pick, so sorting keeps the v8 behavior.
+const features = tableFeatures({
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  rowPaginationFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  sortFns: {
+    alphanumeric: sortFn_alphanumeric,
+    datetime: sortFn_datetime,
+    text: sortFn_text,
+  },
+});
 
 // SKELETON
 export function InventorySkeleton() {
@@ -89,7 +113,7 @@ export function InventoryTable() {
     });
   }, [inventory, globalFilter, stockFilter]);
 
-  const columns: ColumnDef<InventoryItem>[] = [
+  const columns: ColumnDef<typeof features, InventoryItem>[] = [
     {
       accessorKey: "name",
       header: "Insumo / Producto",
@@ -188,17 +212,14 @@ export function InventoryTable() {
     },
   ];
 
-  const table = useReactTable({
+  const table = useTable({
+    features,
     data: filteredData,
     columns,
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 10 } },
+    initialState: { pagination: { pageIndex: 0, pageSize: 10 } },
   });
 
   if (isLoading) return <InventorySkeleton />;
@@ -286,7 +307,7 @@ export function InventoryTable() {
             <tbody className="divide-y divide-stone-100">
               {table.getRowModel().rows.map((row) => (
                 <tr key={row.id} className="hover:bg-stone-50">
-                  {row.getVisibleCells().map((cell) => (
+                  {row.getAllCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3 whitespace-nowrap">
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -311,7 +332,7 @@ export function InventoryTable() {
         {/* Pagination */}
         <div className="px-4 py-3 border-t border-stone-200 flex items-center justify-between">
           <span className="text-sm text-stone-600">
-            Página {table.getState().pagination.pageIndex + 1} de{" "}
+            Página {table.state.pagination.pageIndex + 1} de{" "}
             {table.getPageCount()}
           </span>
           <div className="flex gap-2">
