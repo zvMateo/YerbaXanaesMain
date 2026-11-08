@@ -375,6 +375,72 @@ describe('PaymentsService - Integration Tests', () => {
         paymentsSyncService.updateOrderStatusWithAudit,
       ).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ['../../users/me', 'payment'],
+      ['123?x=1', 'order'],
+    ])(
+      'rechaza webhook con data.id malformado %p (firma válida) sin llamar a MP',
+      async (dataIdUrl, typeUrl) => {
+        const ts = String(Math.floor(Date.now() / 1000));
+        const requestId = 'req-bad-id';
+        const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+        const webhookLogSpy = jest.spyOn(prismaService.webhookLog, 'create');
+
+        await expect(
+          service.handleWebhook({
+            body: {},
+            signature,
+            requestId,
+            dataIdUrl,
+            typeUrl,
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(webhookLogSpy).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [
+        '123456789',
+        'payment',
+        'https://api.mercadopago.com/v1/payments/123456789',
+      ],
+      [
+        'ORD01JQ4S4KY8HWQ6NA5PXB65B3D3',
+        'order',
+        'https://api.mercadopago.com/v1/orders/ORD01JQ4S4KY8HWQ6NA5PXB65B3D3',
+      ],
+    ])(
+      'acepta data.id válido %p y consulta MP en la URL esperada',
+      async (dataIdUrl, typeUrl, expectedUrl) => {
+        const ts = String(Math.floor(Date.now() / 1000));
+        const requestId = `req-ok-${typeUrl}`;
+        const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+        (global.fetch as jest.Mock).mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({}), // sin external_reference → corta acá
+        });
+
+        await expect(
+          service.handleWebhook({
+            body: {},
+            signature,
+            requestId,
+            dataIdUrl,
+            typeUrl,
+          }),
+        ).resolves.toEqual({ status: 'ok' });
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(global.fetch).toHaveBeenCalledWith(expectedUrl, {
+          headers: { Authorization: 'Bearer test-token' },
+        });
+      },
+    );
   });
 
   describe('brick-init - Rate limit por email (PENDING)', () => {
