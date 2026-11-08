@@ -41,6 +41,13 @@ jobs:
         with:
           bun-version: 1.4.4
 
+      # NestJS 12 ships ESM-only packages; Jest loads them only on Node 24.9+
+      # and the Nest 12 CLI needs Node 24.15+.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Cache Bun
         uses: actions/cache@v4
         with:
