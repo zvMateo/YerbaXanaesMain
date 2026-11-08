@@ -12,10 +12,8 @@ import { es } from "date-fns/locale";
 import {
   Link as LinkIcon,
   Copy,
-  MoreVertical,
   Plus,
   Trash2,
-  ExternalLink,
   MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";

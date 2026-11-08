@@ -34,7 +34,7 @@ describe('NotificationsService', () => {
     }).compile();
 
     service = module.get(NotificationsService);
-    global.fetch = jest.fn() as unknown as typeof fetch;
+    global.fetch = jest.fn();
   });
 
   afterEach(() => {
@@ -80,7 +80,7 @@ describe('NotificationsService', () => {
     });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
-      text: async () => '',
+      text: () => Promise.resolve(''),
     });
 
     await service.notifyOrderPaidIfNeeded('order-1');

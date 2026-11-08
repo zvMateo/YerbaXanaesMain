@@ -28,8 +28,6 @@ export async function generateMetadata({
     };
   }
 
-  const minPrice = Math.min(...(product.variants?.map((v) => v.price) || [0]));
-
   return {
     title: `${product.name} | YerbaXanaes`,
     description:
@@ -122,7 +120,7 @@ function RatingsSection({ data }: { data: RatingResult }) {
             </div>
             {r.comment && (
               <p className="text-stone-700 text-sm leading-relaxed">
-                "{r.comment}"
+                &quot;{r.comment}&quot;
               </p>
             )}
           </div>

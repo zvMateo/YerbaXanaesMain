@@ -54,8 +54,12 @@ async function main() {
     console.log(
       "⚠️  Guardá la contraseña en tu gestor; no se vuelve a mostrar.",
     );
-  } catch (error: any) {
-    if (error?.message?.includes("already exists") || error?.status === 422) {
+  } catch (error) {
+    const { message, status } = (error ?? {}) as {
+      message?: string;
+      status?: unknown;
+    };
+    if (message?.includes("already exists") || status === 422) {
       console.log("ℹ️  El usuario ya existe en la base de datos.");
       console.log(
         "   Si necesitás resetear la contraseña, hacelo desde el panel de login.",

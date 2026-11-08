@@ -194,13 +194,21 @@ export function DeliveryDetailsStep() {
     [applyRate, items, setValue, shippingDeliveryType],
   );
 
+  // Reset the quote state when its inputs change (the zip, or the cart items or
+  // delivery type captured by fetchRates). Adjusted during render, with the same
+  // triggers as the debounce effect below, instead of inside that effect.
+  const [quoteInputs, setQuoteInputs] = useState({ zipCode, fetchRates });
+  if (quoteInputs.zipCode !== zipCode || quoteInputs.fetchRates !== fetchRates) {
+    setQuoteInputs({ zipCode, fetchRates });
+    setRates([]);
+    setRatesError(null);
+  }
+
   // Debounce 800ms cuando cambia el CP
   useEffect(() => {
-    setRates([]);
     setValue("shippingCost", 0);
     setValue("shippingProvider", "manual_quote_required");
     setValue("shippingProductName", "");
-    setRatesError(null);
 
     const timer = setTimeout(() => {
       if (zipCode && zipCode.length >= 4) {
@@ -210,43 +218,61 @@ export function DeliveryDetailsStep() {
     return () => clearTimeout(timer);
   }, [zipCode, fetchRates, setValue]);
 
-  // Sucursales: cargar cuando hay provincia y eligió S
-  const fetchAgencies = useCallback(async (province: string) => {
-    if (!province) return;
-    setAgenciesLoading(true);
+  // When the selection changes, start a load (loader on, error cleared) or reset
+  // the list. Adjusted during render with the same triggers as the fetch effect.
+  const [agenciesFor, setAgenciesFor] = useState<{
+    isSucursal: boolean;
+    provinceCode: typeof provinceCode;
+  } | null>(null);
+  if (
+    agenciesFor === null ||
+    agenciesFor.isSucursal !== isSucursal ||
+    agenciesFor.provinceCode !== provinceCode
+  ) {
+    setAgenciesFor({ isSucursal, provinceCode });
     setAgenciesError(null);
-
-    try {
-      const response = await fetch(
-        `${API_URL}/shipping/agencies?provinceCode=${encodeURIComponent(province)}`,
-      );
-      if (!response.ok) throw new Error("Error al cargar sucursales");
-      const data = (await response.json()) as Agency[];
-      setAgencies(Array.isArray(data) ? data : []);
-    } catch {
-      setAgenciesError(
-        "No pudimos cargar las sucursales. Probá nuevamente o coordiná manualmente por WhatsApp.",
-      );
-      setAgencies([]);
-    } finally {
-      setAgenciesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
     if (isSucursal && provinceCode) {
-      fetchAgencies(provinceCode);
+      setAgenciesLoading(true);
     } else {
       setAgencies([]);
-      setAgenciesError(null);
     }
-  }, [isSucursal, provinceCode, fetchAgencies]);
+  }
+
+  // Sucursales: cargar cuando hay provincia y eligió S
+  useEffect(() => {
+    if (!isSucursal || !provinceCode) return;
+
+    const fetchAgencies = async () => {
+      try {
+        const response = await fetch(
+          `${API_URL}/shipping/agencies?provinceCode=${encodeURIComponent(provinceCode)}`,
+        );
+        if (!response.ok) throw new Error("Error al cargar sucursales");
+        const data = (await response.json()) as Agency[];
+        setAgencies(Array.isArray(data) ? data : []);
+      } catch {
+        setAgenciesError(
+          "No pudimos cargar las sucursales. Probá nuevamente o coordiná manualmente por WhatsApp.",
+        );
+        setAgencies([]);
+      } finally {
+        setAgenciesLoading(false);
+      }
+    };
+
+    void fetchAgencies();
+  }, [isSucursal, provinceCode]);
 
   // Cuando cambia provincia, limpiar agencia seleccionada y filtro de búsqueda
+  // (the filter is adjusted during render; the form fields stay in the effect).
+  const [filterProvince, setFilterProvince] = useState(provinceCode);
+  if (filterProvince !== provinceCode) {
+    setFilterProvince(provinceCode);
+    setAgencyFilter("");
+  }
   useEffect(() => {
     setValue("shippingAgencyCode", "");
     setValue("shippingAgencyName", "");
-    setAgencyFilter("");
   }, [provinceCode, setValue]);
 
   const handleSelectAgency = useCallback(

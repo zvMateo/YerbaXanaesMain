@@ -30,8 +30,10 @@ describe('ShippingService', () => {
 
     service = module.get(ShippingService);
     // Evitar onModuleInit real
-    jest.spyOn(service as any, 'initializeCorreoApi').mockResolvedValue(undefined);
-    global.fetch = jest.fn() as unknown as typeof fetch;
+    jest
+      .spyOn(service as any, 'initializeCorreoApi')
+      .mockResolvedValue(undefined);
+    global.fetch = jest.fn();
   });
 
   afterEach(() => {
@@ -67,25 +69,27 @@ describe('ShippingService', () => {
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({
-            token: 'jwt-test',
-            expires: new Date(Date.now() + 3600_000).toISOString(),
-          }),
+          json: () =>
+            Promise.resolve({
+              token: 'jwt-test',
+              expires: new Date(Date.now() + 3600_000).toISOString(),
+            }),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({
-            rates: [
-              {
-                deliveredType: 'D',
-                productType: 'CP',
-                productName: 'Clásico',
-                price: 2500,
-                deliveryTimeMin: '2',
-                deliveryTimeMax: '5',
-              },
-            ],
-          }),
+          json: () =>
+            Promise.resolve({
+              rates: [
+                {
+                  deliveredType: 'D',
+                  productType: 'CP',
+                  productName: 'Clásico',
+                  price: 2500,
+                  deliveryTimeMin: '2',
+                  deliveryTimeMax: '5',
+                },
+              ],
+            }),
         });
 
       const result = await service.getRates({
@@ -109,15 +113,16 @@ describe('ShippingService', () => {
       (global.fetch as jest.Mock)
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({
-            token: 'jwt',
-            expires: new Date(Date.now() + 3600_000).toISOString(),
-          }),
+          json: () =>
+            Promise.resolve({
+              token: 'jwt',
+              expires: new Date(Date.now() + 3600_000).toISOString(),
+            }),
         })
         .mockResolvedValueOnce({
           ok: false,
           status: 500,
-          json: async () => ({ message: 'error', code: '500' }),
+          json: () => Promise.resolve({ message: 'error', code: '500' }),
         });
 
       await expect(

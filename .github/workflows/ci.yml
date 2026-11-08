@@ -57,13 +57,9 @@ jobs:
       - name: Type check
         run: bun run check-types
 
-      # Lint NO bloqueante por ahora: hay deuda de lint preexistente (p. ej. 18 errores en
-      # el API, + revisar ui/ecommerce/backoffice y el paquete set-proto). Reporta pero no
-      # frena el merge. Promover a gate bloqueante (y quitar el `--fix` del script del API)
-      # cuando se salde esa deuda, en una tarea aparte.
-      - name: Lint (informativo)
+      # Blocking gate: every workspace lints clean; scripts never auto-fix in CI.
+      - name: Lint
         run: bun run lint
-        continue-on-error: true
 
       - name: Build
         run: bun run build

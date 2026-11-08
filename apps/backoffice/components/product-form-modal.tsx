@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Plus, Trash2, Package, Scale, Loader2, Check, Lock, ShoppingCart } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
   useCreateProduct,
   useUpdateProduct,
@@ -10,7 +10,7 @@ import {
   type Product,
   type ProductVariant,
 } from "@/hooks/use-products";
-import { useInventory, type InventoryItem } from "@/hooks/use-inventory";
+import { useInventory } from "@/hooks/use-inventory";
 
 import { ImageUploader } from "./image-uploader";
 
@@ -72,7 +72,19 @@ export function ProductFormModal({
   // Filtrar solo insumos a granel (GRAMS)
   const bulkItems = inventory.filter((item) => item.unit === "GRAMS");
 
-  useEffect(() => {
+  // Re-sync the form whenever the product being edited or `open` changes.
+  // State is adjusted during render (React's "adjusting state when a prop
+  // changes" pattern) instead of in an effect, with the same triggers.
+  const [syncedWith, setSyncedWith] = useState<{
+    product: Product | null | undefined;
+    open: boolean;
+  } | null>(null);
+  if (
+    syncedWith === null ||
+    syncedWith.product !== activeProduct ||
+    syncedWith.open !== open
+  ) {
+    setSyncedWith({ product: activeProduct, open });
     if (activeProduct) {
       setName(activeProduct.name);
       setDescription(activeProduct.description || "");
@@ -122,7 +134,7 @@ export function ProductFormModal({
       setLockedVariantIndices(new Set());
       setCreatedProduct(null);
     }
-  }, [activeProduct, open]);
+  }
 
   if (!open) return null;
 

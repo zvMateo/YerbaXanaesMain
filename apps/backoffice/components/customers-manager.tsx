@@ -17,22 +17,10 @@ import {
   Filter,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import {
   useCustomers,
   useCustomerStats,
-  type Customer,
   type CustomerSegment,
 } from "@/hooks/use-customers";
 import { CustomersSkeleton } from "./skeletons";

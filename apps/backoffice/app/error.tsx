@@ -35,6 +35,7 @@ export default function Error({ error, reset }: ErrorProps) {
           >
             Reintentar
           </button>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full page load on purpose: it discards broken client state (e.g. stale chunks after a deploy) and also recovers on / itself, where a same-URL <Link> keeps the error boundary up */}
           <a
             href="/"
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"

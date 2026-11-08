@@ -16,7 +16,7 @@ export function ProductFilters({
   categories,
   totalProducts,
 }: ProductFiltersProps) {
-  const router = useRouter();
+  const { push } = useRouter();
   const searchParams = useSearchParams();
 
   // Agents-Ready: Estado sincronizado con URL para shareable links
@@ -32,28 +32,24 @@ export function ProductFilters({
   // Human-Core: Debounce natural para búsqueda
   useEffect(() => {
     const timer = setTimeout(() => {
-      updateFilters();
+      const params = new URLSearchParams();
+
+      if (search) params.set("search", search);
+      if (selectedCategory) params.set("category", selectedCategory);
+      if (sortBy) params.set("sortBy", sortBy);
+
+      // Systems-Oriented: URL actualizada sin refresh
+      push(`/productos?${params.toString()}`, { scroll: false });
     }, 300); // 300ms delay feels organic
 
     return () => clearTimeout(timer);
-  }, [search, selectedCategory, sortBy]);
-
-  const updateFilters = () => {
-    const params = new URLSearchParams();
-
-    if (search) params.set("search", search);
-    if (selectedCategory) params.set("category", selectedCategory);
-    if (sortBy) params.set("sortBy", sortBy);
-
-    // Systems-Oriented: URL actualizada sin refresh
-    router.push(`/productos?${params.toString()}`, { scroll: false });
-  };
+  }, [search, selectedCategory, sortBy, push]);
 
   const clearFilters = () => {
     setSearch("");
     setSelectedCategory("");
     setSortBy("createdAt");
-    router.push("/productos", { scroll: false });
+    push("/productos", { scroll: false });
   };
 
   const hasActiveFilters = search || selectedCategory;

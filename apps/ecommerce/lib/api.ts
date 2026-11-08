@@ -6,21 +6,6 @@ import { Product, Category } from "@repo/types";
 // Human-Core: URL con fallback claro
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-function hasConnectionRefused(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-
-  const typed = error as {
-    code?: string;
-    cause?: { code?: string; errors?: Array<{ code?: string }> };
-  };
-
-  if (typed.code === "ECONNREFUSED") return true;
-  if (typed.cause?.code === "ECONNREFUSED") return true;
-  return Boolean(
-    typed.cause?.errors?.some((item) => item.code === "ECONNREFUSED"),
-  );
-}
-
 // Systems-Oriented: Manejo de errores graceful
 async function safeFetch<T>(
   url: string,

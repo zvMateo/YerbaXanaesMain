@@ -21,14 +21,13 @@ import {
 } from "@tanstack/react-table";
 import {
   Search,
-  AlertTriangle,
   Package,
   ChevronLeft,
   ChevronRight,
   Filter,
   SlidersHorizontal,
+  type LucideIcon,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
 import { AdjustStockModal } from "./adjust-stock-modal";
 import { CreateInventoryModal } from "./create-inventory-modal";
 
@@ -66,8 +65,18 @@ export function InventorySkeleton() {
   );
 }
 
+type StockFilter = "all" | "low" | "ok";
+
 // EMPTY STATE
-function EmptyState({ title, description, icon: Icon }: any) {
+function EmptyState({
+  title,
+  description,
+  icon: Icon,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
       <div className="bg-stone-50 p-4 rounded-full mb-4">
@@ -84,7 +93,7 @@ export function InventoryTable() {
   const { data: inventory, isLoading, error } = useInventory();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [stockFilter, setStockFilter] = useState<"all" | "low" | "ok">("all");
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -137,8 +146,6 @@ export function InventoryTable() {
           item.minStockAlert !== null &&
           item.currentStock <= item.minStockAlert;
 
-        // Format Unit
-        const unitLabel = item.unit === "GRAMS" ? "g" : "u";
         const val =
           item.unit === "GRAMS"
             ? (item.currentStock / 1000).toFixed(2) + " kg" // Show KG for grams
@@ -272,7 +279,7 @@ export function InventoryTable() {
           <Filter className="h-5 w-5 text-stone-400" />
           <select
             value={stockFilter}
-            onChange={(e) => setStockFilter(e.target.value as any)}
+            onChange={(e) => setStockFilter(e.target.value as StockFilter)}
             className="px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-yerba-500 bg-white"
           >
             <option value="all">Todos</option>

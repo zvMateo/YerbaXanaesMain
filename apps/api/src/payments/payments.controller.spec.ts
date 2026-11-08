@@ -41,6 +41,8 @@ describe('PaymentsController', () => {
   });
 
   it('retorna ok en ping de test.created sin llamar al service', async () => {
+    const handleWebhookSpy = jest.spyOn(paymentsService, 'handleWebhook');
+
     const result = await controller.handleWebhook(
       { action: 'test.created' },
       'sig',
@@ -50,13 +52,13 @@ describe('PaymentsController', () => {
     );
 
     expect(result).toEqual({ status: 'ok' });
-    expect(paymentsService.handleWebhook).not.toHaveBeenCalled();
+    expect(handleWebhookSpy).not.toHaveBeenCalled();
   });
 
   it('ignora firma inválida y responde 200 ok', async () => {
-    paymentsService.handleWebhook.mockRejectedValue(
-      new BadRequestException('Invalid webhook signature'),
-    );
+    const handleWebhookSpy = jest
+      .spyOn(paymentsService, 'handleWebhook')
+      .mockRejectedValue(new BadRequestException('Invalid webhook signature'));
 
     const result = await controller.handleWebhook(
       { data: { id: '123' } },
@@ -67,7 +69,7 @@ describe('PaymentsController', () => {
     );
 
     expect(result).toEqual({ status: 'ok' });
-    expect(paymentsService.handleWebhook).toHaveBeenCalledTimes(1);
+    expect(handleWebhookSpy).toHaveBeenCalledTimes(1);
   });
 
   it('propaga errores no controlados', async () => {

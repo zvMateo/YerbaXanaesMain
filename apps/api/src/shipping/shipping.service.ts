@@ -193,7 +193,7 @@ export class ShippingService implements OnModuleInit {
   private async miCorreoFetch(
     path: string,
     options: RequestInit = {},
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{ ok: boolean; status: number; data: unknown }> {
     const envStr = this.config.get<string>('CA_ENVIRONMENT') || 'PROD';
     const baseUrl = MICORREO_BASE_URLS[envStr === 'TEST' ? 'TEST' : 'PROD'];
     const token = await this.getMiCorreoToken();
@@ -563,7 +563,10 @@ export class ShippingService implements OnModuleInit {
           'Credenciales de Correo Argentino inválidas o vencidas. Revisá CA_USER_TOKEN / CA_PASSWORD_TOKEN en el servidor.',
         );
       }
-      if (lowercased.includes('timeout') || lowercased.includes('econnrefused')) {
+      if (
+        lowercased.includes('timeout') ||
+        lowercased.includes('econnrefused')
+      ) {
         throw new ServiceUnavailableException(
           'MiCorreo no responde en este momento. Reintentá en unos minutos.',
         );

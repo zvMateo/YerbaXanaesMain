@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
   Filter,
-  Download,
   ChevronLeft,
   ChevronRight,
   Package,
@@ -391,7 +390,7 @@ function StateHistoryModal({
                   </p>
                   {entry.reason && (
                     <p className="text-xs text-stone-500 italic">
-                      "{entry.reason}"
+                      &quot;{entry.reason}&quot;
                     </p>
                   )}
                 </div>

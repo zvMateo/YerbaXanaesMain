@@ -7,7 +7,7 @@ import { PaymentsSyncService } from './payments-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus } from '@prisma/client';
 
 /**
  * TESTS DE INTEGRACIÓN: Payments Service - Stock Recovery & Race Conditions
@@ -285,12 +285,13 @@ describe('PaymentsService - Integration Tests', () => {
 
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
-        json: async () => ({
-          external_reference: 'order-dup-1',
-          status: 'approved',
-          status_detail: 'accredited',
-          transactions: { payments: [{ id: 'mp-pay-1' }] },
-        }),
+        json: () =>
+          Promise.resolve({
+            external_reference: 'order-dup-1',
+            status: 'approved',
+            status_detail: 'accredited',
+            transactions: { payments: [{ id: 'mp-pay-1' }] },
+          }),
       });
 
       jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
@@ -302,6 +303,10 @@ describe('PaymentsService - Integration Tests', () => {
       jest
         .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
         .mockReturnValue(OrderStatus.PAID);
+      const updateAuditSpy = jest.spyOn(
+        paymentsSyncService,
+        'updateOrderStatusWithAudit',
+      );
 
       // Simular la deduplicación: primer webhookLog.create succeeds,
       // segundo lanza PrismaClientKnownRequestError (unique constraint violation)
@@ -330,9 +335,7 @@ describe('PaymentsService - Integration Tests', () => {
         typeUrl: 'order',
       });
 
-      expect(
-        paymentsSyncService.updateOrderStatusWithAudit,
-      ).toHaveBeenCalledTimes(1);
+      expect(updateAuditSpy).toHaveBeenCalledTimes(1);
     });
 
     it('ignora webhook viejo cuando la orden ya está en estado terminal', async () => {
@@ -343,12 +346,13 @@ describe('PaymentsService - Integration Tests', () => {
 
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
-        json: async () => ({
-          external_reference: 'order-terminal-1',
-          status: 'cancelled',
-          status_detail: 'expired',
-          transactions: { payments: [{ id: 'mp-pay-old-1' }] },
-        }),
+        json: () =>
+          Promise.resolve({
+            external_reference: 'order-terminal-1',
+            status: 'cancelled',
+            status_detail: 'expired',
+            transactions: { payments: [{ id: 'mp-pay-old-1' }] },
+          }),
       });
 
       jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
@@ -361,6 +365,10 @@ describe('PaymentsService - Integration Tests', () => {
         paymentsSyncService,
         'mapMercadoPagoStatus',
       );
+      const updateAuditSpy = jest.spyOn(
+        paymentsSyncService,
+        'updateOrderStatusWithAudit',
+      );
 
       await service.handleWebhook({
         body: {},
@@ -371,9 +379,7 @@ describe('PaymentsService - Integration Tests', () => {
       });
 
       expect(mapStatusSpy).not.toHaveBeenCalled();
-      expect(
-        paymentsSyncService.updateOrderStatusWithAudit,
-      ).not.toHaveBeenCalled();
+      expect(updateAuditSpy).not.toHaveBeenCalled();
     });
 
     it.each([
