@@ -4,10 +4,11 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/lib/generated/prisma/client";
 import { nextCookies } from "better-auth/next-js";
+import { buildPgPoolOptions } from "@/lib/pg-pool-options";
 
 // Prisma 7 connects through a driver adapter (same database as the API).
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  adapter: new PrismaPg(buildPgPoolOptions(process.env.DATABASE_URL ?? "")),
 });
 
 // Determinar si estamos en producción para activar seguridad extra

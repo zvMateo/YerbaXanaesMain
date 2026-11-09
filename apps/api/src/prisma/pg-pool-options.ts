@@ -15,10 +15,49 @@ function parseInteger(value: string | null, min: number): number | undefined {
   return parsed >= min ? parsed : undefined;
 }
 
+/** Loopback, Docker service names and `*.internal` (e.g. Railway's private network). */
+function isPrivateNetworkHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (host.includes(':')) return host === '::1';
+  return (
+    host === 'localhost' ||
+    host.startsWith('127.') ||
+    !host.includes('.') ||
+    host.endsWith('.internal')
+  );
+}
+
+/**
+ * The Prisma 6 engine defaulted to `sslmode=prefer` and did not verify the
+ * server certificate unless `sslaccept=strict`. `pg` skips TLS when sslmode is
+ * absent and treats prefer/require as verify-full, which rejects the
+ * self-signed certificates managed Postgres often uses. The mode is rewritten
+ * in the URL (pg lets URL params override explicit options) to keep the old
+ * behavior; private-network hosts keep plaintext. Explicit node-postgres TLS
+ * settings (`ssl`, `sslrootcert`, `uselibpqcompat`) are left alone.
+ */
+function applyPrismaSslDefaults(url: URL): void {
+  const params = url.searchParams;
+  const strict = params.get('sslaccept') === 'strict';
+  params.delete('sslaccept');
+
+  if (['ssl', 'sslrootcert', 'uselibpqcompat'].some((p) => params.has(p))) {
+    return;
+  }
+
+  const mode = params.get('sslmode');
+  const encrypt =
+    mode === 'prefer' ||
+    mode === 'require' ||
+    (mode === null && !isPrivateNetworkHost(url.hostname));
+  if (encrypt) params.set('sslmode', strict ? 'verify-full' : 'no-verify');
+}
+
 /**
  * Prisma 7 talks to Postgres through node-postgres (`pg`). The engine-only URL
  * params `connection_limit` and `pool_timeout` mean nothing to `pg`, so they are
- * translated into pool options and removed from the connection string.
+ * translated into pool options and removed from the connection string; TLS
+ * params are mapped as described in `applyPrismaSslDefaults`.
  */
 export function buildPgPoolOptions(rawUrl: string): PgPoolOptions {
   let url: URL;
@@ -42,6 +81,7 @@ export function buildPgPoolOptions(rawUrl: string): PgPoolOptions {
 
   url.searchParams.delete('connection_limit');
   url.searchParams.delete('pool_timeout');
+  applyPrismaSslDefaults(url);
 
   return {
     connectionString: url.toString(),
