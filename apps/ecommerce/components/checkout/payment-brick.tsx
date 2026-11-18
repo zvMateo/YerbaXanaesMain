@@ -279,6 +279,17 @@ export function PaymentBrick({
   // El preferenceId habilita "Mercado Pago Wallet" y "Cuotas sin Tarjeta" en el Brick.
   // Si el padre ya tiene una orden inicializada, restauramos el estado local y salimos
   // sin llamar al backend — así evitamos crear órdenes PENDING duplicadas al volver al paso.
+  // Montado real: StrictMode (dev) hace mount → cleanup → mount. Si usáramos un flag
+  // `cancelled` por efecto, el fetch del primer mount se descartaría y el segundo no
+  // reintenta (brickInitStartedRef), dejando el Brick cargando para siempre.
+  const isMountedRef = useRef(false);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (hasExistingInit) return;
 
@@ -286,8 +297,6 @@ export function PaymentBrick({
     // 2 órdenes PENDING antes de que el primer fetch resuelva.
     if (brickInitStartedRef.current) return;
     brickInitStartedRef.current = true;
-
-    let cancelled = false;
 
     const initBrick = async () => {
       try {
@@ -325,14 +334,14 @@ export function PaymentBrick({
         }
 
         const json = await res.json();
-        if (!cancelled) {
+        if (isMountedRef.current) {
           setPreferenceId(json.data.preferenceId);
           setBrickOrderId(json.data.orderId);
           setIsInitializing(false);
           onInit?.({ orderId: json.data.orderId, preferenceId: json.data.preferenceId });
         }
       } catch {
-        if (!cancelled) {
+        if (isMountedRef.current) {
           setInitError(
             "No se pudo inicializar el pago. Por favor recargá la página.",
           );
@@ -342,9 +351,6 @@ export function PaymentBrick({
     };
 
     void initBrick();
-    return () => {
-      cancelled = true;
-    };
     // Solo ejecutar una vez al montar — los valores del form están fijos en este paso
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
