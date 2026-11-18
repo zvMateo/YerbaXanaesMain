@@ -1,10 +1,15 @@
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/lib/generated/prisma/client";
 import { nextCookies } from "better-auth/next-js";
+import { buildPgPoolOptions } from "@/lib/pg-pool-options";
 
-const prisma = new PrismaClient();
+// Prisma 7 connects through a driver adapter (same database as the API).
+const prisma = new PrismaClient({
+  adapter: new PrismaPg(buildPgPoolOptions(process.env.DATABASE_URL ?? "")),
+});
 
 // Determinar si estamos en producción para activar seguridad extra
 const isProduction = process.env.NODE_ENV === "production";
@@ -38,8 +43,13 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    // No requerimos verificación de email para el backoffice
-    // (la clienta se registra con Google o con email ya verificado)
+    // SECURITY: sin verificación de email, cualquiera que conozca un email de
+    // ADMIN_EMAILS podría registrarse primero con una contraseña propia y quedar
+    // como ADMIN. En producción el alta por email/contraseña está cerrada: el
+    // primer ingreso es con Google (email verificado) o con scripts/create-admin.ts
+    // (NODE_ENV != production). Para reabrirlo temporalmente: ALLOW_EMAIL_SIGNUP=true.
+    // El login de usuarios ya existentes no se ve afectado.
+    disableSignUp: isProduction && process.env.ALLOW_EMAIL_SIGNUP !== "true",
   },
   socialProviders:
     googleClientId && googleClientSecret
@@ -117,7 +127,11 @@ export const auth = betterAuth({
         // En Vercel, waitUntil asegura que los emails se envíen
         // antes de que el serverless function termine
         if (typeof globalThis !== "undefined" && "waitUntil" in globalThis) {
-          (globalThis as any).waitUntil(promise);
+          (
+            globalThis as typeof globalThis & {
+              waitUntil: (promise: Promise<unknown>) => void;
+            }
+          ).waitUntil(promise);
         }
       },
     },

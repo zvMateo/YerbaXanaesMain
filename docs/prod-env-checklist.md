@@ -17,6 +17,7 @@ Completar en Railway (API) y Vercel (ecommerce + backoffice) **antes** del anunc
 | `FRONTEND_URL` | `https://yerbaxanaes.com` (sin slash final) | |
 | `BACKOFFICE_URL` | `https://admin.yerbaxanaes.com` | |
 | `ALLOWED_ORIGINS` | `https://yerbaxanaes.com,https://www.yerbaxanaes.com,https://admin.yerbaxanaes.com` | |
+| `TRUST_PROXY` | Cantidad de proxies delante de la API (default `1` en prod, Railway). Sin esto el rate limit cuenta a todos los usuarios como una sola IP. Verificar en staging que `req.ip` sea la IP real | |
 | `CA_ENVIRONMENT` | `PROD` | |
 | `CA_USER_TOKEN` / `CA_PASSWORD_TOKEN` / `CA_EMAIL` / `CA_PASSWORD` | MiCorreo prod | |
 | `CA_POSTAL_CODE_ORIGIN` | `5963` (Villa del Rosario) | |
@@ -63,7 +64,8 @@ Probar con pago de prueba real o sandbox y revisar logs.
 | `BETTER_AUTH_BASE_URL` | `https://admin.yerbaxanaes.com` | |
 | `NEXT_PUBLIC_APP_URL` | Igual base URL | |
 | `ADMIN_EMAILS` | Emails de dueña/operadores (coma) | |
-| `GOOGLE_CLIENT_ID` / `SECRET` | OAuth + redirect prod | |
+| `GOOGLE_CLIENT_ID` / `SECRET` | OAuth + redirect prod. **Obligatorio**: en prod el alta por email/contraseña está cerrada, el primer ingreso es con Google | |
+| `ALLOW_EMAIL_SIGNUP` | No definir. `true` reabre el alta por email/contraseña (solo temporal, p. ej. si Google no está listo) | |
 
 Redirect Google: `https://admin.yerbaxanaes.com/api/auth/callback/google`
 

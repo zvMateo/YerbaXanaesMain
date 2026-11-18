@@ -121,7 +121,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
 
       jest
         .spyOn(prismaService, '$transaction')
-        .mockImplementation(async (fn: any) => fn(mockTx));
+        .mockImplementation((fn: any) => fn(mockTx));
 
       const result = await service.updateOrderStatusWithAudit({
         orderId: 'nonexistent',
@@ -139,7 +139,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
 
       jest
         .spyOn(prismaService, '$transaction')
-        .mockImplementation(async (fn: any) => fn(mockTx));
+        .mockImplementation((fn: any) => fn(mockTx));
 
       const result = await service.updateOrderStatusWithAudit({
         orderId: 'order-1',
@@ -155,7 +155,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
 
       jest
         .spyOn(prismaService, '$transaction')
-        .mockImplementation(async (fn: any) => fn(mockTx));
+        .mockImplementation((fn: any) => fn(mockTx));
 
       const result = await service.updateOrderStatusWithAudit({
         orderId: 'order-1',
@@ -175,7 +175,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
 
       jest
         .spyOn(prismaService, '$transaction')
-        .mockImplementation(async (fn: any) => fn(mockTx));
+        .mockImplementation((fn: any) => fn(mockTx));
 
       const result = await service.updateOrderStatusWithAudit({
         orderId: 'order-1',
@@ -192,7 +192,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
 
       jest
         .spyOn(prismaService, '$transaction')
-        .mockImplementation(async (fn: any) => fn(mockTx));
+        .mockImplementation((fn: any) => fn(mockTx));
 
       const result = await service.updateOrderStatusWithAudit({
         orderId: 'order-1',
@@ -227,7 +227,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
 
       jest
         .spyOn(prismaService, '$transaction')
-        .mockImplementation(async (fn: any) => fn(mockTx));
+        .mockImplementation((fn: any) => fn(mockTx));
 
       await service.updateOrderStatusWithAudit({
         orderId: 'order-1',
@@ -515,7 +515,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
         },
       ];
 
-      jest
+      const findManySpy = jest
         .spyOn(prismaService.orderStateChange, 'findMany')
         .mockResolvedValue(mockHistory as any);
 
@@ -525,7 +525,7 @@ describe('PaymentsSyncService - Unit Tests', () => {
       expect(result[0].source).toBe('WEBHOOK_MERCADOPAGO');
       expect(result[1].source).toBe('MANUAL_OVERRIDE');
       expect(result[1].changedByEmail).toBe('admin@yerba.com');
-      expect(prismaService.orderStateChange.findMany).toHaveBeenCalledWith(
+      expect(findManySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { orderId: 'order-1' },
           orderBy: { createdAt: 'asc' },

@@ -1,6 +1,9 @@
 // 📁 apps/backoffice/lib/api.ts
 // API Client para el backoffice
 
+import type { Order } from "@/hooks/use-orders";
+import type { UpdateProductDto } from "@/hooks/use-products";
+
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 ).replace(/\/+$/, "");
@@ -37,7 +40,7 @@ export async function getDashboardStats() {
     totalProducts: number;
     totalCustomers: number;
     lowStockItems: number;
-    recentOrders: any[];
+    recentOrders: Order[];
   }>("/dashboard/stats");
 }
 
@@ -67,7 +70,7 @@ export async function getProducts() {
   return fetchAPI("/catalog");
 }
 
-export async function updateProduct(id: string, data: any) {
+export async function updateProduct(id: string, data: UpdateProductDto) {
   return fetchAPI(`/catalog/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),

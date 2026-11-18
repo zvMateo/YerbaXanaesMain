@@ -7,7 +7,7 @@ import { PaymentsSyncService } from './payments-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { ShippingService } from '../shipping/shipping.service';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus } from '@prisma/client';
 
 /**
  * TESTS DE INTEGRACIÓN: Payments Service - Stock Recovery & Race Conditions
@@ -285,12 +285,13 @@ describe('PaymentsService - Integration Tests', () => {
 
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
-        json: async () => ({
-          external_reference: 'order-dup-1',
-          status: 'approved',
-          status_detail: 'accredited',
-          transactions: { payments: [{ id: 'mp-pay-1' }] },
-        }),
+        json: () =>
+          Promise.resolve({
+            external_reference: 'order-dup-1',
+            status: 'approved',
+            status_detail: 'accredited',
+            transactions: { payments: [{ id: 'mp-pay-1' }] },
+          }),
       });
 
       jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
@@ -302,6 +303,10 @@ describe('PaymentsService - Integration Tests', () => {
       jest
         .spyOn(paymentsSyncService, 'mapMercadoPagoStatus')
         .mockReturnValue(OrderStatus.PAID);
+      const updateAuditSpy = jest.spyOn(
+        paymentsSyncService,
+        'updateOrderStatusWithAudit',
+      );
 
       // Simular la deduplicación: primer webhookLog.create succeeds,
       // segundo lanza PrismaClientKnownRequestError (unique constraint violation)
@@ -330,9 +335,30 @@ describe('PaymentsService - Integration Tests', () => {
         typeUrl: 'order',
       });
 
-      expect(
-        paymentsSyncService.updateOrderStatusWithAudit,
-      ).toHaveBeenCalledTimes(1);
+      expect(updateAuditSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('propaga errores de DB que no son P2002 para que MP reintente', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-db-down-1';
+      const dataIdUrl = '12345';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (prismaService.webhookLog.create as jest.Mock).mockRejectedValueOnce(
+        Object.assign(new Error('Connection terminated'), { code: 'P1001' }),
+      );
+
+      await expect(
+        service.handleWebhook({
+          body: {},
+          signature,
+          requestId,
+          dataIdUrl,
+          typeUrl: 'payment',
+        }),
+      ).rejects.toThrow('Connection terminated');
+
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('ignora webhook viejo cuando la orden ya está en estado terminal', async () => {
@@ -343,12 +369,13 @@ describe('PaymentsService - Integration Tests', () => {
 
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
-        json: async () => ({
-          external_reference: 'order-terminal-1',
-          status: 'cancelled',
-          status_detail: 'expired',
-          transactions: { payments: [{ id: 'mp-pay-old-1' }] },
-        }),
+        json: () =>
+          Promise.resolve({
+            external_reference: 'order-terminal-1',
+            status: 'cancelled',
+            status_detail: 'expired',
+            transactions: { payments: [{ id: 'mp-pay-old-1' }] },
+          }),
       });
 
       jest.spyOn(prismaService.order, 'findUnique').mockResolvedValue({
@@ -361,6 +388,10 @@ describe('PaymentsService - Integration Tests', () => {
         paymentsSyncService,
         'mapMercadoPagoStatus',
       );
+      const updateAuditSpy = jest.spyOn(
+        paymentsSyncService,
+        'updateOrderStatusWithAudit',
+      );
 
       await service.handleWebhook({
         body: {},
@@ -371,10 +402,74 @@ describe('PaymentsService - Integration Tests', () => {
       });
 
       expect(mapStatusSpy).not.toHaveBeenCalled();
-      expect(
-        paymentsSyncService.updateOrderStatusWithAudit,
-      ).not.toHaveBeenCalled();
+      expect(updateAuditSpy).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ['../../users/me', 'payment'],
+      ['123?x=1', 'order'],
+    ])(
+      'rechaza webhook con data.id malformado %p (firma válida) sin llamar a MP',
+      async (dataIdUrl, typeUrl) => {
+        const ts = String(Math.floor(Date.now() / 1000));
+        const requestId = 'req-bad-id';
+        const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+        const webhookLogSpy = jest.spyOn(prismaService.webhookLog, 'create');
+
+        await expect(
+          service.handleWebhook({
+            body: {},
+            signature,
+            requestId,
+            dataIdUrl,
+            typeUrl,
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(webhookLogSpy).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [
+        '123456789',
+        'payment',
+        'https://api.mercadopago.com/v1/payments/123456789',
+      ],
+      [
+        'ORD01JQ4S4KY8HWQ6NA5PXB65B3D3',
+        'order',
+        'https://api.mercadopago.com/v1/orders/ORD01JQ4S4KY8HWQ6NA5PXB65B3D3',
+      ],
+    ])(
+      'acepta data.id válido %p y consulta MP en la URL esperada',
+      async (dataIdUrl, typeUrl, expectedUrl) => {
+        const ts = String(Math.floor(Date.now() / 1000));
+        const requestId = `req-ok-${typeUrl}`;
+        const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+        (global.fetch as jest.Mock).mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({}), // sin external_reference → corta acá
+        });
+
+        await expect(
+          service.handleWebhook({
+            body: {},
+            signature,
+            requestId,
+            dataIdUrl,
+            typeUrl,
+          }),
+        ).resolves.toEqual({ status: 'ok' });
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(global.fetch).toHaveBeenCalledWith(expectedUrl, {
+          headers: { Authorization: 'Bearer test-token' },
+        });
+      },
+    );
   });
 
   describe('brick-init - Rate limit por email (PENDING)', () => {

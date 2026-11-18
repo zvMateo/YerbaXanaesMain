@@ -41,8 +41,10 @@ describe('Payments Brick Matrix (e2e)', () => {
 
   const duplicateWebhookIds = new Set<string>();
 
+  // Synchronous mocks: the controller awaits both calls, so returned values and
+  // thrown exceptions reach the HTTP layer exactly as from the async service.
   const paymentsServiceMock = {
-    processBrickPayment: jest.fn(async (dto: any) => {
+    processBrickPayment: jest.fn((dto: any) => {
       if (dto.formData.transaction_amount === 99999) {
         throw new BadRequestException(
           'El monto del pago cambió. Reintentá para recalcular el total.',
@@ -112,7 +114,7 @@ describe('Payments Brick Matrix (e2e)', () => {
 
       return { orderId: 'order-default', status: 'pending' };
     }),
-    handleWebhook: jest.fn(async (payload: any) => {
+    handleWebhook: jest.fn((payload: any) => {
       if (!payload.signature || !payload.requestId) {
         throw new BadRequestException('Firma o metadatos inválidos');
       }

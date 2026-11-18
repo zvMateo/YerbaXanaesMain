@@ -4,7 +4,7 @@
 # disponible en runtime (sin problemas de multi-stage copy).
 # ============================================================
 
-FROM oven/bun:1.3.8-slim
+FROM oven/bun:1.4.4-slim
 
 WORKDIR /app
 

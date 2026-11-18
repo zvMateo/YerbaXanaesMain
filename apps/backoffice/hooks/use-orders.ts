@@ -52,7 +52,7 @@ export interface Order {
   notes?: string;
   createdAt: string; // ISO string
   paymentProvider: string;
-  items: Array<any>; // Idealmente definir el tipo OrderItem
+  items: OrderLineItem[];
   user?: {
     name?: string;
     email: string;
@@ -92,18 +92,20 @@ export interface StateChangeEntry {
   createdAt: string;
 }
 
-export interface OrderDetails extends Order {
-  items: Array<{
-    id: string;
-    quantity: number;
-    price: number;
-    variant: {
+export interface OrderLineItem {
+  id: string;
+  quantity: number;
+  price: number;
+  variant: {
+    name: string;
+    product: {
       name: string;
-      product: {
-        name: string;
-      };
     };
-  }>;
+  };
+}
+
+export interface OrderDetails extends Order {
+  items: OrderLineItem[];
   // Agrega más campos si la API los devuelve
 }
 

@@ -297,7 +297,7 @@ export class OrdersService {
     // Cambio de status libre (PAID, REJECTED, REFUNDED, etc.) — actualización plana
     const patch: Prisma.OrderUpdateInput = { ...data };
     if (status) {
-      patch.status = status as OrderStatus;
+      patch.status = status;
       patch.manualOverrideAt = new Date();
     }
     if (note !== undefined) {

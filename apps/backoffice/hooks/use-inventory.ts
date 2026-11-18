@@ -30,7 +30,7 @@ export interface CreateInventoryDto {
   costPrice?: number;
 }
 
-export interface UpdateInventoryDto extends Partial<CreateInventoryDto> {}
+export type UpdateInventoryDto = Partial<CreateInventoryDto>;
 
 // ============================================
 // API FUNCTIONS

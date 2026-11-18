@@ -817,7 +817,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
       // Método desconocido: dejamos la orden PENDING para reconciliación
       this.logger.warn(
-        `selectedPaymentMethod desconocido: ${dto.selectedPaymentMethod}`,
+        `selectedPaymentMethod desconocido: ${String(dto.selectedPaymentMethod)}`,
       );
       return { orderId: order.id, status: 'pending' };
     } catch (error) {
@@ -1251,7 +1251,10 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     typeUrl: string;
   }) {
     const { signature, requestId, dataIdUrl, typeUrl } = params;
-    this.logger.log(`Webhook recibido: type=${typeUrl}, id=${dataIdUrl}`);
+    // JSON.stringify keeps untrusted query values on one log line (no log injection).
+    this.logger.log(
+      `Webhook recibido: type=${JSON.stringify(typeUrl)}, id=${JSON.stringify(dataIdUrl)}`,
+    );
 
     const webhookSecret = this.config.get<string>('MP_WEBHOOK_SECRET');
 
@@ -1298,6 +1301,13 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Expired webhook signature');
     }
 
+    // El id va a la URL de MP: solo identificadores planos (payment numérico,
+    // order alfanumérico tipo ORD01...). Evita path traversal / query injection.
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(dataIdUrl)) {
+      this.logger.warn('Webhook con data.id de formato inválido — rechazando');
+      throw new BadRequestException('Invalid webhook data id');
+    }
+
     // Asegurar que el dataIdUrl esté en minúsculas (requisito de la doc)
     const dataIdLower = dataIdUrl.toLowerCase();
 
@@ -1321,8 +1331,13 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.webhookLog.create({
         data: { requestId, dataId: dataIdUrl, type: typeUrl },
       });
-    } catch {
-      // @@unique([requestId, type]) lanza error si ya existe → webhook ya procesado
+    } catch (error) {
+      // Solo P2002 (@@unique([requestId, type])) significa "ya procesado".
+      // Cualquier otro error de DB se propaga (500) para que MP reintente
+      // en vez de perder la notificación como si fuera un duplicado.
+      if ((error as { code?: string } | null)?.code !== 'P2002') {
+        throw error;
+      }
       this.logger.log(
         `Webhook duplicado ignorado: requestId=${requestId}, type=${typeUrl}, dataId=${dataIdUrl}`,
       );
@@ -1335,7 +1350,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       try {
         const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
         const response = await fetch(
-          `https://api.mercadopago.com/v1/payments/${dataIdUrl}`,
+          `https://api.mercadopago.com/v1/payments/${encodeURIComponent(dataIdUrl)}`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
 
@@ -1426,7 +1441,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         const accessToken = this.config.get<string>('MP_ACCESS_TOKEN');
         // Ir a buscar el recurso Order a MercadoPago
         const response = await fetch(
-          `https://api.mercadopago.com/v1/orders/${dataIdUrl}`,
+          `https://api.mercadopago.com/v1/orders/${encodeURIComponent(dataIdUrl)}`,
           {
             headers: { Authorization: `Bearer ${accessToken}` },
           },

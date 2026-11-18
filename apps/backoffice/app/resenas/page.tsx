@@ -153,7 +153,7 @@ export default function ResenasPage() {
 
                       {rating.comment && (
                         <p className="text-sm text-stone-700 bg-stone-50 rounded-xl p-3">
-                          "{rating.comment}"
+                          &quot;{rating.comment}&quot;
                         </p>
                       )}
                     </div>

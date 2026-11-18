@@ -45,7 +45,8 @@ export class RatingsService {
         productId,
         ...(onlyApproved ? { isApproved: true } : {}),
       },
-      include: { user: { select: { name: true, email: true } } },
+      // Endpoint público: nunca exponer el email del cliente.
+      include: { user: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
     });
 

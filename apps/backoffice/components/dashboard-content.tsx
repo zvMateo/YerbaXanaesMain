@@ -4,17 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import {
-  TrendingUp,
-  TrendingDown,
   ShoppingCart,
   Package,
   Users,
   ArrowUpRight,
   ArrowDownRight,
   DollarSign,
-  Calendar,
   RefreshCw,
-  MoreHorizontal,
   AlertTriangle,
 } from "lucide-react";
 import {
@@ -25,8 +21,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
@@ -34,11 +28,7 @@ import {
   Area,
 } from "recharts";
 import { toast } from "sonner";
-import {
-  useDashboard,
-  useDashboardAlerts,
-  type DashboardMetrics,
-} from "@/hooks/use-dashboard";
+import { useDashboard, useDashboardAlerts } from "@/hooks/use-dashboard";
 import { DashboardSkeleton } from "./skeletons";
 import { ErrorState } from "./empty-states";
 
@@ -305,7 +295,7 @@ export function DashboardContent() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((card, index) => (
+        {kpiCards.map((card) => (
           <KPICard key={card.title} {...card} loading={isLoading} />
         ))}
       </div>

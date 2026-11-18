@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useUploadProductImage,
   useRemoveProductImage,
 } from "@/hooks/use-products";
-import Image from "next/image";
 
 interface ImageUploaderProps {
   productId: string;
@@ -37,16 +36,12 @@ export function ImageUploader({
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-      const files = Array.from(e.dataTransfer.files);
-      void handleFiles(files);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [productId, images],
-  );
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    void handleFiles(files);
+  };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];

@@ -94,4 +94,4 @@ Notas clave:
 ## Runbooks de operación
 
 - Validación E2E staging (servicios reales): `apps/api/test/PAYMENTS_STAGING_E2E_RUNBOOK.md`
-- Alertas y umbrales de pagos: `PAYMENTS_ALERTS_RUNBOOK.md`
+

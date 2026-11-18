@@ -13,8 +13,6 @@ import {
   Menu,
   X,
   Leaf,
-  ChevronLeft,
-  ChevronRight,
   Bell,
   Settings,
   HelpCircle,
@@ -152,6 +150,8 @@ const navigation = [
   },
 ];
 
+type NavigationItem = (typeof navigation)[number];
+
 const secondaryNavigation = [
   { name: "Configuración", href: "/configuracion", icon: Settings },
   { name: "Ayuda", href: "/ayuda", icon: HelpCircle },
@@ -167,7 +167,7 @@ function NavItem({
   isActive,
   badgeCount,
 }: {
-  item: any;
+  item: NavigationItem;
   isCollapsed: boolean;
   isActive: boolean;
   badgeCount?: number;
@@ -300,6 +300,8 @@ function NavItem({
   );
 }
 
+const noopSubscribe = () => () => {};
+
 /**
  * Avatar del usuario — renderizado solo en el cliente para evitar
  * el hydration mismatch entre SSR (sin sesión) y cliente (con Google image).
@@ -311,8 +313,12 @@ function UserAvatar({
   user: { name?: string | null; image?: string | null } | null;
   userInitials: string;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // false on the server and during hydration, true afterwards (no mount effect).
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
 
   if (mounted && user?.image) {
     return (

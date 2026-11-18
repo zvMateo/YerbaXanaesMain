@@ -17,7 +17,7 @@ export type UpdatableOrderStatus = (typeof UPDATABLE_ORDER_STATUSES)[number];
 export class UpdateOrderDto extends PartialType(CreateOrderDto) {
   @IsOptional()
   @IsString()
-  @IsIn(UPDATABLE_ORDER_STATUSES as unknown as string[])
+  @IsIn(UPDATABLE_ORDER_STATUSES)
   status?: UpdatableOrderStatus;
 
   @IsOptional()

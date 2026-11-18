@@ -1,5 +1,6 @@
 import './instrument';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -16,14 +17,8 @@ function installConsoleRedaction(): void {
           /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
           '[REDACTED_JWT]',
         )
-        .replace(
-          /(Bearer\s+)[A-Za-z0-9._\-]+/gi,
-          '$1[REDACTED_TOKEN]',
-        )
-        .replace(
-          /(token["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi,
-          '$1[REDACTED]',
-        );
+        .replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1[REDACTED_TOKEN]')
+        .replace(/(token["']?\s*[:=]\s*["']?)[^"'\s,}]+/gi, '$1[REDACTED]');
     });
 
   const wrap =
@@ -31,13 +26,9 @@ function installConsoleRedaction(): void {
     (...args: unknown[]) =>
       fn(...redact(args));
 
-  // eslint-disable-next-line no-console
   console.log = wrap(console.log.bind(console));
-  // eslint-disable-next-line no-console
   console.info = wrap(console.info.bind(console));
-  // eslint-disable-next-line no-console
   console.warn = wrap(console.warn.bind(console));
-  // eslint-disable-next-line no-console
   console.error = wrap(console.error.bind(console));
 }
 
@@ -45,7 +36,18 @@ async function bootstrap() {
   installConsoleRedaction();
   const logger = new Logger('Bootstrap');
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Detrás de Railway (proxy inverso) req.ip sería la IP del proxy y el
+  // ThrottlerGuard contaría a TODOS los usuarios como uno solo. TRUST_PROXY =
+  // cantidad de proxies confiables delante de la API (default 1 en producción,
+  // 0 en local). Si hay un CDN extra delante, subir el valor.
+  const trustProxyHops = Number(
+    process.env.TRUST_PROXY ?? (process.env.NODE_ENV === 'production' ? 1 : 0),
+  );
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
 
   // 1. Helmet — headers de seguridad HTTP (XSS, clickjacking, etc.)
   app.use(helmet());

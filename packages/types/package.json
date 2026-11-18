@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
-    "tsup": "^8.3.5",
-    "typescript": "^5"
+    "tsup": "^9.0.0",
+    "typescript": "6.0.3"
   }
 }
