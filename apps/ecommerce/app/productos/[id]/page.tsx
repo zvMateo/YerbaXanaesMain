@@ -95,7 +95,7 @@ function RatingsSection({ data }: { data: RatingResult }) {
           <div key={r.id} className="bg-stone-50 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 bg-yerba-100 rounded-full flex items-center justify-center text-yerba-700 font-semibold text-sm">
-                {(r.user?.name || r.user?.email || "A")[0].toUpperCase()}
+                {(r.user?.name || "A")[0].toUpperCase()}
               </div>
               <div>
                 <p className="text-sm font-semibold text-stone-900">

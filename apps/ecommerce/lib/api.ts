@@ -108,7 +108,7 @@ export interface RatingResult {
     rating: number;
     comment?: string;
     createdAt: string;
-    user?: { name?: string; email: string };
+    user?: { name?: string };
   }[];
   avgRating: number;
   totalRatings: number;
