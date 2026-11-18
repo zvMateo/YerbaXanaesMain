@@ -43,8 +43,13 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    // No requerimos verificación de email para el backoffice
-    // (la clienta se registra con Google o con email ya verificado)
+    // SECURITY: sin verificación de email, cualquiera que conozca un email de
+    // ADMIN_EMAILS podría registrarse primero con una contraseña propia y quedar
+    // como ADMIN. En producción el alta por email/contraseña está cerrada: el
+    // primer ingreso es con Google (email verificado) o con scripts/create-admin.ts
+    // (NODE_ENV != production). Para reabrirlo temporalmente: ALLOW_EMAIL_SIGNUP=true.
+    // El login de usuarios ya existentes no se ve afectado.
+    disableSignUp: isProduction && process.env.ALLOW_EMAIL_SIGNUP !== "true",
   },
   socialProviders:
     googleClientId && googleClientSecret
