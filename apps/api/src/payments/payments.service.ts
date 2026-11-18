@@ -1331,8 +1331,13 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.webhookLog.create({
         data: { requestId, dataId: dataIdUrl, type: typeUrl },
       });
-    } catch {
-      // @@unique([requestId, type]) lanza error si ya existe → webhook ya procesado
+    } catch (error) {
+      // Solo P2002 (@@unique([requestId, type])) significa "ya procesado".
+      // Cualquier otro error de DB se propaga (500) para que MP reintente
+      // en vez de perder la notificación como si fuera un duplicado.
+      if ((error as { code?: string } | null)?.code !== 'P2002') {
+        throw error;
+      }
       this.logger.log(
         `Webhook duplicado ignorado: requestId=${requestId}, type=${typeUrl}, dataId=${dataIdUrl}`,
       );

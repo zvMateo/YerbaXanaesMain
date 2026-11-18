@@ -1,5 +1,6 @@
 import './instrument';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -35,7 +36,18 @@ async function bootstrap() {
   installConsoleRedaction();
   const logger = new Logger('Bootstrap');
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Detrás de Railway (proxy inverso) req.ip sería la IP del proxy y el
+  // ThrottlerGuard contaría a TODOS los usuarios como uno solo. TRUST_PROXY =
+  // cantidad de proxies confiables delante de la API (default 1 en producción,
+  // 0 en local). Si hay un CDN extra delante, subir el valor.
+  const trustProxyHops = Number(
+    process.env.TRUST_PROXY ?? (process.env.NODE_ENV === 'production' ? 1 : 0),
+  );
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
 
   // 1. Helmet — headers de seguridad HTTP (XSS, clickjacking, etc.)
   app.use(helmet());

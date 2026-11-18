@@ -338,6 +338,29 @@ describe('PaymentsService - Integration Tests', () => {
       expect(updateAuditSpy).toHaveBeenCalledTimes(1);
     });
 
+    it('propaga errores de DB que no son P2002 para que MP reintente', async () => {
+      const ts = String(Math.floor(Date.now() / 1000));
+      const requestId = 'req-db-down-1';
+      const dataIdUrl = '12345';
+      const signature = buildValidWebhookSignature(dataIdUrl, requestId, ts);
+
+      (prismaService.webhookLog.create as jest.Mock).mockRejectedValueOnce(
+        Object.assign(new Error('Connection terminated'), { code: 'P1001' }),
+      );
+
+      await expect(
+        service.handleWebhook({
+          body: {},
+          signature,
+          requestId,
+          dataIdUrl,
+          typeUrl: 'payment',
+        }),
+      ).rejects.toThrow('Connection terminated');
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
     it('ignora webhook viejo cuando la orden ya está en estado terminal', async () => {
       const ts = String(Math.floor(Date.now() / 1000));
       const requestId = 'req-old-1';
